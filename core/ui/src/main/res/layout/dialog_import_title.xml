@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The custom title of the import dialog (BUG-20260922-013): the dialog title plus the hint that used
+  to be `setMessage()`. It is a title and not a message because AOSP drops the item list whenever a
+  message is present — see ImportPickerDialog.
+
+  The text itself is set from code, so there are no hard-coded strings here. Colours come from the
+  dialog theme (the view is inflated with the dialog's own context); the sizes are spelled out
+  because the framework's title template is single-line and too small to read from a couch.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingStart="24dp"
+    android:paddingTop="16dp"
+    android:paddingEnd="24dp"
+    android:paddingBottom="8dp">
+
+    <TextView
+        android:id="@+id/import_dialog_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="?android:attr/textColorPrimary"
+        android:textSize="20sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/import_dialog_hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:textColor="?android:attr/textColorSecondary"
+        android:textSize="15sp" />
+
+</LinearLayout>

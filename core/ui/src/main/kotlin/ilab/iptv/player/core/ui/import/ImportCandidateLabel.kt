@@ -1,4 +1,4 @@
-package ilab.iptv.player.feature.channels
+package ilab.iptv.player.core.ui.import
 
 import ilab.iptv.player.core.domain.playlist.ImportCandidate
 import java.text.SimpleDateFormat
@@ -12,6 +12,10 @@ import java.util.TimeZone
  * Pure and separate from the activity so the two things that are easy to get wrong — a size a human
  * can read and a listing that tells two same-named files apart — are pinned by a unit test instead of
  * by squinting at a TV screenshot.
+ *
+ * Lives in `:core:ui` (not inside one feature) because **both** import entrances list files: the
+ * browse screen and the source-management screen. One format means QA sees the same row text
+ * whichever door they came through.
  *
  * `java.text` rather than `java.time`: the project's minSdk is 21 and there is no core-library
  * desugaring configured, so `DateTimeFormatter`/`Instant` are API-26 calls that lint (correctly)

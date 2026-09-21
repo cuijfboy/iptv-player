@@ -1,7 +1,6 @@
 package ilab.iptv.player.feature.channels
 
 import android.os.Bundle
-import android.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.widget.Button
 import android.widget.TextView
@@ -18,6 +17,11 @@ import ilab.iptv.player.core.common.LogCategory
 import ilab.iptv.player.core.common.Logger
 import ilab.iptv.player.core.domain.playlist.ImportResult
 import ilab.iptv.player.core.domain.playlist.PlaylistImportPort
+import ilab.iptv.player.core.ui.import.ImportCandidateLabel
+import ilab.iptv.player.core.ui.import.ImportEntrance
+import ilab.iptv.player.core.ui.import.ImportPickContent
+import ilab.iptv.player.core.ui.import.ImportPickerDialog
+import ilab.iptv.player.core.ui.import.ImportPickerModel
 import ilab.iptv.player.core.ui.player.PlayerContract
 import ilab.iptv.player.core.ui.settings.SettingsContract
 import kotlinx.coroutines.launch
@@ -183,26 +187,38 @@ class BrowseActivity : ComponentActivity() {
      * (with the `adb push` target spelled out, which is the QA path), a successful import reports what
      * it turned into, and a rejected file says why — the list itself refreshes on its own, because the
      * catalog is a `StateFlow`.
+     *
+     * BUG-20260922-013: the hint used to be `setMessage(...)` next to `setItems(...)`, and AOSP drops
+     * the list when a message is present — on the TV the dialog came up with no rows at all, so the
+     * app had no way left to load real channels. The hint now rides in the custom title
+     * ([ImportPickerDialog]) and the framework's own list is what the remote drives.
      */
     private fun openImportPicker() {
         lifecycleScope.launch {
             val current = importPort.lastImported()?.name ?: getString(R.string.browse_import_none)
             val folders = importPort.folders()
-            AlertDialog.Builder(this@BrowseActivity)
-                .setTitle(R.string.browse_import_title)
-                .setMessage(getString(R.string.browse_import_hint, current, folders.dropFolder))
-                .setItems(
-                    arrayOf(
-                        getString(R.string.browse_import_pick_saf),
-                        getString(R.string.browse_import_pick_drop),
-                    ),
-                ) { _, which ->
-                    if (which == 0) openDocumentPicker() else showDropPicker()
+            ImportPickerDialog.showList(
+                context = this@BrowseActivity,
+                title = getString(R.string.browse_import_title),
+                hint = getString(R.string.browse_import_hint, current, folders.dropFolder),
+                rows = ImportEntrance.entries.map { entranceLabel(it) },
+                cancelLabel = getString(R.string.browse_import_cancel),
+            ) { which ->
+                when (ImportEntrance.entries[which]) {
+                    ImportEntrance.SystemPicker -> openDocumentPicker()
+                    ImportEntrance.DropFolder -> showDropPicker()
                 }
-                .setNegativeButton(R.string.browse_import_cancel, null)
-                .show()
+            }
         }
     }
+
+    /** One place the entrance enum becomes words, so the list and the action stay in step. */
+    private fun entranceLabel(entrance: ImportEntrance): String = getString(
+        when (entrance) {
+            ImportEntrance.SystemPicker -> R.string.browse_import_pick_saf
+            ImportEntrance.DropFolder -> R.string.browse_import_pick_drop
+        },
+    )
 
     /** The two paths must both stay available (P2-6 item 3): a TV may ship no file picker at all. */
     private fun openDocumentPicker() {
@@ -216,21 +232,33 @@ class BrowseActivity : ComponentActivity() {
     private fun showDropPicker() {
         lifecycleScope.launch {
             val candidates = importPort.candidates()
-            val folders = importPort.folders()
-            if (candidates.isEmpty()) {
-                AlertDialog.Builder(this@BrowseActivity)
-                    .setTitle(R.string.browse_import_title)
-                    .setMessage(getString(R.string.browse_import_empty, folders.dropFolder))
-                    .setPositiveButton(R.string.browse_import_close, null)
-                    .show()
-                return@launch
+            val title = getString(R.string.browse_import_title)
+            when (
+                val content = ImportPickerModel.pickContent(
+                    candidates = candidates,
+                    emptyMessage = getString(
+                        R.string.browse_import_empty,
+                        importPort.folders().dropFolder,
+                    ),
+                    rowLabel = { ImportCandidateLabel.describe(it) },
+                )
+            ) {
+                is ImportPickContent.Empty -> ImportPickerDialog.showMessage(
+                    context = this@BrowseActivity,
+                    title = title,
+                    message = content.message,
+                    closeLabel = getString(R.string.browse_import_close),
+                )
+
+                is ImportPickContent.Files -> ImportPickerDialog.showList(
+                    context = this@BrowseActivity,
+                    title = title,
+                    rows = content.rows,
+                    cancelLabel = getString(R.string.browse_import_cancel),
+                ) { which ->
+                    runImport { importPort.import(candidates[which]) }
+                }
             }
-            val labels = candidates.map { ImportCandidateLabel.describe(it) }.toTypedArray()
-            AlertDialog.Builder(this@BrowseActivity)
-                .setTitle(R.string.browse_import_title)
-                .setItems(labels) { _, which -> runImport { importPort.import(candidates[which]) } }
-                .setNegativeButton(R.string.browse_import_cancel, null)
-                .show()
         }
     }
 

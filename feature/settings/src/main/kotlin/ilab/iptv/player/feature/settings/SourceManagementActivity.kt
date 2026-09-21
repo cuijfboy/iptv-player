@@ -28,6 +28,11 @@ import ilab.iptv.player.core.domain.source.ManagedSource
 import ilab.iptv.player.core.domain.source.PlaylistHint
 import ilab.iptv.player.core.domain.source.SourceDraft
 import ilab.iptv.player.core.domain.source.SourceMutation
+import ilab.iptv.player.core.ui.import.ImportCandidateLabel
+import ilab.iptv.player.core.ui.import.ImportEntrance
+import ilab.iptv.player.core.ui.import.ImportPickContent
+import ilab.iptv.player.core.ui.import.ImportPickerDialog
+import ilab.iptv.player.core.ui.import.ImportPickerModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -219,21 +224,30 @@ class SourceManagementActivity : ComponentActivity() {
             val remembered = importPort.lastImported()
             val current = remembered?.name?.let { getString(R.string.source_import_current, it) }
                 ?: getString(R.string.source_import_none)
-            AlertDialog.Builder(this@SourceManagementActivity)
-                .setTitle(R.string.source_import_title)
-                .setMessage(getString(R.string.source_import_message) + "\n\n" + current)
-                .setItems(
-                    arrayOf(
-                        getString(R.string.source_import_saf),
-                        getString(R.string.source_import_drop),
-                    ),
-                ) { _, which ->
-                    if (which == 0) openDocumentPicker() else showDropPicker()
+            // BUG-20260922-013 (same defect as the browse screen): a message next to a list makes
+            // AOSP throw the list away, so the hint goes in the title view instead.
+            ImportPickerDialog.showList(
+                context = this@SourceManagementActivity,
+                title = getString(R.string.source_import_title),
+                hint = getString(R.string.source_import_message) + "\n\n" + current,
+                rows = ImportEntrance.entries.map { entranceLabel(it) },
+                cancelLabel = getString(R.string.source_dialog_cancel),
+            ) { which ->
+                when (ImportEntrance.entries[which]) {
+                    ImportEntrance.SystemPicker -> openDocumentPicker()
+                    ImportEntrance.DropFolder -> showDropPicker()
                 }
-                .setNegativeButton(R.string.source_dialog_cancel, null)
-                .show()
+            }
         }
     }
+
+    /** One place the entrance enum becomes words, so the list and the action stay in step. */
+    private fun entranceLabel(entrance: ImportEntrance): String = getString(
+        when (entrance) {
+            ImportEntrance.SystemPicker -> R.string.source_import_saf
+            ImportEntrance.DropFolder -> R.string.source_import_drop
+        },
+    )
 
     private fun openDocumentPicker() {
         try {
@@ -249,23 +263,34 @@ class SourceManagementActivity : ComponentActivity() {
     private fun showDropPicker() {
         lifecycleScope.launch {
             val candidates = importPort.candidates()
-            if (candidates.isEmpty()) {
-                AlertDialog.Builder(this@SourceManagementActivity)
-                    .setTitle(R.string.source_import_title)
-                    .setMessage(getString(R.string.source_import_empty, importPort.folders().dropFolder))
-                    .setPositiveButton(R.string.source_import_close, null)
-                    .show()
-                return@launch
-            }
-            val labels = candidates.map { "${it.name}（${it.sizeBytes / 1024} KB）" }.toTypedArray()
-            AlertDialog.Builder(this@SourceManagementActivity)
-                .setTitle(R.string.source_import_title)
-                .setItems(labels) { _, which ->
+            val title = getString(R.string.source_import_title)
+            when (
+                val content = ImportPickerModel.pickContent(
+                    candidates = candidates,
+                    emptyMessage = getString(
+                        R.string.source_import_empty,
+                        importPort.folders().dropFolder,
+                    ),
+                    rowLabel = { ImportCandidateLabel.describe(it) },
+                )
+            ) {
+                is ImportPickContent.Empty -> ImportPickerDialog.showMessage(
+                    context = this@SourceManagementActivity,
+                    title = title,
+                    message = content.message,
+                    closeLabel = getString(R.string.source_import_close),
+                )
+
+                is ImportPickContent.Files -> ImportPickerDialog.showList(
+                    context = this@SourceManagementActivity,
+                    title = title,
+                    rows = content.rows,
+                    cancelLabel = getString(R.string.source_dialog_cancel),
+                ) { which ->
                     val candidate: ImportCandidate = candidates[which]
                     lifecycleScope.launch { runImport { importPort.import(candidate) } }
                 }
-                .setNegativeButton(R.string.source_dialog_cancel, null)
-                .show()
+            }
         }
     }
 

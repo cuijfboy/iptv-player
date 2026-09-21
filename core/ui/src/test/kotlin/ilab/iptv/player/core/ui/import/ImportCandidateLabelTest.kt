@@ -1,4 +1,4 @@
-package ilab.iptv.player.feature.channels
+package ilab.iptv.player.core.ui.import
 
 import com.google.common.truth.Truth.assertThat
 import ilab.iptv.player.core.domain.playlist.ImportCandidate
