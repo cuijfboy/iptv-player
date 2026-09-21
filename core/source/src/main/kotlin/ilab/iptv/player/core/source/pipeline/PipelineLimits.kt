@@ -15,6 +15,13 @@ data class PipelineLimits(
     val shallowTimeoutMs: Long = 6_000,
     val deepConcurrency: Int = 6,
     val deepTimeoutMs: Long = 12_000,
+    /**
+     * Bytes the deep probe reads per leg (playlist, variant, segment). 256 KB is "one playlist or one
+     * segment prefix": enough to prove a segment pulls and to reach the manifest's declared
+     * codecs/resolution, far below an actual playback buffer. Added in P2-4b, same shape as
+     * [shallowFirstBytes] (an additive field, see the report's doc-deviation list).
+     */
+    val deepFirstBytes: Long = 256L * 1024,
     val capCandidates: Int = 3_000,
     val batchSize: Int = 500,
     /** Bytes the shallow GET fallback asks for when HEAD is refused (docs/02 §6.1 edge slice). */

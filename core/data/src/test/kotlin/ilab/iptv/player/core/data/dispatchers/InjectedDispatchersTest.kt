@@ -1,9 +1,11 @@
 package ilab.iptv.player.core.data.dispatchers
 
+import ilab.iptv.player.core.data.catalog.CatalogBootstrapper
 import com.google.common.truth.Truth.assertThat
 import ilab.iptv.player.core.common.AppResult
 import ilab.iptv.player.core.common.Clock
 import ilab.iptv.player.core.data.catalog.BundledPlaylist
+import ilab.iptv.player.core.data.catalog.CatalogLoadReport
 import ilab.iptv.player.core.data.catalog.ChannelCatalog
 import ilab.iptv.player.core.data.catalog.ChannelCatalogLoader
 import ilab.iptv.player.core.data.playlist.FakePlaylistFileSystem
@@ -16,6 +18,10 @@ import ilab.iptv.player.core.data.refresh.FakeSessionIds
 import ilab.iptv.player.core.data.refresh.RecordingLogger
 import ilab.iptv.player.core.data.refresh.RefreshSourcesUseCase
 import ilab.iptv.player.core.data.repository.InMemoryStreamRepository
+import ilab.iptv.player.core.model.DeviceProfile
+import ilab.iptv.player.core.domain.selection.DefaultStreamSelector
+import ilab.iptv.player.core.domain.scoring.DefaultScorer
+import ilab.iptv.player.core.data.repository.InMemoryChannelRepository
 import ilab.iptv.player.core.data.store.ChannelStore
 import ilab.iptv.player.core.domain.playlist.ImportCandidate
 import ilab.iptv.player.core.domain.playlist.ImportFolders
@@ -104,6 +110,18 @@ class InjectedDispatchersTest {
             providers = setOf(provider),
             validators = emptySet(),
             streamRepository = InMemoryStreamRepository(store),
+            channelRepository = InMemoryChannelRepository(store, NoopBootstrapper),
+            scorer = DefaultScorer(),
+            selector = DefaultStreamSelector(),
+            device = DeviceProfile(
+                abi = "arm64-v8a",
+                sdk = 30,
+                ramMb = 2048,
+                audioPassthrough = emptySet(),
+                maxWidth = 1920,
+                maxHeight = 1080,
+                maxFrameRate = 60f,
+            ),
             limits = PipelineLimits(),
             clock = FakeClock(),
             logger = RecordingLogger(),
@@ -160,4 +178,9 @@ class InjectedDispatchersTest {
             http://bundled.invalid/1.m3u8
         """.trimIndent().toByteArray(Charsets.UTF_8)
     }
+}
+
+/** Minimal [CatalogBootstrapper] for wiring tests: nothing to load, nothing to report. */
+private object NoopBootstrapper : CatalogBootstrapper {
+    override suspend fun ensureLoaded(): CatalogLoadReport? = null
 }

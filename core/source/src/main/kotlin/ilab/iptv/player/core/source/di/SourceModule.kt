@@ -7,6 +7,7 @@ import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
 import ilab.iptv.player.core.common.Logger
 import ilab.iptv.player.core.network.HttpFetcher
+import ilab.iptv.player.core.source.deep.DeepProbeValidator
 import ilab.iptv.player.core.source.pipeline.PipelineLimits
 import ilab.iptv.player.core.source.pipeline.PlaybackPrioritySignal
 import ilab.iptv.player.core.source.provider.BuiltInSources
@@ -147,6 +148,17 @@ object SourceModule {
     @Singleton
     fun shallowReachability(fetcher: HttpFetcher, logger: Logger, limits: PipelineLimits): StreamValidator =
         ShallowReachabilityValidator(fetcher, logger, limits)
+
+    /**
+     * The DEEP stage (docs/02 §6.1, P2-4b). No [ilab.iptv.player.core.source.deep.TrackProbe] is
+     * bound yet: real track decoding needs Media3 and a device, so the probe reports the codecs an
+     * HLS playlist declares (`codecSource = "declared"`). Binding an engine-backed `TrackProbe` is
+     * the one-line upgrade the P2-4b report tracks; the probe then reports `codecSource = "probe"`.
+     */
+    @Provides
+    @IntoSet
+    fun deepProbe(fetcher: HttpFetcher, logger: Logger, limits: PipelineLimits): StreamValidator =
+        DeepProbeValidator(fetcher = fetcher, logger = logger, limits = limits)
 
     private fun builtIn(
         id: String,

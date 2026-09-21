@@ -1,12 +1,15 @@
 package ilab.iptv.player.core.data.refresh
 
+import ilab.iptv.player.core.data.dispatchers.TestDispatcherProvider
 import com.google.common.truth.Truth.assertThat
 import ilab.iptv.player.core.common.AppResult
 import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.data.repository.InMemoryStreamRepository
 import ilab.iptv.player.core.data.store.ChannelStore
-import ilab.iptv.player.core.data.dispatchers.TestDispatcherProvider
 import ilab.iptv.player.core.domain.repository.StreamRepository
+import ilab.iptv.player.core.domain.scoring.DefaultScorer
+import ilab.iptv.player.core.domain.selection.DefaultStreamSelector
+import ilab.iptv.player.core.model.DeviceProfile
 import ilab.iptv.player.core.model.InterruptionReason
 import ilab.iptv.player.core.model.RefreshOptions
 import ilab.iptv.player.core.model.RefreshPhase
@@ -39,15 +42,24 @@ class RefreshSourcesUseCaseTest {
         providers = providers.toSet(),
         validators = validators.toSet(),
         streamRepository = streams,
+        channelRepository = FakeChannelRepository(store),
+        scorer = DefaultScorer(),
+        selector = DefaultStreamSelector(),
+        device = DeviceProfile(
+            abi = "arm64-v8a",
+            sdk = 30,
+            ramMb = 2048,
+            audioPassthrough = emptySet(),
+            maxWidth = 1920,
+            maxHeight = 1080,
+            maxFrameRate = 60f,
+        ),
         limits = limits,
         clock = clock,
         logger = logger,
         sessionIds = FakeSessionIds(),
         playback = PlaybackPrioritySignal { playing },
-        // The pipeline is the network/disk half of §6.1, so the injected dispatcher is the real IO
-        // pool here: these tests are about phases, budget and cancellation, not about threading.
-        // `InjectedDispatchersTest` is where the dispatcher itself is the subject.
-        dispatchers = TestDispatcherProvider(kotlinx.coroutines.Dispatchers.IO),
+        dispatchers = TestDispatcherProvider(),
     )
 
     private fun run(
