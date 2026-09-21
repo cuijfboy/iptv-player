@@ -8,51 +8,130 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: check + assembleDebug + assembleRelease
     runs-on: ubuntu-latest
+    # docs/02 §6.1 caps one verification pass at 45 min; without this a hung download would sit in
+    # the queue for the default 6 h.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      # AGP 8.11.1 checks `JavaVersion.current().isCompatibleWith(VERSION_17)`, so 17 is its floor —
+      # but the whole local verification pass (dev-A rounds 2–3, 5 commands green) ran on Android
+      # Studio's JBR 21.0.10, so CI uses 21 to match the toolchain that was actually verified.
+      # `cache: gradle` keeps the wrapper distribution + dependencies between runs.
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
+          cache: gradle
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      # CR-13: install the SDK components this build actually uses instead of relying on AGP's
-      # auto-install (which depends on runner licences and auto-download being allowed).
-      # compileSdk 36 (docs/02 §14) + the build-tools AGP 8.11.1 defaults to.
+      # Replaces `android-actions/setup-android@v3`: its "Set up Android SDK" step failed in run
+      # 35614747492 and skipped everything after it, so Gradle never ran (BUG-003). GitHub's
+      # ubuntu-latest image already ships the SDK together with cmdline-tools, so use that and add
+      # only the components this build actually resolves (CR-13).
       - name: Install Android SDK components
         run: |
           set -euo pipefail
+
+          sdk="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          if [ -z "$sdk" ] || [ ! -d "$sdk" ]; then
+            echo "::error::no preinstalled Android SDK: ANDROID_SDK_ROOT / ANDROID_HOME is unset or missing"
+            exit 1
+          fi
+          echo "Android SDK: $sdk"
+
+          # The image layout can move between releases; expose every plausible tool directory
+          # instead of assuming one.
+          for d in "$sdk/cmdline-tools/latest/bin" "$sdk/cmdline-tools/bin" "$sdk/tools/bin"; do
+            if [ -d "$d" ]; then echo "$d" >> "$GITHUB_PATH"; fi
+          done
+          export PATH="$sdk/cmdline-tools/latest/bin:$sdk/cmdline-tools/bin:$sdk/tools/bin:$PATH"
+
+          # Last-resort search in case the image keeps cmdline-tools somewhere unexpected.
+          if ! command -v sdkmanager > /dev/null; then
+            found="$(find "$sdk" -maxdepth 5 -type f -name sdkmanager -print -quit 2>/dev/null || true)"
+            if [ -n "$found" ]; then export PATH="$(dirname "$found"):$PATH"; fi
+          fi
+          command -v sdkmanager || { echo "::error::sdkmanager not found under $sdk"; exit 1; }
+          java -version
+          sdkmanager --version
+
+          # `compileSdk = 36` -> platforms;android-36; AGP 8.11.1's own default build tools is
+          # 35.0.0 (the first local build auto-downloaded exactly that pair). Licences must be
+          # accepted up front or AGP's auto-install refuses to run.
           yes | sdkmanager --licenses > /dev/null || true
           sdkmanager "platforms;android-36" "build-tools;35.0.0" "platform-tools"
 
-      # gradle.properties pins org.gradle.java.home to the macOS JBR; override it on Linux CI.
+          # Pin the SDK for the later steps and for AGP (CI has no local.properties).
+          {
+            echo "ANDROID_HOME=$sdk"
+            echo "ANDROID_SDK_ROOT=$sdk"
+          } >> "$GITHUB_ENV"
+
+      # gradle.properties pins org.gradle.java.home to the macOS JBR path, which does not exist on
+      # Linux. The `-D` override below is what every Gradle call relies on — verified locally:
+      # `-Dorg.gradle.java.home=<bogus>` wins over gradle.properties and fails with "invalid Java
+      # home", i.e. the command-line value takes precedence.
       # `check` is the local definition of green (CodeReview CR-13): it runs the unit tests, lint,
       # `verifyPureKotlin` (docs/02 §3.2 rule 1) and `verifyModuleDependencies` (rules 2–5, CR-01).
       # The shell `grep` guard that used to live here is gone: it only covered rule 1, only matched
       # `import` lines (BUG-005), and duplicated the Gradle task now running in `check`.
       - name: check + lint
-        run: ./gradlew --no-daemon -Dorg.gradle.java.home="$JAVA_HOME" check lint
+        run: ./gradlew --no-daemon --stacktrace -Dorg.gradle.java.home="$JAVA_HOME" check lint
 
       - name: assembleDebug
-        run: ./gradlew --no-daemon -Dorg.gradle.java.home="$JAVA_HOME" assembleDebug
+        run: ./gradlew --no-daemon --stacktrace -Dorg.gradle.java.home="$JAVA_HOME" assembleDebug
 
       # CR-13: the release artifact is part of the P0 exit condition, so CI must build it. CR-07
-      # makes an unsigned release build fail, so the signing credentials have to come from Secrets.
+      # makes an unsigned release build fail, so the credentials have to come from Secrets — which
+      # the repo does not have yet. Gate on the secret mapped to an `env` var: the `env` context is
+      # readable in a step `if`, the `secrets` context is not. With no secrets the step is skipped
+      # with a notice, so CI can be green before the human configures them; `check` and
+      # `assembleDebug` always run.
       - name: assembleRelease
+        if: ${{ env.RELEASE_STORE_PASSWORD != '' }}
         env:
           RELEASE_STORE_FILE: keystore/release.jks
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
-        run: ./gradlew --no-daemon -Dorg.gradle.java.home="$JAVA_HOME" assembleRelease
+        run: ./gradlew --no-daemon --stacktrace -Dorg.gradle.java.home="$JAVA_HOME" assembleRelease
+
+      - name: assembleRelease skipped (no signing secrets)
+        if: ${{ env.RELEASE_STORE_PASSWORD == '' }}
+        env:
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          # Edge case worth shouting about: if the secret is actually present here, the step gate
+          # above did not see it, which would mean a configured repo silently never builds a release.
+          if [ -n "${RELEASE_STORE_PASSWORD:-}" ]; then
+            echo "::warning title=assembleRelease gate::RELEASE_STORE_PASSWORD is set but the release step did not run"
+          fi
+          {
+            echo "### assembleRelease skipped"
+            echo ""
+            echo "The release signing secrets are not configured, so the signed release build was skipped."
+            echo ""
+            for v in RELEASE_STORE_PASSWORD RELEASE_KEY_ALIAS RELEASE_KEY_PASSWORD; do
+              if [ -n "${!v:-}" ]; then state=set; else state=empty; fi
+              echo "- \`$v\`: ${state}"
+            done
+            echo ""
+            echo "Add all three under Settings -> Secrets and variables -> Actions to enable it."
+            echo "CR-07 still fails any unsigned release build, locally and in CI — skipping is not signing."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=assembleRelease skipped::no RELEASE_* secrets configured; check and assembleDebug still ran"
 
       - name: Upload APKs
         if: always()
