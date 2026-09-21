@@ -2,4 +2,5 @@
 <resources>
     <string name="app_name">IPTV Player</string>
     <string name="open_log_console">日志与设备信息</string>
+    <string name="open_browse">频道列表（P1-2）</string>
 </resources>

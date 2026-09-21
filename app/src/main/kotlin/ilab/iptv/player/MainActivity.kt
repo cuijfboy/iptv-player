@@ -9,12 +9,13 @@ import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.common.LogCategory
 import ilab.iptv.player.core.common.Logger
 import ilab.iptv.player.core.log.ui.LogConsoleActivity
+import ilab.iptv.player.feature.channels.BrowseActivity
 import javax.inject.Inject
 
 /**
- * Entry point: P0-1 proved the module graph, Hilt/KSP and the TV intent-filter assemble; P0-6 adds
- * the one route that exists so far — the log/device console (docs/03 §7.2, L1). Real navigation
- * (channels, player, EPG) lands in P1 (docs/04).
+ * Entry point: P0-1 proved the module graph, Hilt/KSP and the TV intent-filter assemble; P0-6 added
+ * the log/device console (docs/03 §7.2, L1); P1-2 adds the route to the grouped channel list
+ * (`:feature:channels`). The real browse shell (tabs, player, EPG) is still docs/04 P1–P3 work.
  */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -27,6 +28,9 @@ class MainActivity : ComponentActivity() {
         setContentView(R.layout.activity_main)
         findViewById<Button>(R.id.open_log_console).setOnClickListener {
             startActivity(Intent(this, LogConsoleActivity::class.java))
+        }
+        findViewById<Button>(R.id.open_browse).setOnClickListener {
+            startActivity(Intent(this, BrowseActivity::class.java))
         }
     }
 

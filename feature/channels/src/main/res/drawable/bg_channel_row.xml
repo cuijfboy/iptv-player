@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- docs/02 §8.2 focus feedback: highlight fill + accent stroke when focused, quiet fill otherwise. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#FF2A3550" />
+            <stroke
+                android:width="2dp"
+                android:color="#FF6FC3FF" />
+            <corners android:radius="8dp" />
+        </shape>
+    </item>
+
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#FF17171E" />
+            <corners android:radius="8dp" />
+        </shape>
+    </item>
+
+</selector>

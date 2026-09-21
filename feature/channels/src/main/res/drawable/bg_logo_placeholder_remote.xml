@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The source declared a tvg-logo but P1-2 does not load images yet: same placeholder, accent edge. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#FF2A2A38" />
+    <stroke
+        android:width="1dp"
+        android:color="#FF6FC3FF" />
+    <corners android:radius="6dp" />
+</shape>

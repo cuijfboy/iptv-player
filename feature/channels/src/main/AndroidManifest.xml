@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="MissingLeanbackLauncher">
+
+    <!--
+      The library manifest has to repeat the TV hardware story because lint reads it on its own:
+      `:app` declares leanback as required and the touchscreen as optional, but a library that ships
+      an activity is checked as if it were the whole app. `MissingLeanbackLauncher` is suppressed at
+      the manifest level for the same reason: the LEANBACK_LAUNCHER filter lives on `:app`'s
+      MainActivity, and adding a second one here would put a second icon on the TV home screen.
+    -->
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+
+    <application>
+
+        <!--
+          P1-2 browse screen (docs/02 §8.1 "BrowseActivity → ChannelListFragment"). The list is a
+          view inside the activity for now — the fragment + navigation split lands with the real
+          navigation work (player/EPG tabs, P1-4/P3-1) and would only add ceremony here.
+
+          `exported="true"` is here for the P1-2 device proof (`adb shell am start -n
+          ilab.iptv.player/ilab.iptv.player.feature.channels.BrowseActivity`); `MainActivity` stays
+          the only launcher entry. Tighten it back when QA no longer drives this screen by adb.
+        -->
+        <activity
+            android:name=".BrowseActivity"
+            android:exported="true"
+            android:screenOrientation="landscape" />
+
+    </application>
+
+</manifest>

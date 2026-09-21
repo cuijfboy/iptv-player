@@ -12,4 +12,8 @@ dependencies {
     implementation(project(":core:network"))
     implementation(project(":core:source"))
     implementation(project(":core:epg"))
+
+    // In-memory repository: Coroutine Flow for observe() and a Mutex around the one-time catalog
+    // load (P1-2 has no Room yet, so this is state, not I/O).
+    implementation(libs.kotlinx.coroutines.core)
 }

@@ -1,0 +1,1341 @@
+#EXTM3U
+#EXTINF:-1 tvg-id="CCTV1" tvg-logo="http://p12.demo.invalid/logo/cctv.png" tvg-chno=1 group-title="央视",CCTV1
+http://p12.demo.invalid/province002/index.m3u8
+#EXTINF:-1 tvg-id="CCTV2" group-title="央视",CCTV2
+http://p12.demo.invalid/province004/index.m3u8
+#EXTINF:-1 tvg-id="CCTV3" group-title="央视",CCTV3
+http://p12.demo.invalid/province006/index.m3u8
+#EXTINF:-1 tvg-id="CCTV4" group-title="央视",CCTV4
+http://p12.demo.invalid/province008/index.m3u8
+#EXTINF:-1 tvg-id="CCTV5" group-title="央视",CCTV5
+http://p12.demo.invalid/province010/index.m3u8
+#EXTINF:-1 tvg-id="CCTV5+" tvg-logo="http://p12.demo.invalid/logo/cctv.png" group-title="央视",CCTV5+
+http://p12.demo.invalid/province012/index.m3u8
+#EXTINF:-1 tvg-id="CCTV6" group-title="央视",CCTV6
+http://p12.demo.invalid/province014/index.m3u8
+#EXTINF:-1 tvg-id="CCTV7" group-title="央视",CCTV7
+http://p12.demo.invalid/province016/index.m3u8
+#EXTINF:-1 tvg-id="CCTV8" group-title="央视",CCTV8
+http://p12.demo.invalid/province018/index.m3u8
+#EXTINF:-1 tvg-id="CCTV9" group-title="央视",CCTV9
+http://p12.demo.invalid/province020/index.m3u8
+#EXTINF:-1 tvg-id="CCTV10" tvg-logo="http://p12.demo.invalid/logo/cctv.png" tvg-chno=11 group-title="央视",CCTV10
+http://p12.demo.invalid/province022/index.m3u8
+#EXTINF:-1 tvg-id="CCTV11" group-title="央视",CCTV11
+http://p12.demo.invalid/province024/index.m3u8
+#EXTINF:-1 tvg-id="CCTV12" group-title="央视",CCTV12
+http://p12.demo.invalid/province026/index.m3u8
+#EXTINF:-1 tvg-id="CCTV13" group-title="央视",CCTV13
+http://p12.demo.invalid/province028/index.m3u8
+#EXTINF:-1 tvg-id="CCTV14" group-title="央视",CCTV14
+http://p12.demo.invalid/province030/index.m3u8
+#EXTINF:-1 tvg-id="CCTV15" tvg-logo="http://p12.demo.invalid/logo/cctv.png" group-title="央视",CCTV15
+http://p12.demo.invalid/province032/index.m3u8
+#EXTINF:-1 tvg-id="CCTV16" group-title="央视",CCTV16
+http://p12.demo.invalid/province034/index.m3u8
+#EXTINF:-1 tvg-id="CCTV17" group-title="央视",CCTV17
+http://p12.demo.invalid/province036/index.m3u8
+#EXTINF:-1 tvg-id="CCTV-1综合" group-title="央视",CCTV-1综合
+http://p12.demo.invalid/province038/index.m3u8
+#EXTINF:-1 tvg-id="CCTV-2财经" group-title="央视",CCTV-2财经
+http://p12.demo.invalid/province040/index.m3u8
+#EXTINF:-1 tvg-id="CCTV-3综艺" tvg-logo="http://p12.demo.invalid/logo/cctv.png" tvg-chno=21 group-title="央视",CCTV-3综艺
+http://p12.demo.invalid/province042/index.m3u8
+#EXTINF:-1 tvg-id="CCTV-4 中文国际" group-title="央视",CCTV-4 中文国际
+http://p12.demo.invalid/province044/index.m3u8
+#EXTINF:-1 tvg-id="CCTV-5体育" group-title="央视",CCTV-5体育
+http://p12.demo.invalid/province046/index.m3u8
+#EXTINF:-1 tvg-id="CCTV-5+体育赛事" group-title="央视",CCTV-5+体育赛事
+http://p12.demo.invalid/province048/index.m3u8
+#EXTINF:-1 tvg-id="CCTV-6电影" group-title="央视",CCTV-6电影
+http://p12.demo.invalid/province050/index.m3u8
+#EXTINF:-1 tvg-id="CCTV-7国防军事" tvg-logo="http://p12.demo.invalid/logo/cctv.png" group-title="央视",CCTV-7国防军事
+http://p12.demo.invalid/province052/index.m3u8
+#EXTINF:-1 tvg-id="CCTV-8电视剧" group-title="央视",CCTV-8电视剧
+http://p12.demo.invalid/province054/index.m3u8
+#EXTINF:-1 tvg-id="CCTV-9纪录" group-title="央视",CCTV-9纪录
+http://p12.demo.invalid/province056/index.m3u8
+#EXTINF:-1 tvg-id="CCTV-10科教" group-title="央视",CCTV-10科教
+http://p12.demo.invalid/province058/index.m3u8
+#EXTINF:-1 tvg-id="CCTV-11戏曲" group-title="央视",CCTV-11戏曲
+http://p12.demo.invalid/province060/index.m3u8
+#EXTINF:-1 tvg-id="CCTV-12社会与法" tvg-logo="http://p12.demo.invalid/logo/cctv.png" tvg-chno=31 group-title="央视",CCTV-12社会与法
+http://p12.demo.invalid/province062/index.m3u8
+#EXTINF:-1 tvg-id="CCTV-13新闻" group-title="央视",CCTV-13新闻
+http://p12.demo.invalid/province064/index.m3u8
+#EXTINF:-1 tvg-id="CCTV-14少儿" group-title="央视",CCTV-14少儿
+http://p12.demo.invalid/province066/index.m3u8
+#EXTINF:-1 tvg-id="CCTV-15音乐" group-title="央视",CCTV-15音乐
+http://p12.demo.invalid/province068/index.m3u8
+#EXTINF:-1 tvg-id="CCTV-16奥林匹克" group-title="央视",CCTV-16奥林匹克
+http://p12.demo.invalid/province070/index.m3u8
+#EXTINF:-1 tvg-id="CCTV-17农业农村" tvg-logo="http://p12.demo.invalid/logo/cctv.png" group-title="央视",CCTV-17农业农村
+http://p12.demo.invalid/province072/index.m3u8
+#EXTINF:-1 tvg-id="CGTN" group-title="央视",CGTN
+http://p12.demo.invalid/province074/index.m3u8
+#EXTINF:-1 tvg-id="CGTN法语" group-title="央视",CGTN法语
+http://p12.demo.invalid/province076/index.m3u8
+#EXTINF:-1 tvg-id="CGTN西语" group-title="央视",CGTN西语
+http://p12.demo.invalid/province078/index.m3u8
+#EXTINF:-1 tvg-id="CGTN阿语" group-title="央视",CGTN阿语
+http://p12.demo.invalid/province080/index.m3u8
+#EXTINF:-1 tvg-id="CGTN俄语" tvg-logo="http://p12.demo.invalid/logo/cctv.png" tvg-chno=41 group-title="央视",CGTN俄语
+http://p12.demo.invalid/province082/index.m3u8
+#EXTINF:-1 tvg-id="CGTN纪录" group-title="央视",CGTN纪录
+http://p12.demo.invalid/province084/index.m3u8
+#EXTINF:-1 tvg-id="CCTV4K" group-title="央视",CCTV4K
+http://p12.demo.invalid/province086/index.m3u8
+#EXTINF:-1 tvg-id="CCTV8K" group-title="央视",CCTV8K
+http://p12.demo.invalid/province088/index.m3u8
+#EXTINF:-1 tvg-id="央视新闻" group-title="央视",央视新闻
+http://p12.demo.invalid/province090/index.m3u8
+#EXTINF:-1 tvg-id="央视财经" tvg-logo="http://p12.demo.invalid/logo/cctv.png" group-title="央视",央视财经
+http://p12.demo.invalid/province092/index.m3u8
+#EXTINF:-1 tvg-id="央视综艺" group-title="央视",央视综艺
+http://p12.demo.invalid/province094/index.m3u8
+#EXTINF:-1 tvg-id="央视体育" group-title="央视",央视体育
+http://p12.demo.invalid/province096/index.m3u8
+#EXTINF:-1 tvg-id="央视电影" group-title="央视",央视电影
+http://p12.demo.invalid/province098/index.m3u8
+#EXTINF:-1 tvg-id="央视军事" group-title="央视",央视军事
+http://p12.demo.invalid/province100/index.m3u8
+#EXTINF:-1 tvg-id="央视电视剧" tvg-logo="http://p12.demo.invalid/logo/cctv.png" tvg-chno=51 group-title="央视",央视电视剧
+http://p12.demo.invalid/province102/index.m3u8
+#EXTINF:-1 tvg-id="央视纪录" group-title="央视",央视纪录
+http://p12.demo.invalid/province104/index.m3u8
+#EXTINF:-1 tvg-id="央视科教" group-title="央视",央视科教
+http://p12.demo.invalid/province106/index.m3u8
+#EXTINF:-1 tvg-id="央视戏曲" group-title="央视",央视戏曲
+http://p12.demo.invalid/province108/index.m3u8
+#EXTINF:-1 tvg-id="央视社会与法" group-title="央视",央视社会与法
+http://p12.demo.invalid/province110/index.m3u8
+#EXTINF:-1 tvg-id="央视少儿" tvg-logo="http://p12.demo.invalid/logo/cctv.png" group-title="央视",央视少儿
+http://p12.demo.invalid/province112/index.m3u8
+#EXTINF:-1 tvg-id="央视音乐" group-title="央视",央视音乐
+http://p12.demo.invalid/province114/index.m3u8
+#EXTINF:-1 tvg-id="央视农业" group-title="央视",央视农业
+http://p12.demo.invalid/province116/index.m3u8
+#EXTINF:-1 tvg-id="央视奥运" group-title="央视",央视奥运
+http://p12.demo.invalid/province118/index.m3u8
+#EXTINF:-1 tvg-id="CCTV1 高清" group-title="央视",CCTV1 高清
+http://p12.demo.invalid/province120/index.m3u8
+#EXTINF:-1 tvg-id="CCTV2 高清" tvg-logo="http://p12.demo.invalid/logo/cctv.png" tvg-chno=61 group-title="央视",CCTV2 高清
+http://p12.demo.invalid/province122/index.m3u8
+#EXTINF:-1 tvg-id="CCTV3 高清" group-title="央视",CCTV3 高清
+http://p12.demo.invalid/province124/index.m3u8
+#EXTINF:-1 tvg-id="CCTV5 高清" group-title="央视",CCTV5 高清
+http://p12.demo.invalid/province126/index.m3u8
+#EXTINF:-1 tvg-id="CCTV6 高清" group-title="央视",CCTV6 高清
+http://p12.demo.invalid/province128/index.m3u8
+#EXTINF:-1 tvg-id="CCTV8 高清" group-title="央视",CCTV8 高清
+http://p12.demo.invalid/province130/index.m3u8
+#EXTINF:-1 tvg-id="CCTV9 高清" tvg-logo="http://p12.demo.invalid/logo/cctv.png" group-title="央视",CCTV9 高清
+http://p12.demo.invalid/province132/index.m3u8
+#EXTINF:-1 tvg-id="CCTV10 高清" group-title="央视",CCTV10 高清
+http://p12.demo.invalid/province134/index.m3u8
+#EXTINF:-1 tvg-id="CCTV12 高清" group-title="央视",CCTV12 高清
+http://p12.demo.invalid/province136/index.m3u8
+#EXTINF:-1 tvg-id="CCTV13 高清" group-title="央视",CCTV13 高清
+http://p12.demo.invalid/province138/index.m3u8
+#EXTINF:-1 tvg-id="CCTV14 高清" group-title="央视",CCTV14 高清
+http://p12.demo.invalid/province140/index.m3u8
+#EXTINF:-1 tvg-id="CCTV15 高清" tvg-logo="http://p12.demo.invalid/logo/cctv.png" tvg-chno=71 group-title="央视",CCTV15 高清
+http://p12.demo.invalid/province142/index.m3u8
+#EXTINF:-1 tvg-id="CCTV1 标清" group-title="央视",CCTV1 标清
+http://p12.demo.invalid/province144/index.m3u8
+#EXTINF:-1 tvg-id="CCTV2 标清" group-title="央视",CCTV2 标清
+http://p12.demo.invalid/province146/index.m3u8
+#EXTINF:-1 tvg-id="CCTV3 标清" group-title="央视",CCTV3 标清
+http://p12.demo.invalid/province148/index.m3u8
+#EXTINF:-1 tvg-id="CCTV4 标清" group-title="央视",CCTV4 标清
+http://p12.demo.invalid/province150/index.m3u8
+#EXTINF:-1 tvg-id="CCTV5 标清" tvg-logo="http://p12.demo.invalid/logo/cctv.png" group-title="央视",CCTV5 标清
+http://p12.demo.invalid/province152/index.m3u8
+#EXTINF:-1 tvg-id="CCTV6 标清" group-title="央视",CCTV6 标清
+http://p12.demo.invalid/province154/index.m3u8
+#EXTINF:-1 tvg-id="CCTV7 标清" group-title="央视",CCTV7 标清
+http://p12.demo.invalid/province156/index.m3u8
+#EXTINF:-1 tvg-id="CCTV8 标清" group-title="央视",CCTV8 标清
+http://p12.demo.invalid/province158/index.m3u8
+#EXTINF:-1 tvg-id="CCTV9 标清" group-title="央视",CCTV9 标清
+http://p12.demo.invalid/province160/index.m3u8
+#EXTINF:-1 tvg-id="北京卫视" group-title="卫视",北京卫视
+http://p12.demo.invalid/province162/index.m3u8
+#EXTINF:-1 tvg-id="湖南卫视" tvg-chno=901 group-title="卫视",湖南卫视
+http://p12.demo.invalid/province164/index.m3u8
+#EXTINF:-1 tvg-id="浙江卫视" group-title="卫视",浙江卫视
+http://p12.demo.invalid/province166/index.m3u8
+#EXTINF:-1 tvg-id="江苏卫视" group-title="卫视",江苏卫视
+http://p12.demo.invalid/province168/index.m3u8
+#EXTINF:-1 tvg-id="东方卫视" group-title="卫视",东方卫视
+http://p12.demo.invalid/province170/index.m3u8
+#EXTINF:-1 tvg-id="安徽卫视" group-title="卫视",安徽卫视
+http://p12.demo.invalid/province172/index.m3u8
+#EXTINF:-1 tvg-id="山东卫视" group-title="卫视",山东卫视
+http://p12.demo.invalid/province174/index.m3u8
+#EXTINF:-1 tvg-id="广东卫视" group-title="卫视",广东卫视
+http://p12.demo.invalid/province176/index.m3u8
+#EXTINF:-1 tvg-id="深圳卫视" group-title="卫视",深圳卫视
+http://p12.demo.invalid/province178/index.m3u8
+#EXTINF:-1 tvg-id="湖北卫视" group-title="卫视",湖北卫视
+http://p12.demo.invalid/province180/index.m3u8
+#EXTINF:-1 tvg-id="四川卫视" group-title="卫视",四川卫视
+http://p12.demo.invalid/province182/index.m3u8
+#EXTINF:-1 tvg-id="河南卫视" tvg-chno=902 group-title="卫视",河南卫视
+http://p12.demo.invalid/province184/index.m3u8
+#EXTINF:-1 tvg-id="辽宁卫视" group-title="卫视",辽宁卫视
+http://p12.demo.invalid/province186/index.m3u8
+#EXTINF:-1 tvg-id="天津卫视" group-title="卫视",天津卫视
+http://p12.demo.invalid/province188/index.m3u8
+#EXTINF:-1 tvg-id="黑龙江卫视" group-title="卫视",黑龙江卫视
+http://p12.demo.invalid/province190/index.m3u8
+#EXTINF:-1 tvg-id="吉林卫视" group-title="卫视",吉林卫视
+http://p12.demo.invalid/province192/index.m3u8
+#EXTINF:-1 tvg-id="河北卫视" group-title="卫视",河北卫视
+http://p12.demo.invalid/province194/index.m3u8
+#EXTINF:-1 tvg-id="山西卫视" group-title="卫视",山西卫视
+http://p12.demo.invalid/province196/index.m3u8
+#EXTINF:-1 tvg-id="陕西卫视" group-title="卫视",陕西卫视
+http://p12.demo.invalid/province198/index.m3u8
+#EXTINF:-1 tvg-id="甘肃卫视" group-title="卫视",甘肃卫视
+http://p12.demo.invalid/province200/index.m3u8
+#EXTINF:-1 tvg-id="青海卫视" group-title="卫视",青海卫视
+http://p12.demo.invalid/province202/index.m3u8
+#EXTINF:-1 tvg-id="宁夏卫视" tvg-chno=903 group-title="卫视",宁夏卫视
+http://p12.demo.invalid/province204/index.m3u8
+#EXTINF:-1 tvg-id="新疆卫视" group-title="卫视",新疆卫视
+http://p12.demo.invalid/province206/index.m3u8
+#EXTINF:-1 tvg-id="西藏卫视" group-title="卫视",西藏卫视
+http://p12.demo.invalid/province208/index.m3u8
+#EXTINF:-1 tvg-id="云南卫视" group-title="卫视",云南卫视
+http://p12.demo.invalid/province210/index.m3u8
+#EXTINF:-1 tvg-id="贵州卫视" group-title="卫视",贵州卫视
+http://p12.demo.invalid/province212/index.m3u8
+#EXTINF:-1 tvg-id="广西卫视" group-title="卫视",广西卫视
+http://p12.demo.invalid/province214/index.m3u8
+#EXTINF:-1 tvg-id="福建东南卫视" group-title="卫视",福建东南卫视
+http://p12.demo.invalid/province216/index.m3u8
+#EXTINF:-1 tvg-id="江西卫视" group-title="卫视",江西卫视
+http://p12.demo.invalid/province218/index.m3u8
+#EXTINF:-1 tvg-id="内蒙古卫视" group-title="卫视",内蒙古卫视
+http://p12.demo.invalid/province220/index.m3u8
+#EXTINF:-1 tvg-id="海南卫视" group-title="卫视",海南卫视
+http://p12.demo.invalid/province222/index.m3u8
+#EXTINF:-1 tvg-id="重庆卫视" tvg-chno=904 group-title="卫视",重庆卫视
+http://p12.demo.invalid/province224/index.m3u8
+#EXTINF:-1 tvg-id="北京卫视 高清" group-title="卫视",北京卫视 高清
+http://p12.demo.invalid/province226/index.m3u8
+#EXTINF:-1 tvg-id="湖南卫视 高清" group-title="卫视",湖南卫视 高清
+http://p12.demo.invalid/province228/index.m3u8
+#EXTINF:-1 tvg-id="浙江卫视 高清" group-title="卫视",浙江卫视 高清
+http://p12.demo.invalid/province230/index.m3u8
+#EXTINF:-1 tvg-id="江苏卫视 高清" group-title="卫视",江苏卫视 高清
+http://p12.demo.invalid/province232/index.m3u8
+#EXTINF:-1 tvg-id="东方卫视 高清" group-title="卫视",东方卫视 高清
+http://p12.demo.invalid/province234/index.m3u8
+#EXTINF:-1 tvg-id="安徽卫视 高清" group-title="卫视",安徽卫视 高清
+http://p12.demo.invalid/province236/index.m3u8
+#EXTINF:-1 tvg-id="山东卫视 高清" group-title="卫视",山东卫视 高清
+http://p12.demo.invalid/province238/index.m3u8
+#EXTINF:-1 tvg-id="广东卫视 高清" group-title="卫视",广东卫视 高清
+http://p12.demo.invalid/province240/index.m3u8
+#EXTINF:-1 tvg-id="深圳卫视 高清" group-title="卫视",深圳卫视 高清
+http://p12.demo.invalid/province242/index.m3u8
+#EXTINF:-1 tvg-id="湖北卫视 高清" tvg-chno=905 group-title="卫视",湖北卫视 高清
+http://p12.demo.invalid/province244/index.m3u8
+#EXTINF:-1 tvg-id="四川卫视 高清" group-title="卫视",四川卫视 高清
+http://p12.demo.invalid/province246/index.m3u8
+#EXTINF:-1 tvg-id="河南卫视 高清" group-title="卫视",河南卫视 高清
+http://p12.demo.invalid/province248/index.m3u8
+#EXTINF:-1 tvg-id="辽宁卫视 高清" group-title="卫视",辽宁卫视 高清
+http://p12.demo.invalid/province250/index.m3u8
+#EXTINF:-1 tvg-id="天津卫视 高清" group-title="卫视",天津卫视 高清
+http://p12.demo.invalid/province252/index.m3u8
+#EXTINF:-1 tvg-id="黑龙江卫视 高清" group-title="卫视",黑龙江卫视 高清
+http://p12.demo.invalid/province254/index.m3u8
+#EXTINF:-1 tvg-id="吉林卫视 高清" group-title="卫视",吉林卫视 高清
+http://p12.demo.invalid/province256/index.m3u8
+#EXTINF:-1 tvg-id="河北卫视 高清" group-title="卫视",河北卫视 高清
+http://p12.demo.invalid/province258/index.m3u8
+#EXTINF:-1 tvg-id="山西卫视 高清" group-title="卫视",山西卫视 高清
+http://p12.demo.invalid/province260/index.m3u8
+#EXTINF:-1 tvg-id="陕西卫视 高清" group-title="卫视",陕西卫视 高清
+http://p12.demo.invalid/province262/index.m3u8
+#EXTINF:-1 tvg-id="甘肃卫视 高清" tvg-chno=906 group-title="卫视",甘肃卫视 高清
+http://p12.demo.invalid/province264/index.m3u8
+#EXTINF:-1 tvg-id="青海卫视 高清" group-title="卫视",青海卫视 高清
+http://p12.demo.invalid/province266/index.m3u8
+#EXTINF:-1 tvg-id="宁夏卫视 高清" group-title="卫视",宁夏卫视 高清
+http://p12.demo.invalid/province268/index.m3u8
+#EXTINF:-1 tvg-id="新疆卫视 高清" group-title="卫视",新疆卫视 高清
+http://p12.demo.invalid/province270/index.m3u8
+#EXTINF:-1 tvg-id="西藏卫视 高清" group-title="卫视",西藏卫视 高清
+http://p12.demo.invalid/province272/index.m3u8
+#EXTINF:-1 tvg-id="云南卫视 高清" group-title="卫视",云南卫视 高清
+http://p12.demo.invalid/province274/index.m3u8
+#EXTINF:-1 tvg-id="贵州卫视 高清" group-title="卫视",贵州卫视 高清
+http://p12.demo.invalid/province276/index.m3u8
+#EXTINF:-1 tvg-id="广西卫视 高清" group-title="卫视",广西卫视 高清
+http://p12.demo.invalid/province278/index.m3u8
+#EXTINF:-1 tvg-id="福建东南卫视 高清" group-title="卫视",福建东南卫视 高清
+http://p12.demo.invalid/province280/index.m3u8
+#EXTINF:-1 tvg-id="江西卫视 高清" group-title="卫视",江西卫视 高清
+http://p12.demo.invalid/province282/index.m3u8
+#EXTINF:-1 tvg-id="内蒙古卫视 高清" tvg-chno=907 group-title="卫视",内蒙古卫视 高清
+http://p12.demo.invalid/province284/index.m3u8
+#EXTINF:-1 tvg-id="海南卫视 高清" group-title="卫视",海南卫视 高清
+http://p12.demo.invalid/province286/index.m3u8
+#EXTINF:-1 tvg-id="重庆卫视 高清" group-title="卫视",重庆卫视 高清
+http://p12.demo.invalid/province288/index.m3u8
+#EXTINF:-1 tvg-id="延边卫视" group-title="卫视",延边卫视
+http://p12.demo.invalid/province290/index.m3u8
+#EXTINF:-1 tvg-id="厦门卫视" group-title="卫视",厦门卫视
+http://p12.demo.invalid/province292/index.m3u8
+#EXTINF:-1 tvg-id="兵团卫视" group-title="卫视",兵团卫视
+http://p12.demo.invalid/province294/index.m3u8
+#EXTINF:-1 tvg-id="三沙卫视" group-title="卫视",三沙卫视
+http://p12.demo.invalid/province296/index.m3u8
+#EXTINF:-1 tvg-id="卡酷少儿" group-title="卫视",卡酷少儿
+http://p12.demo.invalid/province298/index.m3u8
+#EXTINF:-1 tvg-id="凤凰卫视中文台" tvg-logo="http://p12.demo.invalid/logo/hmt.png" group-title="港澳台",凤凰卫视中文台
+http://p12.demo.invalid/province300/index.m3u8
+#EXTINF:-1 tvg-id="凤凰卫视资讯台" group-title="港澳台",凤凰卫视资讯台
+http://p12.demo.invalid/province302/index.m3u8
+#EXTINF:-1 tvg-id="翡翠台" tvg-logo="http://p12.demo.invalid/logo/hmt.png" group-title="港澳台",翡翠台
+http://p12.demo.invalid/province304/index.m3u8
+#EXTINF:-1 tvg-id="明珠台" group-title="港澳台",明珠台
+http://p12.demo.invalid/province306/index.m3u8
+#EXTINF:-1 tvg-id="TVB星河频道" tvg-logo="http://p12.demo.invalid/logo/hmt.png" group-title="港澳台",TVB星河频道
+http://p12.demo.invalid/province308/index.m3u8
+#EXTINF:-1 tvg-id="澳视澳门" group-title="港澳台",澳视澳门
+http://p12.demo.invalid/province310/index.m3u8
+#EXTINF:-1 tvg-id="中天新闻" tvg-logo="http://p12.demo.invalid/logo/hmt.png" group-title="港澳台",中天新闻
+http://p12.demo.invalid/province312/index.m3u8
+#EXTINF:-1 tvg-id="河北新闻综合" group-title="地方/其他",河北新闻综合
+http://p12.demo.invalid/province314/index.m3u8
+#EXTINF:-1 tvg-id="山西新闻综合" group-title="地方/其他",山西新闻综合
+http://p12.demo.invalid/province316/index.m3u8
+#EXTINF:-1 tvg-id="辽宁新闻综合" group-title="地方/其他",辽宁新闻综合
+http://p12.demo.invalid/province318/index.m3u8
+#EXTINF:-1 tvg-id="吉林新闻综合" group-title="地方/其他",吉林新闻综合
+http://p12.demo.invalid/province320/index.m3u8
+#EXTINF:-1 tvg-id="黑龙江新闻综合" group-title="地方/其他",黑龙江新闻综合
+http://p12.demo.invalid/province322/index.m3u8
+#EXTINF:-1 tvg-id="江苏新闻综合" group-title="地方/其他",江苏新闻综合
+http://p12.demo.invalid/province324/index.m3u8
+#EXTINF:-1 tvg-id="浙江新闻综合" group-title="地方/其他",浙江新闻综合
+http://p12.demo.invalid/province326/index.m3u8
+#EXTINF:-1 tvg-id="安徽新闻综合" group-title="地方/其他",安徽新闻综合
+http://p12.demo.invalid/province328/index.m3u8
+#EXTINF:-1 tvg-id="福建新闻综合" group-title="地方/其他",福建新闻综合
+http://p12.demo.invalid/province330/index.m3u8
+#EXTINF:-1 tvg-id="江西新闻综合" group-title="地方/其他",江西新闻综合
+http://p12.demo.invalid/province332/index.m3u8
+#EXTINF:-1 tvg-id="山东新闻综合" group-title="地方/其他",山东新闻综合
+http://p12.demo.invalid/province334/index.m3u8
+#EXTINF:-1 tvg-id="河南新闻综合" group-title="地方/其他",河南新闻综合
+http://p12.demo.invalid/province336/index.m3u8
+#EXTINF:-1 tvg-id="湖北新闻综合" group-title="地方/其他",湖北新闻综合
+http://p12.demo.invalid/province338/index.m3u8
+#EXTINF:-1 tvg-id="湖南新闻综合" group-title="地方/其他",湖南新闻综合
+http://p12.demo.invalid/province340/index.m3u8
+#EXTINF:-1 tvg-id="广东新闻综合" group-title="地方/其他",广东新闻综合
+http://p12.demo.invalid/province342/index.m3u8
+#EXTINF:-1 tvg-id="广西新闻综合" group-title="地方/其他",广西新闻综合
+http://p12.demo.invalid/province344/index.m3u8
+#EXTINF:-1 tvg-id="海南新闻综合" group-title="地方/其他",海南新闻综合
+http://p12.demo.invalid/province346/index.m3u8
+#EXTINF:-1 tvg-id="四川新闻综合" group-title="地方/其他",四川新闻综合
+http://p12.demo.invalid/province348/index.m3u8
+#EXTINF:-1 tvg-id="贵州新闻综合" group-title="地方/其他",贵州新闻综合
+http://p12.demo.invalid/province350/index.m3u8
+#EXTINF:-1 tvg-id="云南新闻综合" group-title="地方/其他",云南新闻综合
+http://p12.demo.invalid/province352/index.m3u8
+#EXTINF:-1 tvg-id="陕西新闻综合" group-title="地方/其他",陕西新闻综合
+http://p12.demo.invalid/province354/index.m3u8
+#EXTINF:-1 tvg-id="甘肃新闻综合" group-title="地方/其他",甘肃新闻综合
+http://p12.demo.invalid/province356/index.m3u8
+#EXTINF:-1 tvg-id="青海新闻综合" group-title="地方/其他",青海新闻综合
+http://p12.demo.invalid/province358/index.m3u8
+#EXTINF:-1 tvg-id="宁夏新闻综合" group-title="地方/其他",宁夏新闻综合
+http://p12.demo.invalid/province360/index.m3u8
+#EXTINF:-1 tvg-id="新疆新闻综合" group-title="地方/其他",新疆新闻综合
+http://p12.demo.invalid/province362/index.m3u8
+#EXTINF:-1 tvg-id="西藏新闻综合" group-title="地方/其他",西藏新闻综合
+http://p12.demo.invalid/province364/index.m3u8
+#EXTINF:-1 tvg-id="内蒙古新闻综合" group-title="地方/其他",内蒙古新闻综合
+http://p12.demo.invalid/province366/index.m3u8
+#EXTINF:-1 tvg-id="北京新闻综合" group-title="地方/其他",北京新闻综合
+http://p12.demo.invalid/province368/index.m3u8
+#EXTINF:-1 tvg-id="天津新闻综合" group-title="地方/其他",天津新闻综合
+http://p12.demo.invalid/province370/index.m3u8
+#EXTINF:-1 tvg-id="上海新闻综合" group-title="地方/其他",上海新闻综合
+http://p12.demo.invalid/province372/index.m3u8
+#EXTINF:-1 tvg-id="重庆新闻综合" group-title="地方/其他",重庆新闻综合
+http://p12.demo.invalid/province374/index.m3u8
+#EXTINF:-1 tvg-id="深圳新闻综合" group-title="地方/其他",深圳新闻综合
+http://p12.demo.invalid/province376/index.m3u8
+#EXTINF:-1 tvg-id="青岛新闻综合" group-title="地方/其他",青岛新闻综合
+http://p12.demo.invalid/province378/index.m3u8
+#EXTINF:-1 tvg-id="大连新闻综合" group-title="地方/其他",大连新闻综合
+http://p12.demo.invalid/province380/index.m3u8
+#EXTINF:-1 tvg-id="宁波新闻综合" group-title="地方/其他",宁波新闻综合
+http://p12.demo.invalid/province382/index.m3u8
+#EXTINF:-1 tvg-id="厦门新闻综合" group-title="地方/其他",厦门新闻综合
+http://p12.demo.invalid/province384/index.m3u8
+#EXTINF:-1 tvg-id="南京新闻综合" group-title="地方/其他",南京新闻综合
+http://p12.demo.invalid/province386/index.m3u8
+#EXTINF:-1 tvg-id="杭州新闻综合" group-title="地方/其他",杭州新闻综合
+http://p12.demo.invalid/province388/index.m3u8
+#EXTINF:-1 tvg-id="广州新闻综合" group-title="地方/其他",广州新闻综合
+http://p12.demo.invalid/province390/index.m3u8
+#EXTINF:-1 tvg-id="成都新闻综合" group-title="地方/其他",成都新闻综合
+http://p12.demo.invalid/province392/index.m3u8
+#EXTINF:-1 tvg-id="武汉新闻综合" group-title="地方/其他",武汉新闻综合
+http://p12.demo.invalid/province394/index.m3u8
+#EXTINF:-1 tvg-id="西安新闻综合" group-title="地方/其他",西安新闻综合
+http://p12.demo.invalid/province396/index.m3u8
+#EXTINF:-1 tvg-id="沈阳新闻综合" group-title="地方/其他",沈阳新闻综合
+http://p12.demo.invalid/province398/index.m3u8
+#EXTINF:-1 tvg-id="哈尔滨新闻综合" group-title="地方/其他",哈尔滨新闻综合
+http://p12.demo.invalid/province400/index.m3u8
+#EXTINF:-1 tvg-id="济南新闻综合" group-title="地方/其他",济南新闻综合
+http://p12.demo.invalid/province402/index.m3u8
+#EXTINF:-1 tvg-id="郑州新闻综合" group-title="地方/其他",郑州新闻综合
+http://p12.demo.invalid/province404/index.m3u8
+#EXTINF:-1 tvg-id="长沙新闻综合" group-title="地方/其他",长沙新闻综合
+http://p12.demo.invalid/province406/index.m3u8
+#EXTINF:-1 tvg-id="福州新闻综合" group-title="地方/其他",福州新闻综合
+http://p12.demo.invalid/province408/index.m3u8
+#EXTINF:-1 tvg-id="昆明新闻综合" group-title="地方/其他",昆明新闻综合
+http://p12.demo.invalid/province410/index.m3u8
+#EXTINF:-1 tvg-id="河北公共频道" group-title="地方/其他",河北公共频道
+http://p12.demo.invalid/province412/index.m3u8
+#EXTINF:-1 tvg-id="山西公共频道" group-title="地方/其他",山西公共频道
+http://p12.demo.invalid/province414/index.m3u8
+#EXTINF:-1 tvg-id="辽宁公共频道" group-title="地方/其他",辽宁公共频道
+http://p12.demo.invalid/province416/index.m3u8
+#EXTINF:-1 tvg-id="吉林公共频道" group-title="地方/其他",吉林公共频道
+http://p12.demo.invalid/province418/index.m3u8
+#EXTINF:-1 tvg-id="黑龙江公共频道" group-title="地方/其他",黑龙江公共频道
+http://p12.demo.invalid/province420/index.m3u8
+#EXTINF:-1 tvg-id="江苏公共频道" group-title="地方/其他",江苏公共频道
+http://p12.demo.invalid/province422/index.m3u8
+#EXTINF:-1 tvg-id="浙江公共频道" group-title="地方/其他",浙江公共频道
+http://p12.demo.invalid/province424/index.m3u8
+#EXTINF:-1 tvg-id="安徽公共频道" group-title="地方/其他",安徽公共频道
+http://p12.demo.invalid/province426/index.m3u8
+#EXTINF:-1 tvg-id="福建公共频道" group-title="地方/其他",福建公共频道
+http://p12.demo.invalid/province428/index.m3u8
+#EXTINF:-1 tvg-id="江西公共频道" group-title="地方/其他",江西公共频道
+http://p12.demo.invalid/province430/index.m3u8
+#EXTINF:-1 tvg-id="山东公共频道" group-title="地方/其他",山东公共频道
+http://p12.demo.invalid/province432/index.m3u8
+#EXTINF:-1 tvg-id="河南公共频道" group-title="地方/其他",河南公共频道
+http://p12.demo.invalid/province434/index.m3u8
+#EXTINF:-1 tvg-id="湖北公共频道" group-title="地方/其他",湖北公共频道
+http://p12.demo.invalid/province436/index.m3u8
+#EXTINF:-1 tvg-id="湖南公共频道" group-title="地方/其他",湖南公共频道
+http://p12.demo.invalid/province438/index.m3u8
+#EXTINF:-1 tvg-id="广东公共频道" group-title="地方/其他",广东公共频道
+http://p12.demo.invalid/province440/index.m3u8
+#EXTINF:-1 tvg-id="广西公共频道" group-title="地方/其他",广西公共频道
+http://p12.demo.invalid/province442/index.m3u8
+#EXTINF:-1 tvg-id="海南公共频道" group-title="地方/其他",海南公共频道
+http://p12.demo.invalid/province444/index.m3u8
+#EXTINF:-1 tvg-id="四川公共频道" group-title="地方/其他",四川公共频道
+http://p12.demo.invalid/province446/index.m3u8
+#EXTINF:-1 tvg-id="贵州公共频道" group-title="地方/其他",贵州公共频道
+http://p12.demo.invalid/province448/index.m3u8
+#EXTINF:-1 tvg-id="云南公共频道" group-title="地方/其他",云南公共频道
+http://p12.demo.invalid/province450/index.m3u8
+#EXTINF:-1 tvg-id="陕西公共频道" group-title="地方/其他",陕西公共频道
+http://p12.demo.invalid/province452/index.m3u8
+#EXTINF:-1 tvg-id="甘肃公共频道" group-title="地方/其他",甘肃公共频道
+http://p12.demo.invalid/province454/index.m3u8
+#EXTINF:-1 tvg-id="青海公共频道" group-title="地方/其他",青海公共频道
+http://p12.demo.invalid/province456/index.m3u8
+#EXTINF:-1 tvg-id="宁夏公共频道" group-title="地方/其他",宁夏公共频道
+http://p12.demo.invalid/province458/index.m3u8
+#EXTINF:-1 tvg-id="新疆公共频道" group-title="地方/其他",新疆公共频道
+http://p12.demo.invalid/province460/index.m3u8
+#EXTINF:-1 tvg-id="西藏公共频道" group-title="地方/其他",西藏公共频道
+http://p12.demo.invalid/province462/index.m3u8
+#EXTINF:-1 tvg-id="内蒙古公共频道" group-title="地方/其他",内蒙古公共频道
+http://p12.demo.invalid/province464/index.m3u8
+#EXTINF:-1 tvg-id="北京公共频道" group-title="地方/其他",北京公共频道
+http://p12.demo.invalid/province466/index.m3u8
+#EXTINF:-1 tvg-id="天津公共频道" group-title="地方/其他",天津公共频道
+http://p12.demo.invalid/province468/index.m3u8
+#EXTINF:-1 tvg-id="上海公共频道" group-title="地方/其他",上海公共频道
+http://p12.demo.invalid/province470/index.m3u8
+#EXTINF:-1 tvg-id="重庆公共频道" group-title="地方/其他",重庆公共频道
+http://p12.demo.invalid/province472/index.m3u8
+#EXTINF:-1 tvg-id="深圳公共频道" group-title="地方/其他",深圳公共频道
+http://p12.demo.invalid/province474/index.m3u8
+#EXTINF:-1 tvg-id="青岛公共频道" group-title="地方/其他",青岛公共频道
+http://p12.demo.invalid/province476/index.m3u8
+#EXTINF:-1 tvg-id="大连公共频道" group-title="地方/其他",大连公共频道
+http://p12.demo.invalid/province478/index.m3u8
+#EXTINF:-1 tvg-id="宁波公共频道" group-title="地方/其他",宁波公共频道
+http://p12.demo.invalid/province480/index.m3u8
+#EXTINF:-1 tvg-id="厦门公共频道" group-title="地方/其他",厦门公共频道
+http://p12.demo.invalid/province482/index.m3u8
+#EXTINF:-1 tvg-id="南京公共频道" group-title="地方/其他",南京公共频道
+http://p12.demo.invalid/province484/index.m3u8
+#EXTINF:-1 tvg-id="杭州公共频道" group-title="地方/其他",杭州公共频道
+http://p12.demo.invalid/province486/index.m3u8
+#EXTINF:-1 tvg-id="广州公共频道" group-title="地方/其他",广州公共频道
+http://p12.demo.invalid/province488/index.m3u8
+#EXTINF:-1 tvg-id="成都公共频道" group-title="地方/其他",成都公共频道
+http://p12.demo.invalid/province490/index.m3u8
+#EXTINF:-1 tvg-id="武汉公共频道" group-title="地方/其他",武汉公共频道
+http://p12.demo.invalid/province492/index.m3u8
+#EXTINF:-1 tvg-id="西安公共频道" group-title="地方/其他",西安公共频道
+http://p12.demo.invalid/province494/index.m3u8
+#EXTINF:-1 tvg-id="沈阳公共频道" group-title="地方/其他",沈阳公共频道
+http://p12.demo.invalid/province496/index.m3u8
+#EXTINF:-1 tvg-id="哈尔滨公共频道" group-title="地方/其他",哈尔滨公共频道
+http://p12.demo.invalid/province498/index.m3u8
+#EXTINF:-1 tvg-id="济南公共频道" group-title="地方/其他",济南公共频道
+http://p12.demo.invalid/province500/index.m3u8
+#EXTINF:-1 tvg-id="郑州公共频道" group-title="地方/其他",郑州公共频道
+http://p12.demo.invalid/province502/index.m3u8
+#EXTINF:-1 tvg-id="长沙公共频道" group-title="地方/其他",长沙公共频道
+http://p12.demo.invalid/province504/index.m3u8
+#EXTINF:-1 tvg-id="福州公共频道" group-title="地方/其他",福州公共频道
+http://p12.demo.invalid/province506/index.m3u8
+#EXTINF:-1 tvg-id="昆明公共频道" group-title="地方/其他",昆明公共频道
+http://p12.demo.invalid/province508/index.m3u8
+#EXTINF:-1 tvg-id="河北影视" group-title="地方/其他",河北影视
+http://p12.demo.invalid/province510/index.m3u8
+#EXTINF:-1 tvg-id="山西影视" group-title="地方/其他",山西影视
+http://p12.demo.invalid/province512/index.m3u8
+#EXTINF:-1 tvg-id="辽宁影视" group-title="地方/其他",辽宁影视
+http://p12.demo.invalid/province514/index.m3u8
+#EXTINF:-1 tvg-id="吉林影视" group-title="地方/其他",吉林影视
+http://p12.demo.invalid/province516/index.m3u8
+#EXTINF:-1 tvg-id="黑龙江影视" group-title="地方/其他",黑龙江影视
+http://p12.demo.invalid/province518/index.m3u8
+#EXTINF:-1 tvg-id="江苏影视" group-title="地方/其他",江苏影视
+http://p12.demo.invalid/province520/index.m3u8
+#EXTINF:-1 tvg-id="浙江影视" group-title="地方/其他",浙江影视
+http://p12.demo.invalid/province522/index.m3u8
+#EXTINF:-1 tvg-id="安徽影视" group-title="地方/其他",安徽影视
+http://p12.demo.invalid/province524/index.m3u8
+#EXTINF:-1 tvg-id="福建影视" group-title="地方/其他",福建影视
+http://p12.demo.invalid/province526/index.m3u8
+#EXTINF:-1 tvg-id="江西影视" group-title="地方/其他",江西影视
+http://p12.demo.invalid/province528/index.m3u8
+#EXTINF:-1 tvg-id="山东影视" group-title="地方/其他",山东影视
+http://p12.demo.invalid/province530/index.m3u8
+#EXTINF:-1 tvg-id="河南影视" group-title="地方/其他",河南影视
+http://p12.demo.invalid/province532/index.m3u8
+#EXTINF:-1 tvg-id="湖北影视" group-title="地方/其他",湖北影视
+http://p12.demo.invalid/province534/index.m3u8
+#EXTINF:-1 tvg-id="湖南影视" group-title="地方/其他",湖南影视
+http://p12.demo.invalid/province536/index.m3u8
+#EXTINF:-1 tvg-id="广东影视" group-title="地方/其他",广东影视
+http://p12.demo.invalid/province538/index.m3u8
+#EXTINF:-1 tvg-id="广西影视" group-title="地方/其他",广西影视
+http://p12.demo.invalid/province540/index.m3u8
+#EXTINF:-1 tvg-id="海南影视" group-title="地方/其他",海南影视
+http://p12.demo.invalid/province542/index.m3u8
+#EXTINF:-1 tvg-id="四川影视" group-title="地方/其他",四川影视
+http://p12.demo.invalid/province544/index.m3u8
+#EXTINF:-1 tvg-id="贵州影视" group-title="地方/其他",贵州影视
+http://p12.demo.invalid/province546/index.m3u8
+#EXTINF:-1 tvg-id="云南影视" group-title="地方/其他",云南影视
+http://p12.demo.invalid/province548/index.m3u8
+#EXTINF:-1 tvg-id="陕西影视" group-title="地方/其他",陕西影视
+http://p12.demo.invalid/province550/index.m3u8
+#EXTINF:-1 tvg-id="甘肃影视" group-title="地方/其他",甘肃影视
+http://p12.demo.invalid/province552/index.m3u8
+#EXTINF:-1 tvg-id="青海影视" group-title="地方/其他",青海影视
+http://p12.demo.invalid/province554/index.m3u8
+#EXTINF:-1 tvg-id="宁夏影视" group-title="地方/其他",宁夏影视
+http://p12.demo.invalid/province556/index.m3u8
+#EXTINF:-1 tvg-id="新疆影视" group-title="地方/其他",新疆影视
+http://p12.demo.invalid/province558/index.m3u8
+#EXTINF:-1 tvg-id="西藏影视" group-title="地方/其他",西藏影视
+http://p12.demo.invalid/province560/index.m3u8
+#EXTINF:-1 tvg-id="内蒙古影视" group-title="地方/其他",内蒙古影视
+http://p12.demo.invalid/province562/index.m3u8
+#EXTINF:-1 tvg-id="北京影视" group-title="地方/其他",北京影视
+http://p12.demo.invalid/province564/index.m3u8
+#EXTINF:-1 tvg-id="天津影视" group-title="地方/其他",天津影视
+http://p12.demo.invalid/province566/index.m3u8
+#EXTINF:-1 tvg-id="上海影视" group-title="地方/其他",上海影视
+http://p12.demo.invalid/province568/index.m3u8
+#EXTINF:-1 tvg-id="重庆影视" group-title="地方/其他",重庆影视
+http://p12.demo.invalid/province570/index.m3u8
+#EXTINF:-1 tvg-id="深圳影视" group-title="地方/其他",深圳影视
+http://p12.demo.invalid/province572/index.m3u8
+#EXTINF:-1 tvg-id="青岛影视" group-title="地方/其他",青岛影视
+http://p12.demo.invalid/province574/index.m3u8
+#EXTINF:-1 tvg-id="大连影视" group-title="地方/其他",大连影视
+http://p12.demo.invalid/province576/index.m3u8
+#EXTINF:-1 tvg-id="宁波影视" group-title="地方/其他",宁波影视
+http://p12.demo.invalid/province578/index.m3u8
+#EXTINF:-1 tvg-id="厦门影视" group-title="地方/其他",厦门影视
+http://p12.demo.invalid/province580/index.m3u8
+#EXTINF:-1 tvg-id="南京影视" group-title="地方/其他",南京影视
+http://p12.demo.invalid/province582/index.m3u8
+#EXTINF:-1 tvg-id="杭州影视" group-title="地方/其他",杭州影视
+http://p12.demo.invalid/province584/index.m3u8
+#EXTINF:-1 tvg-id="广州影视" group-title="地方/其他",广州影视
+http://p12.demo.invalid/province586/index.m3u8
+#EXTINF:-1 tvg-id="成都影视" group-title="地方/其他",成都影视
+http://p12.demo.invalid/province588/index.m3u8
+#EXTINF:-1 tvg-id="武汉影视" group-title="地方/其他",武汉影视
+http://p12.demo.invalid/province590/index.m3u8
+#EXTINF:-1 tvg-id="西安影视" group-title="地方/其他",西安影视
+http://p12.demo.invalid/province592/index.m3u8
+#EXTINF:-1 tvg-id="沈阳影视" group-title="地方/其他",沈阳影视
+http://p12.demo.invalid/province594/index.m3u8
+#EXTINF:-1 tvg-id="哈尔滨影视" group-title="地方/其他",哈尔滨影视
+http://p12.demo.invalid/province596/index.m3u8
+#EXTINF:-1 tvg-id="济南影视" group-title="地方/其他",济南影视
+http://p12.demo.invalid/province598/index.m3u8
+#EXTINF:-1 tvg-id="郑州影视" group-title="地方/其他",郑州影视
+http://p12.demo.invalid/province600/index.m3u8
+#EXTINF:-1 tvg-id="长沙影视" group-title="地方/其他",长沙影视
+http://p12.demo.invalid/province602/index.m3u8
+#EXTINF:-1 tvg-id="福州影视" group-title="地方/其他",福州影视
+http://p12.demo.invalid/province604/index.m3u8
+#EXTINF:-1 tvg-id="昆明影视" group-title="地方/其他",昆明影视
+http://p12.demo.invalid/province606/index.m3u8
+#EXTINF:-1 tvg-id="河北都市" group-title="地方/其他",河北都市
+http://p12.demo.invalid/province608/index.m3u8
+#EXTINF:-1 tvg-id="山西都市" group-title="地方/其他",山西都市
+http://p12.demo.invalid/province610/index.m3u8
+#EXTINF:-1 tvg-id="辽宁都市" group-title="地方/其他",辽宁都市
+http://p12.demo.invalid/province612/index.m3u8
+#EXTINF:-1 tvg-id="吉林都市" group-title="地方/其他",吉林都市
+http://p12.demo.invalid/province614/index.m3u8
+#EXTINF:-1 tvg-id="黑龙江都市" group-title="地方/其他",黑龙江都市
+http://p12.demo.invalid/province616/index.m3u8
+#EXTINF:-1 tvg-id="江苏都市" group-title="地方/其他",江苏都市
+http://p12.demo.invalid/province618/index.m3u8
+#EXTINF:-1 tvg-id="浙江都市" group-title="地方/其他",浙江都市
+http://p12.demo.invalid/province620/index.m3u8
+#EXTINF:-1 tvg-id="安徽都市" group-title="地方/其他",安徽都市
+http://p12.demo.invalid/province622/index.m3u8
+#EXTINF:-1 tvg-id="福建都市" group-title="地方/其他",福建都市
+http://p12.demo.invalid/province624/index.m3u8
+#EXTINF:-1 tvg-id="江西都市" group-title="地方/其他",江西都市
+http://p12.demo.invalid/province626/index.m3u8
+#EXTINF:-1 tvg-id="山东都市" group-title="地方/其他",山东都市
+http://p12.demo.invalid/province628/index.m3u8
+#EXTINF:-1 tvg-id="河南都市" group-title="地方/其他",河南都市
+http://p12.demo.invalid/province630/index.m3u8
+#EXTINF:-1 tvg-id="湖北都市" group-title="地方/其他",湖北都市
+http://p12.demo.invalid/province632/index.m3u8
+#EXTINF:-1 tvg-id="湖南都市" group-title="地方/其他",湖南都市
+http://p12.demo.invalid/province634/index.m3u8
+#EXTINF:-1 tvg-id="广东都市" group-title="地方/其他",广东都市
+http://p12.demo.invalid/province636/index.m3u8
+#EXTINF:-1 tvg-id="广西都市" group-title="地方/其他",广西都市
+http://p12.demo.invalid/province638/index.m3u8
+#EXTINF:-1 tvg-id="海南都市" group-title="地方/其他",海南都市
+http://p12.demo.invalid/province640/index.m3u8
+#EXTINF:-1 tvg-id="四川都市" group-title="地方/其他",四川都市
+http://p12.demo.invalid/province642/index.m3u8
+#EXTINF:-1 tvg-id="贵州都市" group-title="地方/其他",贵州都市
+http://p12.demo.invalid/province644/index.m3u8
+#EXTINF:-1 tvg-id="云南都市" group-title="地方/其他",云南都市
+http://p12.demo.invalid/province646/index.m3u8
+#EXTINF:-1 tvg-id="陕西都市" group-title="地方/其他",陕西都市
+http://p12.demo.invalid/province648/index.m3u8
+#EXTINF:-1 tvg-id="甘肃都市" group-title="地方/其他",甘肃都市
+http://p12.demo.invalid/province650/index.m3u8
+#EXTINF:-1 tvg-id="青海都市" group-title="地方/其他",青海都市
+http://p12.demo.invalid/province652/index.m3u8
+#EXTINF:-1 tvg-id="宁夏都市" group-title="地方/其他",宁夏都市
+http://p12.demo.invalid/province654/index.m3u8
+#EXTINF:-1 tvg-id="新疆都市" group-title="地方/其他",新疆都市
+http://p12.demo.invalid/province656/index.m3u8
+#EXTINF:-1 tvg-id="西藏都市" group-title="地方/其他",西藏都市
+http://p12.demo.invalid/province658/index.m3u8
+#EXTINF:-1 tvg-id="内蒙古都市" group-title="地方/其他",内蒙古都市
+http://p12.demo.invalid/province660/index.m3u8
+#EXTINF:-1 tvg-id="北京都市" group-title="地方/其他",北京都市
+http://p12.demo.invalid/province662/index.m3u8
+#EXTINF:-1 tvg-id="天津都市" group-title="地方/其他",天津都市
+http://p12.demo.invalid/province664/index.m3u8
+#EXTINF:-1 tvg-id="上海都市" group-title="地方/其他",上海都市
+http://p12.demo.invalid/province666/index.m3u8
+#EXTINF:-1 tvg-id="重庆都市" group-title="地方/其他",重庆都市
+http://p12.demo.invalid/province668/index.m3u8
+#EXTINF:-1 tvg-id="深圳都市" group-title="地方/其他",深圳都市
+http://p12.demo.invalid/province670/index.m3u8
+#EXTINF:-1 tvg-id="青岛都市" group-title="地方/其他",青岛都市
+http://p12.demo.invalid/province672/index.m3u8
+#EXTINF:-1 tvg-id="大连都市" group-title="地方/其他",大连都市
+http://p12.demo.invalid/province674/index.m3u8
+#EXTINF:-1 tvg-id="宁波都市" group-title="地方/其他",宁波都市
+http://p12.demo.invalid/province676/index.m3u8
+#EXTINF:-1 tvg-id="厦门都市" group-title="地方/其他",厦门都市
+http://p12.demo.invalid/province678/index.m3u8
+#EXTINF:-1 tvg-id="南京都市" group-title="地方/其他",南京都市
+http://p12.demo.invalid/province680/index.m3u8
+#EXTINF:-1 tvg-id="杭州都市" group-title="地方/其他",杭州都市
+http://p12.demo.invalid/province682/index.m3u8
+#EXTINF:-1 tvg-id="广州都市" group-title="地方/其他",广州都市
+http://p12.demo.invalid/province684/index.m3u8
+#EXTINF:-1 tvg-id="成都都市" group-title="地方/其他",成都都市
+http://p12.demo.invalid/province686/index.m3u8
+#EXTINF:-1 tvg-id="武汉都市" group-title="地方/其他",武汉都市
+http://p12.demo.invalid/province688/index.m3u8
+#EXTINF:-1 tvg-id="西安都市" group-title="地方/其他",西安都市
+http://p12.demo.invalid/province690/index.m3u8
+#EXTINF:-1 tvg-id="沈阳都市" group-title="地方/其他",沈阳都市
+http://p12.demo.invalid/province692/index.m3u8
+#EXTINF:-1 tvg-id="哈尔滨都市" group-title="地方/其他",哈尔滨都市
+http://p12.demo.invalid/province694/index.m3u8
+#EXTINF:-1 tvg-id="济南都市" group-title="地方/其他",济南都市
+http://p12.demo.invalid/province696/index.m3u8
+#EXTINF:-1 tvg-id="郑州都市" group-title="地方/其他",郑州都市
+http://p12.demo.invalid/province698/index.m3u8
+#EXTINF:-1 tvg-id="长沙都市" group-title="地方/其他",长沙都市
+http://p12.demo.invalid/province700/index.m3u8
+#EXTINF:-1 tvg-id="福州都市" group-title="地方/其他",福州都市
+http://p12.demo.invalid/province702/index.m3u8
+#EXTINF:-1 tvg-id="昆明都市" group-title="地方/其他",昆明都市
+http://p12.demo.invalid/province704/index.m3u8
+#EXTINF:-1 tvg-id="河北经济生活" group-title="地方/其他",河北经济生活
+http://p12.demo.invalid/province706/index.m3u8
+#EXTINF:-1 tvg-id="山西经济生活" group-title="地方/其他",山西经济生活
+http://p12.demo.invalid/province708/index.m3u8
+#EXTINF:-1 tvg-id="辽宁经济生活" group-title="地方/其他",辽宁经济生活
+http://p12.demo.invalid/province710/index.m3u8
+#EXTINF:-1 tvg-id="吉林经济生活" group-title="地方/其他",吉林经济生活
+http://p12.demo.invalid/province712/index.m3u8
+#EXTINF:-1 tvg-id="黑龙江经济生活" group-title="地方/其他",黑龙江经济生活
+http://p12.demo.invalid/province714/index.m3u8
+#EXTINF:-1 tvg-id="江苏经济生活" group-title="地方/其他",江苏经济生活
+http://p12.demo.invalid/province716/index.m3u8
+#EXTINF:-1 tvg-id="浙江经济生活" group-title="地方/其他",浙江经济生活
+http://p12.demo.invalid/province718/index.m3u8
+#EXTINF:-1 tvg-id="安徽经济生活" group-title="地方/其他",安徽经济生活
+http://p12.demo.invalid/province720/index.m3u8
+#EXTINF:-1 tvg-id="福建经济生活" group-title="地方/其他",福建经济生活
+http://p12.demo.invalid/province722/index.m3u8
+#EXTINF:-1 tvg-id="江西经济生活" group-title="地方/其他",江西经济生活
+http://p12.demo.invalid/province724/index.m3u8
+#EXTINF:-1 tvg-id="山东经济生活" group-title="地方/其他",山东经济生活
+http://p12.demo.invalid/province726/index.m3u8
+#EXTINF:-1 tvg-id="河南经济生活" group-title="地方/其他",河南经济生活
+http://p12.demo.invalid/province728/index.m3u8
+#EXTINF:-1 tvg-id="湖北经济生活" group-title="地方/其他",湖北经济生活
+http://p12.demo.invalid/province730/index.m3u8
+#EXTINF:-1 tvg-id="湖南经济生活" group-title="地方/其他",湖南经济生活
+http://p12.demo.invalid/province732/index.m3u8
+#EXTINF:-1 tvg-id="广东经济生活" group-title="地方/其他",广东经济生活
+http://p12.demo.invalid/province734/index.m3u8
+#EXTINF:-1 tvg-id="广西经济生活" group-title="地方/其他",广西经济生活
+http://p12.demo.invalid/province736/index.m3u8
+#EXTINF:-1 tvg-id="海南经济生活" group-title="地方/其他",海南经济生活
+http://p12.demo.invalid/province738/index.m3u8
+#EXTINF:-1 tvg-id="四川经济生活" group-title="地方/其他",四川经济生活
+http://p12.demo.invalid/province740/index.m3u8
+#EXTINF:-1 tvg-id="贵州经济生活" group-title="地方/其他",贵州经济生活
+http://p12.demo.invalid/province742/index.m3u8
+#EXTINF:-1 tvg-id="云南经济生活" group-title="地方/其他",云南经济生活
+http://p12.demo.invalid/province744/index.m3u8
+#EXTINF:-1 tvg-id="陕西经济生活" group-title="地方/其他",陕西经济生活
+http://p12.demo.invalid/province746/index.m3u8
+#EXTINF:-1 tvg-id="甘肃经济生活" group-title="地方/其他",甘肃经济生活
+http://p12.demo.invalid/province748/index.m3u8
+#EXTINF:-1 tvg-id="青海经济生活" group-title="地方/其他",青海经济生活
+http://p12.demo.invalid/province750/index.m3u8
+#EXTINF:-1 tvg-id="宁夏经济生活" group-title="地方/其他",宁夏经济生活
+http://p12.demo.invalid/province752/index.m3u8
+#EXTINF:-1 tvg-id="新疆经济生活" group-title="地方/其他",新疆经济生活
+http://p12.demo.invalid/province754/index.m3u8
+#EXTINF:-1 tvg-id="西藏经济生活" group-title="地方/其他",西藏经济生活
+http://p12.demo.invalid/province756/index.m3u8
+#EXTINF:-1 tvg-id="内蒙古经济生活" group-title="地方/其他",内蒙古经济生活
+http://p12.demo.invalid/province758/index.m3u8
+#EXTINF:-1 tvg-id="北京经济生活" group-title="地方/其他",北京经济生活
+http://p12.demo.invalid/province760/index.m3u8
+#EXTINF:-1 tvg-id="天津经济生活" group-title="地方/其他",天津经济生活
+http://p12.demo.invalid/province762/index.m3u8
+#EXTINF:-1 tvg-id="上海经济生活" group-title="地方/其他",上海经济生活
+http://p12.demo.invalid/province764/index.m3u8
+#EXTINF:-1 tvg-id="重庆经济生活" group-title="地方/其他",重庆经济生活
+http://p12.demo.invalid/province766/index.m3u8
+#EXTINF:-1 tvg-id="深圳经济生活" group-title="地方/其他",深圳经济生活
+http://p12.demo.invalid/province768/index.m3u8
+#EXTINF:-1 tvg-id="青岛经济生活" group-title="地方/其他",青岛经济生活
+http://p12.demo.invalid/province770/index.m3u8
+#EXTINF:-1 tvg-id="大连经济生活" group-title="地方/其他",大连经济生活
+http://p12.demo.invalid/province772/index.m3u8
+#EXTINF:-1 tvg-id="宁波经济生活" group-title="地方/其他",宁波经济生活
+http://p12.demo.invalid/province774/index.m3u8
+#EXTINF:-1 tvg-id="厦门经济生活" group-title="地方/其他",厦门经济生活
+http://p12.demo.invalid/province776/index.m3u8
+#EXTINF:-1 tvg-id="南京经济生活" group-title="地方/其他",南京经济生活
+http://p12.demo.invalid/province778/index.m3u8
+#EXTINF:-1 tvg-id="杭州经济生活" group-title="地方/其他",杭州经济生活
+http://p12.demo.invalid/province780/index.m3u8
+#EXTINF:-1 tvg-id="广州经济生活" group-title="地方/其他",广州经济生活
+http://p12.demo.invalid/province782/index.m3u8
+#EXTINF:-1 tvg-id="成都经济生活" group-title="地方/其他",成都经济生活
+http://p12.demo.invalid/province784/index.m3u8
+#EXTINF:-1 tvg-id="武汉经济生活" group-title="地方/其他",武汉经济生活
+http://p12.demo.invalid/province786/index.m3u8
+#EXTINF:-1 tvg-id="西安经济生活" group-title="地方/其他",西安经济生活
+http://p12.demo.invalid/province788/index.m3u8
+#EXTINF:-1 tvg-id="沈阳经济生活" group-title="地方/其他",沈阳经济生活
+http://p12.demo.invalid/province790/index.m3u8
+#EXTINF:-1 tvg-id="哈尔滨经济生活" group-title="地方/其他",哈尔滨经济生活
+http://p12.demo.invalid/province792/index.m3u8
+#EXTINF:-1 tvg-id="济南经济生活" group-title="地方/其他",济南经济生活
+http://p12.demo.invalid/province794/index.m3u8
+#EXTINF:-1 tvg-id="郑州经济生活" group-title="地方/其他",郑州经济生活
+http://p12.demo.invalid/province796/index.m3u8
+#EXTINF:-1 tvg-id="长沙经济生活" group-title="地方/其他",长沙经济生活
+http://p12.demo.invalid/province798/index.m3u8
+#EXTINF:-1 tvg-id="福州经济生活" group-title="地方/其他",福州经济生活
+http://p12.demo.invalid/province800/index.m3u8
+#EXTINF:-1 tvg-id="昆明经济生活" group-title="地方/其他",昆明经济生活
+http://p12.demo.invalid/province802/index.m3u8
+#EXTINF:-1 tvg-id="河北少儿" group-title="地方/其他",河北少儿
+http://p12.demo.invalid/province804/index.m3u8
+#EXTINF:-1 tvg-id="山西少儿" group-title="地方/其他",山西少儿
+http://p12.demo.invalid/province806/index.m3u8
+#EXTINF:-1 tvg-id="辽宁少儿" group-title="地方/其他",辽宁少儿
+http://p12.demo.invalid/province808/index.m3u8
+#EXTINF:-1 tvg-id="吉林少儿" group-title="地方/其他",吉林少儿
+http://p12.demo.invalid/province810/index.m3u8
+#EXTINF:-1 tvg-id="黑龙江少儿" group-title="地方/其他",黑龙江少儿
+http://p12.demo.invalid/province812/index.m3u8
+#EXTINF:-1 tvg-id="江苏少儿" group-title="地方/其他",江苏少儿
+http://p12.demo.invalid/province814/index.m3u8
+#EXTINF:-1 tvg-id="浙江少儿" group-title="地方/其他",浙江少儿
+http://p12.demo.invalid/province816/index.m3u8
+#EXTINF:-1 tvg-id="安徽少儿" group-title="地方/其他",安徽少儿
+http://p12.demo.invalid/province818/index.m3u8
+#EXTINF:-1 tvg-id="福建少儿" group-title="地方/其他",福建少儿
+http://p12.demo.invalid/province820/index.m3u8
+#EXTINF:-1 tvg-id="江西少儿" group-title="地方/其他",江西少儿
+http://p12.demo.invalid/province822/index.m3u8
+#EXTINF:-1 tvg-id="山东少儿" group-title="地方/其他",山东少儿
+http://p12.demo.invalid/province824/index.m3u8
+#EXTINF:-1 tvg-id="河南少儿" group-title="地方/其他",河南少儿
+http://p12.demo.invalid/province826/index.m3u8
+#EXTINF:-1 tvg-id="湖北少儿" group-title="地方/其他",湖北少儿
+http://p12.demo.invalid/province828/index.m3u8
+#EXTINF:-1 tvg-id="湖南少儿" group-title="地方/其他",湖南少儿
+http://p12.demo.invalid/province830/index.m3u8
+#EXTINF:-1 tvg-id="广东少儿" group-title="地方/其他",广东少儿
+http://p12.demo.invalid/province832/index.m3u8
+#EXTINF:-1 tvg-id="广西少儿" group-title="地方/其他",广西少儿
+http://p12.demo.invalid/province834/index.m3u8
+#EXTINF:-1 tvg-id="海南少儿" group-title="地方/其他",海南少儿
+http://p12.demo.invalid/province836/index.m3u8
+#EXTINF:-1 tvg-id="四川少儿" group-title="地方/其他",四川少儿
+http://p12.demo.invalid/province838/index.m3u8
+#EXTINF:-1 tvg-id="贵州少儿" group-title="地方/其他",贵州少儿
+http://p12.demo.invalid/province840/index.m3u8
+#EXTINF:-1 tvg-id="云南少儿" group-title="地方/其他",云南少儿
+http://p12.demo.invalid/province842/index.m3u8
+#EXTINF:-1 tvg-id="陕西少儿" group-title="地方/其他",陕西少儿
+http://p12.demo.invalid/province844/index.m3u8
+#EXTINF:-1 tvg-id="甘肃少儿" group-title="地方/其他",甘肃少儿
+http://p12.demo.invalid/province846/index.m3u8
+#EXTINF:-1 tvg-id="青海少儿" group-title="地方/其他",青海少儿
+http://p12.demo.invalid/province848/index.m3u8
+#EXTINF:-1 tvg-id="宁夏少儿" group-title="地方/其他",宁夏少儿
+http://p12.demo.invalid/province850/index.m3u8
+#EXTINF:-1 tvg-id="新疆少儿" group-title="地方/其他",新疆少儿
+http://p12.demo.invalid/province852/index.m3u8
+#EXTINF:-1 tvg-id="西藏少儿" group-title="地方/其他",西藏少儿
+http://p12.demo.invalid/province854/index.m3u8
+#EXTINF:-1 tvg-id="内蒙古少儿" group-title="地方/其他",内蒙古少儿
+http://p12.demo.invalid/province856/index.m3u8
+#EXTINF:-1 tvg-id="北京少儿" group-title="地方/其他",北京少儿
+http://p12.demo.invalid/province858/index.m3u8
+#EXTINF:-1 tvg-id="天津少儿" group-title="地方/其他",天津少儿
+http://p12.demo.invalid/province860/index.m3u8
+#EXTINF:-1 tvg-id="上海少儿" group-title="地方/其他",上海少儿
+http://p12.demo.invalid/province862/index.m3u8
+#EXTINF:-1 tvg-id="重庆少儿" group-title="地方/其他",重庆少儿
+http://p12.demo.invalid/province864/index.m3u8
+#EXTINF:-1 tvg-id="深圳少儿" group-title="地方/其他",深圳少儿
+http://p12.demo.invalid/province866/index.m3u8
+#EXTINF:-1 tvg-id="青岛少儿" group-title="地方/其他",青岛少儿
+http://p12.demo.invalid/province868/index.m3u8
+#EXTINF:-1 tvg-id="大连少儿" group-title="地方/其他",大连少儿
+http://p12.demo.invalid/province870/index.m3u8
+#EXTINF:-1 tvg-id="宁波少儿" group-title="地方/其他",宁波少儿
+http://p12.demo.invalid/province872/index.m3u8
+#EXTINF:-1 tvg-id="厦门少儿" group-title="地方/其他",厦门少儿
+http://p12.demo.invalid/province874/index.m3u8
+#EXTINF:-1 tvg-id="南京少儿" group-title="地方/其他",南京少儿
+http://p12.demo.invalid/province876/index.m3u8
+#EXTINF:-1 tvg-id="杭州少儿" group-title="地方/其他",杭州少儿
+http://p12.demo.invalid/province878/index.m3u8
+#EXTINF:-1 tvg-id="广州少儿" group-title="地方/其他",广州少儿
+http://p12.demo.invalid/province880/index.m3u8
+#EXTINF:-1 tvg-id="成都少儿" group-title="地方/其他",成都少儿
+http://p12.demo.invalid/province882/index.m3u8
+#EXTINF:-1 tvg-id="武汉少儿" group-title="地方/其他",武汉少儿
+http://p12.demo.invalid/province884/index.m3u8
+#EXTINF:-1 tvg-id="西安少儿" group-title="地方/其他",西安少儿
+http://p12.demo.invalid/province886/index.m3u8
+#EXTINF:-1 tvg-id="沈阳少儿" group-title="地方/其他",沈阳少儿
+http://p12.demo.invalid/province888/index.m3u8
+#EXTINF:-1 tvg-id="哈尔滨少儿" group-title="地方/其他",哈尔滨少儿
+http://p12.demo.invalid/province890/index.m3u8
+#EXTINF:-1 tvg-id="济南少儿" group-title="地方/其他",济南少儿
+http://p12.demo.invalid/province892/index.m3u8
+#EXTINF:-1 tvg-id="郑州少儿" group-title="地方/其他",郑州少儿
+http://p12.demo.invalid/province894/index.m3u8
+#EXTINF:-1 tvg-id="长沙少儿" group-title="地方/其他",长沙少儿
+http://p12.demo.invalid/province896/index.m3u8
+#EXTINF:-1 tvg-id="福州少儿" group-title="地方/其他",福州少儿
+http://p12.demo.invalid/province898/index.m3u8
+#EXTINF:-1 tvg-id="昆明少儿" group-title="地方/其他",昆明少儿
+http://p12.demo.invalid/province900/index.m3u8
+#EXTINF:-1 tvg-id="河北科教" group-title="地方/其他",河北科教
+http://p12.demo.invalid/province902/index.m3u8
+#EXTINF:-1 tvg-id="山西科教" group-title="地方/其他",山西科教
+http://p12.demo.invalid/province904/index.m3u8
+#EXTINF:-1 tvg-id="辽宁科教" group-title="地方/其他",辽宁科教
+http://p12.demo.invalid/province906/index.m3u8
+#EXTINF:-1 tvg-id="吉林科教" group-title="地方/其他",吉林科教
+http://p12.demo.invalid/province908/index.m3u8
+#EXTINF:-1 tvg-id="黑龙江科教" group-title="地方/其他",黑龙江科教
+http://p12.demo.invalid/province910/index.m3u8
+#EXTINF:-1 tvg-id="江苏科教" group-title="地方/其他",江苏科教
+http://p12.demo.invalid/province912/index.m3u8
+#EXTINF:-1 tvg-id="浙江科教" group-title="地方/其他",浙江科教
+http://p12.demo.invalid/province914/index.m3u8
+#EXTINF:-1 tvg-id="安徽科教" group-title="地方/其他",安徽科教
+http://p12.demo.invalid/province916/index.m3u8
+#EXTINF:-1 tvg-id="福建科教" group-title="地方/其他",福建科教
+http://p12.demo.invalid/province918/index.m3u8
+#EXTINF:-1 tvg-id="江西科教" group-title="地方/其他",江西科教
+http://p12.demo.invalid/province920/index.m3u8
+#EXTINF:-1 tvg-id="山东科教" group-title="地方/其他",山东科教
+http://p12.demo.invalid/province922/index.m3u8
+#EXTINF:-1 tvg-id="河南科教" group-title="地方/其他",河南科教
+http://p12.demo.invalid/province924/index.m3u8
+#EXTINF:-1 tvg-id="湖北科教" group-title="地方/其他",湖北科教
+http://p12.demo.invalid/province926/index.m3u8
+#EXTINF:-1 tvg-id="湖南科教" group-title="地方/其他",湖南科教
+http://p12.demo.invalid/province928/index.m3u8
+#EXTINF:-1 tvg-id="广东科教" group-title="地方/其他",广东科教
+http://p12.demo.invalid/province930/index.m3u8
+#EXTINF:-1 tvg-id="广西科教" group-title="地方/其他",广西科教
+http://p12.demo.invalid/province932/index.m3u8
+#EXTINF:-1 tvg-id="海南科教" group-title="地方/其他",海南科教
+http://p12.demo.invalid/province934/index.m3u8
+#EXTINF:-1 tvg-id="四川科教" group-title="地方/其他",四川科教
+http://p12.demo.invalid/province936/index.m3u8
+#EXTINF:-1 tvg-id="贵州科教" group-title="地方/其他",贵州科教
+http://p12.demo.invalid/province938/index.m3u8
+#EXTINF:-1 tvg-id="云南科教" group-title="地方/其他",云南科教
+http://p12.demo.invalid/province940/index.m3u8
+#EXTINF:-1 tvg-id="陕西科教" group-title="地方/其他",陕西科教
+http://p12.demo.invalid/province942/index.m3u8
+#EXTINF:-1 tvg-id="甘肃科教" group-title="地方/其他",甘肃科教
+http://p12.demo.invalid/province944/index.m3u8
+#EXTINF:-1 tvg-id="青海科教" group-title="地方/其他",青海科教
+http://p12.demo.invalid/province946/index.m3u8
+#EXTINF:-1 tvg-id="宁夏科教" group-title="地方/其他",宁夏科教
+http://p12.demo.invalid/province948/index.m3u8
+#EXTINF:-1 tvg-id="新疆科教" group-title="地方/其他",新疆科教
+http://p12.demo.invalid/province950/index.m3u8
+#EXTINF:-1 tvg-id="西藏科教" group-title="地方/其他",西藏科教
+http://p12.demo.invalid/province952/index.m3u8
+#EXTINF:-1 tvg-id="内蒙古科教" group-title="地方/其他",内蒙古科教
+http://p12.demo.invalid/province954/index.m3u8
+#EXTINF:-1 tvg-id="北京科教" group-title="地方/其他",北京科教
+http://p12.demo.invalid/province956/index.m3u8
+#EXTINF:-1 tvg-id="天津科教" group-title="地方/其他",天津科教
+http://p12.demo.invalid/province958/index.m3u8
+#EXTINF:-1 tvg-id="上海科教" group-title="地方/其他",上海科教
+http://p12.demo.invalid/province960/index.m3u8
+#EXTINF:-1 tvg-id="重庆科教" group-title="地方/其他",重庆科教
+http://p12.demo.invalid/province962/index.m3u8
+#EXTINF:-1 tvg-id="深圳科教" group-title="地方/其他",深圳科教
+http://p12.demo.invalid/province964/index.m3u8
+#EXTINF:-1 tvg-id="青岛科教" group-title="地方/其他",青岛科教
+http://p12.demo.invalid/province966/index.m3u8
+#EXTINF:-1 tvg-id="大连科教" group-title="地方/其他",大连科教
+http://p12.demo.invalid/province968/index.m3u8
+#EXTINF:-1 tvg-id="宁波科教" group-title="地方/其他",宁波科教
+http://p12.demo.invalid/province970/index.m3u8
+#EXTINF:-1 tvg-id="厦门科教" group-title="地方/其他",厦门科教
+http://p12.demo.invalid/province972/index.m3u8
+#EXTINF:-1 tvg-id="南京科教" group-title="地方/其他",南京科教
+http://p12.demo.invalid/province974/index.m3u8
+#EXTINF:-1 tvg-id="杭州科教" group-title="地方/其他",杭州科教
+http://p12.demo.invalid/province976/index.m3u8
+#EXTINF:-1 tvg-id="广州科教" group-title="地方/其他",广州科教
+http://p12.demo.invalid/province978/index.m3u8
+#EXTINF:-1 tvg-id="成都科教" group-title="地方/其他",成都科教
+http://p12.demo.invalid/province980/index.m3u8
+#EXTINF:-1 tvg-id="武汉科教" group-title="地方/其他",武汉科教
+http://p12.demo.invalid/province982/index.m3u8
+#EXTINF:-1 tvg-id="西安科教" group-title="地方/其他",西安科教
+http://p12.demo.invalid/province984/index.m3u8
+#EXTINF:-1 tvg-id="沈阳科教" group-title="地方/其他",沈阳科教
+http://p12.demo.invalid/province986/index.m3u8
+#EXTINF:-1 tvg-id="哈尔滨科教" group-title="地方/其他",哈尔滨科教
+http://p12.demo.invalid/province988/index.m3u8
+#EXTINF:-1 tvg-id="济南科教" group-title="地方/其他",济南科教
+http://p12.demo.invalid/province990/index.m3u8
+#EXTINF:-1 tvg-id="郑州科教" group-title="地方/其他",郑州科教
+http://p12.demo.invalid/province992/index.m3u8
+#EXTINF:-1 tvg-id="长沙科教" group-title="地方/其他",长沙科教
+http://p12.demo.invalid/province994/index.m3u8
+#EXTINF:-1 tvg-id="福州科教" group-title="地方/其他",福州科教
+http://p12.demo.invalid/province996/index.m3u8
+#EXTINF:-1 tvg-id="昆明科教" group-title="地方/其他",昆明科教
+http://p12.demo.invalid/province998/index.m3u8
+#EXTINF:-1 tvg-id="河北体育" group-title="地方/其他",河北体育
+http://p12.demo.invalid/province1000/index.m3u8
+#EXTINF:-1 tvg-id="山西体育" group-title="地方/其他",山西体育
+http://p12.demo.invalid/province1002/index.m3u8
+#EXTINF:-1 tvg-id="辽宁体育" group-title="地方/其他",辽宁体育
+http://p12.demo.invalid/province1004/index.m3u8
+#EXTINF:-1 tvg-id="吉林体育" group-title="地方/其他",吉林体育
+http://p12.demo.invalid/province1006/index.m3u8
+#EXTINF:-1 tvg-id="黑龙江体育" group-title="地方/其他",黑龙江体育
+http://p12.demo.invalid/province1008/index.m3u8
+#EXTINF:-1 tvg-id="江苏体育" group-title="地方/其他",江苏体育
+http://p12.demo.invalid/province1010/index.m3u8
+#EXTINF:-1 tvg-id="浙江体育" group-title="地方/其他",浙江体育
+http://p12.demo.invalid/province1012/index.m3u8
+#EXTINF:-1 tvg-id="安徽体育" group-title="地方/其他",安徽体育
+http://p12.demo.invalid/province1014/index.m3u8
+#EXTINF:-1 tvg-id="福建体育" group-title="地方/其他",福建体育
+http://p12.demo.invalid/province1016/index.m3u8
+#EXTINF:-1 tvg-id="江西体育" group-title="地方/其他",江西体育
+http://p12.demo.invalid/province1018/index.m3u8
+#EXTINF:-1 tvg-id="山东体育" group-title="地方/其他",山东体育
+http://p12.demo.invalid/province1020/index.m3u8
+#EXTINF:-1 tvg-id="河南体育" group-title="地方/其他",河南体育
+http://p12.demo.invalid/province1022/index.m3u8
+#EXTINF:-1 tvg-id="湖北体育" group-title="地方/其他",湖北体育
+http://p12.demo.invalid/province1024/index.m3u8
+#EXTINF:-1 tvg-id="湖南体育" group-title="地方/其他",湖南体育
+http://p12.demo.invalid/province1026/index.m3u8
+#EXTINF:-1 tvg-id="广东体育" group-title="地方/其他",广东体育
+http://p12.demo.invalid/province1028/index.m3u8
+#EXTINF:-1 tvg-id="广西体育" group-title="地方/其他",广西体育
+http://p12.demo.invalid/province1030/index.m3u8
+#EXTINF:-1 tvg-id="海南体育" group-title="地方/其他",海南体育
+http://p12.demo.invalid/province1032/index.m3u8
+#EXTINF:-1 tvg-id="四川体育" group-title="地方/其他",四川体育
+http://p12.demo.invalid/province1034/index.m3u8
+#EXTINF:-1 tvg-id="贵州体育" group-title="地方/其他",贵州体育
+http://p12.demo.invalid/province1036/index.m3u8
+#EXTINF:-1 tvg-id="云南体育" group-title="地方/其他",云南体育
+http://p12.demo.invalid/province1038/index.m3u8
+#EXTINF:-1 tvg-id="陕西体育" group-title="地方/其他",陕西体育
+http://p12.demo.invalid/province1040/index.m3u8
+#EXTINF:-1 tvg-id="甘肃体育" group-title="地方/其他",甘肃体育
+http://p12.demo.invalid/province1042/index.m3u8
+#EXTINF:-1 tvg-id="青海体育" group-title="地方/其他",青海体育
+http://p12.demo.invalid/province1044/index.m3u8
+#EXTINF:-1 tvg-id="宁夏体育" group-title="地方/其他",宁夏体育
+http://p12.demo.invalid/province1046/index.m3u8
+#EXTINF:-1 tvg-id="新疆体育" group-title="地方/其他",新疆体育
+http://p12.demo.invalid/province1048/index.m3u8
+#EXTINF:-1 tvg-id="西藏体育" group-title="地方/其他",西藏体育
+http://p12.demo.invalid/province1050/index.m3u8
+#EXTINF:-1 tvg-id="内蒙古体育" group-title="地方/其他",内蒙古体育
+http://p12.demo.invalid/province1052/index.m3u8
+#EXTINF:-1 tvg-id="北京体育" group-title="地方/其他",北京体育
+http://p12.demo.invalid/province1054/index.m3u8
+#EXTINF:-1 tvg-id="天津体育" group-title="地方/其他",天津体育
+http://p12.demo.invalid/province1056/index.m3u8
+#EXTINF:-1 tvg-id="上海体育" group-title="地方/其他",上海体育
+http://p12.demo.invalid/province1058/index.m3u8
+#EXTINF:-1 tvg-id="重庆体育" group-title="地方/其他",重庆体育
+http://p12.demo.invalid/province1060/index.m3u8
+#EXTINF:-1 tvg-id="深圳体育" group-title="地方/其他",深圳体育
+http://p12.demo.invalid/province1062/index.m3u8
+#EXTINF:-1 tvg-id="青岛体育" group-title="地方/其他",青岛体育
+http://p12.demo.invalid/province1064/index.m3u8
+#EXTINF:-1 tvg-id="大连体育" group-title="地方/其他",大连体育
+http://p12.demo.invalid/province1066/index.m3u8
+#EXTINF:-1 tvg-id="宁波体育" group-title="地方/其他",宁波体育
+http://p12.demo.invalid/province1068/index.m3u8
+#EXTINF:-1 tvg-id="厦门体育" group-title="地方/其他",厦门体育
+http://p12.demo.invalid/province1070/index.m3u8
+#EXTINF:-1 tvg-id="南京体育" group-title="地方/其他",南京体育
+http://p12.demo.invalid/province1072/index.m3u8
+#EXTINF:-1 tvg-id="杭州体育" group-title="地方/其他",杭州体育
+http://p12.demo.invalid/province1074/index.m3u8
+#EXTINF:-1 tvg-id="广州体育" group-title="地方/其他",广州体育
+http://p12.demo.invalid/province1076/index.m3u8
+#EXTINF:-1 tvg-id="成都体育" group-title="地方/其他",成都体育
+http://p12.demo.invalid/province1078/index.m3u8
+#EXTINF:-1 tvg-id="武汉体育" group-title="地方/其他",武汉体育
+http://p12.demo.invalid/province1080/index.m3u8
+#EXTINF:-1 tvg-id="西安体育" group-title="地方/其他",西安体育
+http://p12.demo.invalid/province1082/index.m3u8
+#EXTINF:-1 tvg-id="沈阳体育" group-title="地方/其他",沈阳体育
+http://p12.demo.invalid/province1084/index.m3u8
+#EXTINF:-1 tvg-id="哈尔滨体育" group-title="地方/其他",哈尔滨体育
+http://p12.demo.invalid/province1086/index.m3u8
+#EXTINF:-1 tvg-id="济南体育" group-title="地方/其他",济南体育
+http://p12.demo.invalid/province1088/index.m3u8
+#EXTINF:-1 tvg-id="郑州体育" group-title="地方/其他",郑州体育
+http://p12.demo.invalid/province1090/index.m3u8
+#EXTINF:-1 tvg-id="长沙体育" group-title="地方/其他",长沙体育
+http://p12.demo.invalid/province1092/index.m3u8
+#EXTINF:-1 tvg-id="福州体育" group-title="地方/其他",福州体育
+http://p12.demo.invalid/province1094/index.m3u8
+#EXTINF:-1 tvg-id="昆明体育" group-title="地方/其他",昆明体育
+http://p12.demo.invalid/province1096/index.m3u8
+#EXTINF:-1 tvg-id="河北农业农村" group-title="地方/其他",河北农业农村
+http://p12.demo.invalid/province1098/index.m3u8
+#EXTINF:-1 tvg-id="山西农业农村" group-title="地方/其他",山西农业农村
+http://p12.demo.invalid/province1100/index.m3u8
+#EXTINF:-1 tvg-id="辽宁农业农村" group-title="地方/其他",辽宁农业农村
+http://p12.demo.invalid/province1102/index.m3u8
+#EXTINF:-1 tvg-id="吉林农业农村" group-title="地方/其他",吉林农业农村
+http://p12.demo.invalid/province1104/index.m3u8
+#EXTINF:-1 tvg-id="黑龙江农业农村" group-title="地方/其他",黑龙江农业农村
+http://p12.demo.invalid/province1106/index.m3u8
+#EXTINF:-1 tvg-id="江苏农业农村" group-title="地方/其他",江苏农业农村
+http://p12.demo.invalid/province1108/index.m3u8
+#EXTINF:-1 tvg-id="浙江农业农村" group-title="地方/其他",浙江农业农村
+http://p12.demo.invalid/province1110/index.m3u8
+#EXTINF:-1 tvg-id="安徽农业农村" group-title="地方/其他",安徽农业农村
+http://p12.demo.invalid/province1112/index.m3u8
+#EXTINF:-1 tvg-id="福建农业农村" group-title="地方/其他",福建农业农村
+http://p12.demo.invalid/province1114/index.m3u8
+#EXTINF:-1 tvg-id="江西农业农村" group-title="地方/其他",江西农业农村
+http://p12.demo.invalid/province1116/index.m3u8
+#EXTINF:-1 tvg-id="山东农业农村" group-title="地方/其他",山东农业农村
+http://p12.demo.invalid/province1118/index.m3u8
+#EXTINF:-1 tvg-id="河南农业农村" group-title="地方/其他",河南农业农村
+http://p12.demo.invalid/province1120/index.m3u8
+#EXTINF:-1 tvg-id="湖北农业农村" group-title="地方/其他",湖北农业农村
+http://p12.demo.invalid/province1122/index.m3u8
+#EXTINF:-1 tvg-id="湖南农业农村" group-title="地方/其他",湖南农业农村
+http://p12.demo.invalid/province1124/index.m3u8
+#EXTINF:-1 tvg-id="广东农业农村" group-title="地方/其他",广东农业农村
+http://p12.demo.invalid/province1126/index.m3u8
+#EXTINF:-1 tvg-id="广西农业农村" group-title="地方/其他",广西农业农村
+http://p12.demo.invalid/province1128/index.m3u8
+#EXTINF:-1 tvg-id="海南农业农村" group-title="地方/其他",海南农业农村
+http://p12.demo.invalid/province1130/index.m3u8
+#EXTINF:-1 tvg-id="四川农业农村" group-title="地方/其他",四川农业农村
+http://p12.demo.invalid/province1132/index.m3u8
+#EXTINF:-1 tvg-id="贵州农业农村" group-title="地方/其他",贵州农业农村
+http://p12.demo.invalid/province1134/index.m3u8
+#EXTINF:-1 tvg-id="云南农业农村" group-title="地方/其他",云南农业农村
+http://p12.demo.invalid/province1136/index.m3u8
+#EXTINF:-1 tvg-id="陕西农业农村" group-title="地方/其他",陕西农业农村
+http://p12.demo.invalid/province1138/index.m3u8
+#EXTINF:-1 tvg-id="甘肃农业农村" group-title="地方/其他",甘肃农业农村
+http://p12.demo.invalid/province1140/index.m3u8
+#EXTINF:-1 tvg-id="青海农业农村" group-title="地方/其他",青海农业农村
+http://p12.demo.invalid/province1142/index.m3u8
+#EXTINF:-1 tvg-id="宁夏农业农村" group-title="地方/其他",宁夏农业农村
+http://p12.demo.invalid/province1144/index.m3u8
+#EXTINF:-1 tvg-id="新疆农业农村" group-title="地方/其他",新疆农业农村
+http://p12.demo.invalid/province1146/index.m3u8
+#EXTINF:-1 tvg-id="西藏农业农村" group-title="地方/其他",西藏农业农村
+http://p12.demo.invalid/province1148/index.m3u8
+#EXTINF:-1 tvg-id="内蒙古农业农村" group-title="地方/其他",内蒙古农业农村
+http://p12.demo.invalid/province1150/index.m3u8
+#EXTINF:-1 tvg-id="北京农业农村" group-title="地方/其他",北京农业农村
+http://p12.demo.invalid/province1152/index.m3u8
+#EXTINF:-1 tvg-id="天津农业农村" group-title="地方/其他",天津农业农村
+http://p12.demo.invalid/province1154/index.m3u8
+#EXTINF:-1 tvg-id="上海农业农村" group-title="地方/其他",上海农业农村
+http://p12.demo.invalid/province1156/index.m3u8
+#EXTINF:-1 tvg-id="重庆农业农村" group-title="地方/其他",重庆农业农村
+http://p12.demo.invalid/province1158/index.m3u8
+#EXTINF:-1 tvg-id="深圳农业农村" group-title="地方/其他",深圳农业农村
+http://p12.demo.invalid/province1160/index.m3u8
+#EXTINF:-1 tvg-id="青岛农业农村" group-title="地方/其他",青岛农业农村
+http://p12.demo.invalid/province1162/index.m3u8
+#EXTINF:-1 tvg-id="大连农业农村" group-title="地方/其他",大连农业农村
+http://p12.demo.invalid/province1164/index.m3u8
+#EXTINF:-1 tvg-id="宁波农业农村" group-title="地方/其他",宁波农业农村
+http://p12.demo.invalid/province1166/index.m3u8
+#EXTINF:-1 tvg-id="厦门农业农村" group-title="地方/其他",厦门农业农村
+http://p12.demo.invalid/province1168/index.m3u8
+#EXTINF:-1 tvg-id="南京农业农村" group-title="地方/其他",南京农业农村
+http://p12.demo.invalid/province1170/index.m3u8
+#EXTINF:-1 tvg-id="杭州农业农村" group-title="地方/其他",杭州农业农村
+http://p12.demo.invalid/province1172/index.m3u8
+#EXTINF:-1 tvg-id="广州农业农村" group-title="地方/其他",广州农业农村
+http://p12.demo.invalid/province1174/index.m3u8
+#EXTINF:-1 tvg-id="成都农业农村" group-title="地方/其他",成都农业农村
+http://p12.demo.invalid/province1176/index.m3u8
+#EXTINF:-1 tvg-id="武汉农业农村" group-title="地方/其他",武汉农业农村
+http://p12.demo.invalid/province1178/index.m3u8
+#EXTINF:-1 tvg-id="西安农业农村" group-title="地方/其他",西安农业农村
+http://p12.demo.invalid/province1180/index.m3u8
+#EXTINF:-1 tvg-id="沈阳农业农村" group-title="地方/其他",沈阳农业农村
+http://p12.demo.invalid/province1182/index.m3u8
+#EXTINF:-1 tvg-id="哈尔滨农业农村" group-title="地方/其他",哈尔滨农业农村
+http://p12.demo.invalid/province1184/index.m3u8
+#EXTINF:-1 tvg-id="济南农业农村" group-title="地方/其他",济南农业农村
+http://p12.demo.invalid/province1186/index.m3u8
+#EXTINF:-1 tvg-id="郑州农业农村" group-title="地方/其他",郑州农业农村
+http://p12.demo.invalid/province1188/index.m3u8
+#EXTINF:-1 tvg-id="长沙农业农村" group-title="地方/其他",长沙农业农村
+http://p12.demo.invalid/province1190/index.m3u8
+#EXTINF:-1 tvg-id="福州农业农村" group-title="地方/其他",福州农业农村
+http://p12.demo.invalid/province1192/index.m3u8
+#EXTINF:-1 tvg-id="昆明农业农村" group-title="地方/其他",昆明农业农村
+http://p12.demo.invalid/province1194/index.m3u8
+#EXTINF:-1 tvg-id="河北电视剧" group-title="地方/其他",河北电视剧
+http://p12.demo.invalid/province1196/index.m3u8
+#EXTINF:-1 tvg-id="山西电视剧" group-title="地方/其他",山西电视剧
+http://p12.demo.invalid/province1198/index.m3u8
+#EXTINF:-1 tvg-id="辽宁电视剧" group-title="地方/其他",辽宁电视剧
+http://p12.demo.invalid/province1200/index.m3u8
+#EXTINF:-1 tvg-id="吉林电视剧" group-title="地方/其他",吉林电视剧
+http://p12.demo.invalid/province1202/index.m3u8
+#EXTINF:-1 tvg-id="黑龙江电视剧" group-title="地方/其他",黑龙江电视剧
+http://p12.demo.invalid/province1204/index.m3u8
+#EXTINF:-1 tvg-id="江苏电视剧" group-title="地方/其他",江苏电视剧
+http://p12.demo.invalid/province1206/index.m3u8
+#EXTINF:-1 tvg-id="浙江电视剧" group-title="地方/其他",浙江电视剧
+http://p12.demo.invalid/province1208/index.m3u8
+#EXTINF:-1 tvg-id="安徽电视剧" group-title="地方/其他",安徽电视剧
+http://p12.demo.invalid/province1210/index.m3u8
+#EXTINF:-1 tvg-id="福建电视剧" group-title="地方/其他",福建电视剧
+http://p12.demo.invalid/province1212/index.m3u8
+#EXTINF:-1 tvg-id="江西电视剧" group-title="地方/其他",江西电视剧
+http://p12.demo.invalid/province1214/index.m3u8
+#EXTINF:-1 tvg-id="山东电视剧" group-title="地方/其他",山东电视剧
+http://p12.demo.invalid/province1216/index.m3u8
+#EXTINF:-1 tvg-id="河南电视剧" group-title="地方/其他",河南电视剧
+http://p12.demo.invalid/province1218/index.m3u8
+#EXTINF:-1 tvg-id="湖北电视剧" group-title="地方/其他",湖北电视剧
+http://p12.demo.invalid/province1220/index.m3u8
+#EXTINF:-1 tvg-id="湖南电视剧" group-title="地方/其他",湖南电视剧
+http://p12.demo.invalid/province1222/index.m3u8
+#EXTINF:-1 tvg-id="广东电视剧" group-title="地方/其他",广东电视剧
+http://p12.demo.invalid/province1224/index.m3u8
+#EXTINF:-1 tvg-id="广西电视剧" group-title="地方/其他",广西电视剧
+http://p12.demo.invalid/province1226/index.m3u8
+#EXTINF:-1 tvg-id="海南电视剧" group-title="地方/其他",海南电视剧
+http://p12.demo.invalid/province1228/index.m3u8
+#EXTINF:-1 tvg-id="四川电视剧" group-title="地方/其他",四川电视剧
+http://p12.demo.invalid/province1230/index.m3u8
+#EXTINF:-1 tvg-id="贵州电视剧" group-title="地方/其他",贵州电视剧
+http://p12.demo.invalid/province1232/index.m3u8
+#EXTINF:-1 tvg-id="云南电视剧" group-title="地方/其他",云南电视剧
+http://p12.demo.invalid/province1234/index.m3u8
+#EXTINF:-1 tvg-id="陕西电视剧" group-title="地方/其他",陕西电视剧
+http://p12.demo.invalid/province1236/index.m3u8
+#EXTINF:-1 tvg-id="甘肃电视剧" group-title="地方/其他",甘肃电视剧
+http://p12.demo.invalid/province1238/index.m3u8
+#EXTINF:-1 tvg-id="青海电视剧" group-title="地方/其他",青海电视剧
+http://p12.demo.invalid/province1240/index.m3u8
+#EXTINF:-1 tvg-id="宁夏电视剧" group-title="地方/其他",宁夏电视剧
+http://p12.demo.invalid/province1242/index.m3u8
+#EXTINF:-1 tvg-id="新疆电视剧" group-title="地方/其他",新疆电视剧
+http://p12.demo.invalid/province1244/index.m3u8
+#EXTINF:-1 tvg-id="西藏电视剧" group-title="地方/其他",西藏电视剧
+http://p12.demo.invalid/province1246/index.m3u8
+#EXTINF:-1 tvg-id="内蒙古电视剧" group-title="地方/其他",内蒙古电视剧
+http://p12.demo.invalid/province1248/index.m3u8
+#EXTINF:-1 tvg-id="北京电视剧" group-title="地方/其他",北京电视剧
+http://p12.demo.invalid/province1250/index.m3u8
+#EXTINF:-1 tvg-id="天津电视剧" group-title="地方/其他",天津电视剧
+http://p12.demo.invalid/province1252/index.m3u8
+#EXTINF:-1 tvg-id="上海电视剧" group-title="地方/其他",上海电视剧
+http://p12.demo.invalid/province1254/index.m3u8
+#EXTINF:-1 tvg-id="重庆电视剧" group-title="地方/其他",重庆电视剧
+http://p12.demo.invalid/province1256/index.m3u8
+#EXTINF:-1 tvg-id="深圳电视剧" group-title="地方/其他",深圳电视剧
+http://p12.demo.invalid/province1258/index.m3u8
+#EXTINF:-1 tvg-id="青岛电视剧" group-title="地方/其他",青岛电视剧
+http://p12.demo.invalid/province1260/index.m3u8
+#EXTINF:-1 tvg-id="大连电视剧" group-title="地方/其他",大连电视剧
+http://p12.demo.invalid/province1262/index.m3u8
+#EXTINF:-1 tvg-id="宁波电视剧" group-title="地方/其他",宁波电视剧
+http://p12.demo.invalid/province1264/index.m3u8
+#EXTINF:-1 tvg-id="厦门电视剧" group-title="地方/其他",厦门电视剧
+http://p12.demo.invalid/province1266/index.m3u8
+#EXTINF:-1 tvg-id="南京电视剧" group-title="地方/其他",南京电视剧
+http://p12.demo.invalid/province1268/index.m3u8
+#EXTINF:-1 tvg-id="杭州电视剧" group-title="地方/其他",杭州电视剧
+http://p12.demo.invalid/province1270/index.m3u8
+#EXTINF:-1 tvg-id="广州电视剧" group-title="地方/其他",广州电视剧
+http://p12.demo.invalid/province1272/index.m3u8
+#EXTINF:-1 tvg-id="成都电视剧" group-title="地方/其他",成都电视剧
+http://p12.demo.invalid/province1274/index.m3u8
+#EXTINF:-1 tvg-id="武汉电视剧" group-title="地方/其他",武汉电视剧
+http://p12.demo.invalid/province1276/index.m3u8
+#EXTINF:-1 tvg-id="西安电视剧" group-title="地方/其他",西安电视剧
+http://p12.demo.invalid/province1278/index.m3u8
+#EXTINF:-1 tvg-id="沈阳电视剧" group-title="地方/其他",沈阳电视剧
+http://p12.demo.invalid/province1280/index.m3u8
+#EXTINF:-1 tvg-id="哈尔滨电视剧" group-title="地方/其他",哈尔滨电视剧
+http://p12.demo.invalid/province1282/index.m3u8
+#EXTINF:-1 tvg-id="济南电视剧" group-title="地方/其他",济南电视剧
+http://p12.demo.invalid/province1284/index.m3u8
+#EXTINF:-1 tvg-id="郑州电视剧" group-title="地方/其他",郑州电视剧
+http://p12.demo.invalid/province1286/index.m3u8
+#EXTINF:-1 tvg-id="长沙电视剧" group-title="地方/其他",长沙电视剧
+http://p12.demo.invalid/province1288/index.m3u8
+#EXTINF:-1 tvg-id="福州电视剧" group-title="地方/其他",福州电视剧
+http://p12.demo.invalid/province1290/index.m3u8
+#EXTINF:-1 tvg-id="昆明电视剧" group-title="地方/其他",昆明电视剧
+http://p12.demo.invalid/province1292/index.m3u8
+#EXTINF:-1 tvg-id="河北纪录" group-title="地方/其他",河北纪录
+http://p12.demo.invalid/province1294/index.m3u8
+#EXTINF:-1 tvg-id="山西纪录" group-title="地方/其他",山西纪录
+http://p12.demo.invalid/province1296/index.m3u8
+#EXTINF:-1 tvg-id="辽宁纪录" group-title="地方/其他",辽宁纪录
+http://p12.demo.invalid/province1298/index.m3u8
+#EXTINF:-1 tvg-id="吉林纪录" group-title="地方/其他",吉林纪录
+http://p12.demo.invalid/province1300/index.m3u8
+#EXTINF:-1 tvg-id="黑龙江纪录" group-title="地方/其他",黑龙江纪录
+http://p12.demo.invalid/province1302/index.m3u8
+#EXTINF:-1 tvg-id="江苏纪录" group-title="地方/其他",江苏纪录
+http://p12.demo.invalid/province1304/index.m3u8
+#EXTINF:-1 tvg-id="浙江纪录" group-title="地方/其他",浙江纪录
+http://p12.demo.invalid/province1306/index.m3u8
+#EXTINF:-1 tvg-id="安徽纪录" group-title="地方/其他",安徽纪录
+http://p12.demo.invalid/province1308/index.m3u8
+#EXTINF:-1 tvg-id="福建纪录" group-title="地方/其他",福建纪录
+http://p12.demo.invalid/province1310/index.m3u8
+#EXTINF:-1 tvg-id="江西纪录" group-title="地方/其他",江西纪录
+http://p12.demo.invalid/province1312/index.m3u8
+#EXTINF:-1 tvg-id="导视资讯" group-title="其他频道",导视资讯
+http://p12.demo.invalid/province1314/index.m3u8
+#EXTINF:-1 tvg-id="电视指南" group-title="其他频道",电视指南
+http://p12.demo.invalid/province1316/index.m3u8
+#EXTINF:-1 tvg-id="CCTV1" group-title="央视",CCTV1
+http://p12.demo.invalid/province1318/index.m3u8
+#EXTINF:-1 tvg-id="CCTV2" group-title="央视",CCTV2
+http://p12.demo.invalid/province1320/index.m3u8
+#EXTINF:-1 tvg-id="CCTV3" group-title="央视",CCTV3
+http://p12.demo.invalid/province1322/index.m3u8
+#EXTINF:-1 tvg-id="CCTV5" group-title="央视",CCTV5
+http://p12.demo.invalid/province1324/index.m3u8
+#EXTINF:-1 tvg-id="CCTV13" group-title="央视",CCTV13
+http://p12.demo.invalid/province1326/index.m3u8
+#EXTINF:-1 tvg-id="CCTV-1综合" group-title="央视",CCTV-1综合
+http://p12.demo.invalid/province1328/index.m3u8
+#EXTINF:-1 tvg-id="北京卫视" group-title="卫视",北京卫视
+http://p12.demo.invalid/province1330/index.m3u8
+#EXTINF:-1 tvg-id="湖南卫视" group-title="卫视",湖南卫视
+http://p12.demo.invalid/province1332/index.m3u8
+#EXTINF:-1 tvg-id="浙江卫视" group-title="卫视",浙江卫视
+http://p12.demo.invalid/province1334/index.m3u8
+#EXTINF:-1 tvg-id="凤凰卫视中文台" group-title="港澳台",凤凰卫视中文台
+http://p12.demo.invalid/province1336/index.m3u8
+#EXTINF:-1 tvg-id="翡翠台" group-title="港澳台",翡翠台
+http://p12.demo.invalid/province1338/index.m3u8
+#EXTINF:-1 tvg-id="河北新闻综合" group-title="地方/其他",河北新闻综合
+http://p12.demo.invalid/province1340/index.m3u8

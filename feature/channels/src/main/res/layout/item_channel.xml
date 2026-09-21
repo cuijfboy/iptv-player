@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One channel row. Focus feedback is the docs/02 §8.2 triple: the selector background draws the
+  stroke + highlight, the holder animates the scale, and the system highlight is switched off so the
+  three effects are ours (not a doubled default ring).
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="16dp"
+    android:layout_marginVertical="2dp"
+    android:background="@drawable/bg_channel_row"
+    android:clickable="true"
+    android:defaultFocusHighlightEnabled="false"
+    android:focusable="true"
+    android:gravity="center_vertical"
+    android:minHeight="64dp"
+    android:orientation="horizontal"
+    android:paddingHorizontal="16dp"
+    android:paddingVertical="8dp"
+    tools:targetApi="o">
+
+    <TextView
+        android:id="@+id/channel_number"
+        android:layout_width="80dp"
+        android:layout_height="wrap_content"
+        android:textColor="#FFF0C674"
+        android:textSize="22sp"
+        tools:text="12" />
+
+    <!-- Logo *placeholder* (docs/04 P1-2). Real logo loading is not part of this stage. -->
+    <TextView
+        android:id="@+id/channel_logo"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:background="@drawable/bg_logo_placeholder"
+        android:gravity="center"
+        android:textColor="#FFE6E6E6"
+        android:textSize="20sp"
+        tools:text="C" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/channel_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#FFE6E6E6"
+            android:textSize="22sp"
+            tools:text="CCTV1" />
+
+        <TextView
+            android:id="@+id/channel_meta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#FF9A9AA5"
+            android:textSize="14sp"
+            tools:text="央视 · 2 路流" />
+
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/channel_number_source"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:textColor="#FF7A7A88"
+        android:textSize="12sp"
+        tools:text="自动" />
+
+</LinearLayout>
