@@ -1,0 +1,38 @@
+# Gradle / Android
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+local.properties
+*.iml
+.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+output.json
+
+# 密钥口令（密钥文件入库，口令不入库）
+keystore/local.properties
+*.jks.tmp
+
+# 日志 / 诊断导出 / 抓包
+*.log
+*.hprof
+tv-logs/
+diag-export/
+*.zip
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# Python（可选开发工具）
+__pycache__/
+*.pyc
+tools/dev-pipeline/.venv/
+
+# 大体积本地数据
+tools/fixtures/large/
