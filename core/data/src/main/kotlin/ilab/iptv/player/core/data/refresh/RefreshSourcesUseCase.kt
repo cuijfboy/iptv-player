@@ -3,6 +3,7 @@ package ilab.iptv.player.core.data.refresh
 import ilab.iptv.player.core.common.AppError
 import ilab.iptv.player.core.common.AppResult
 import ilab.iptv.player.core.common.Clock
+import ilab.iptv.player.core.common.DispatcherProvider
 import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.common.FailureClass
 import ilab.iptv.player.core.common.LogCategory
@@ -38,6 +39,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlin.coroutines.coroutineContext
@@ -61,6 +63,10 @@ import kotlin.coroutines.coroutineContext
  *
  * It consumes the two extension points as Hilt sets, so a new source or validator is a binding, not
  * a change here (docs/02 §9 E1/E2).
+ *
+ * Every stage runs on the injected `DispatcherProvider.io` (`flowOn`, docs/02 §4.5 C6/§10): the
+ * pipeline is the network-and-disk half of §6.1, and a caller that collects it must not be the thing
+ * that decides which thread parses 658 channels.
  */
 class RefreshSourcesUseCase @Inject constructor(
     private val providers: Set<@JvmSuppressWildcards SourceProvider>,
@@ -71,6 +77,7 @@ class RefreshSourcesUseCase @Inject constructor(
     private val logger: Logger,
     private val sessionIds: SessionIdFactory,
     private val playback: PlaybackPrioritySignal,
+    private val dispatchers: DispatcherProvider,
 ) {
 
     /** Healthy streams are trusted for 24 h, failed ones re-probed after 6 h (docs/02 §6.1). */
@@ -172,7 +179,7 @@ class RefreshSourcesUseCase @Inject constructor(
                 interruption,
             ),
         )
-    }
+    }.flowOn(dispatchers.io)
 
     // --- Fetch -----------------------------------------------------------------------------------
 

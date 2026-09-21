@@ -3,6 +3,7 @@ package ilab.iptv.player.core.data.playlist
 import ilab.iptv.player.core.common.AppError
 import ilab.iptv.player.core.common.AppResult
 import ilab.iptv.player.core.common.Clock
+import ilab.iptv.player.core.common.DispatcherProvider
 import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.common.LogCategory
 import ilab.iptv.player.core.common.Logger
@@ -16,7 +17,6 @@ import ilab.iptv.player.core.domain.playlist.ImportResult
 import ilab.iptv.player.core.domain.playlist.ImportedPlaylist
 import ilab.iptv.player.core.domain.playlist.PlaylistImportPort
 import ilab.iptv.player.core.source.pipeline.PipelineLimits
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -42,6 +42,8 @@ import javax.inject.Singleton
  *   the list the user is watching.
  * - **Copy first, record second, publish third.** A crash leaves either nothing or a complete file;
  *   the store is only replaced once the copy is safely on disk.
+ * - **All file I/O runs on the injected `DispatcherProvider.io`** (docs/02 §4.5 C6), never on
+ *   `Dispatchers.IO` directly, so a test can hand in a `TestDispatcher` and see the work land there.
  */
 @Singleton
 class LocalPlaylistImportRepository @Inject constructor(
@@ -58,18 +60,19 @@ class LocalPlaylistImportRepository @Inject constructor(
      * could hurt a memory-constrained TV.
      */
     private val limits: PipelineLimits,
+    private val dispatchers: DispatcherProvider,
 ) : PlaylistImportPort {
 
     override fun folders(): ImportFolders = folders
 
-    override suspend fun candidates(): List<ImportCandidate> = withContext(Dispatchers.IO) {
+    override suspend fun candidates(): List<ImportCandidate> = withContext(dispatchers.io) {
         files.listFiles(folders.dropFolder)
             .filter { it.sizeBytes > 0L && isPlaylistName(it.name) }
             .sortedBy { it.name.lowercase() }
             .map { ImportCandidate(it.path, it.name, it.sizeBytes, it.modifiedAtMs) }
     }
 
-    override suspend fun import(candidate: ImportCandidate): ImportResult = withContext(Dispatchers.IO) {
+    override suspend fun import(candidate: ImportCandidate): ImportResult = withContext(dispatchers.io) {
         val startedAt = clock.nowMs()
         val session = sessionIds.newId("import")
         val sourceId = sourceIdFor(candidate.name)
@@ -198,7 +201,7 @@ class LocalPlaylistImportRepository @Inject constructor(
         )
     }
 
-    override suspend fun lastImported(): ImportedPlaylist? = withContext(Dispatchers.IO) {
+    override suspend fun lastImported(): ImportedPlaylist? = withContext(dispatchers.io) {
         lastImport.record()?.let {
             ImportedPlaylist(
                 name = it.name,

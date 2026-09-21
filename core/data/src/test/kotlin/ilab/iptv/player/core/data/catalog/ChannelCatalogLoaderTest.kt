@@ -6,6 +6,7 @@ import ilab.iptv.player.core.data.playlist.ImportRecord
 import ilab.iptv.player.core.data.playlist.LastImportStore
 import ilab.iptv.player.core.data.refresh.FakeClock
 import ilab.iptv.player.core.data.refresh.RecordingLogger
+import ilab.iptv.player.core.data.dispatchers.TestDispatcherProvider
 import ilab.iptv.player.core.data.store.ChannelStore
 import ilab.iptv.player.core.domain.playlist.ImportFolders
 import org.junit.Test
@@ -30,7 +31,7 @@ class ChannelCatalogLoaderTest {
 
     @Test
     fun `with nothing imported it loads the bundled fixture`() = test {
-        val report = ChannelCatalogLoader(bundled, lastImport, catalog, logger).ensureLoaded()
+        val report = ChannelCatalogLoader(TestDispatcherProvider(), bundled, lastImport, catalog, logger).ensureLoaded()
 
         assertThat(report?.sourceId).isEqualTo("bundled-fixture")
         assertThat(store.channels.value.map { it.name }).containsExactly("Bundled-1")
@@ -40,7 +41,7 @@ class ChannelCatalogLoaderTest {
     fun `a remembered import wins over the bundled fixture`() = test {
         remember("imported.m3u", IMPORTED_LIST)
 
-        val report = ChannelCatalogLoader(bundled, lastImport, catalog, logger).ensureLoaded()
+        val report = ChannelCatalogLoader(TestDispatcherProvider(), bundled, lastImport, catalog, logger).ensureLoaded()
 
         assertThat(report?.sourceId).isEqualTo("local:imported.m3u")
         assertThat(store.channels.value.map { it.name }).containsExactly("Imported-1", "Imported-2").inOrder()
@@ -52,7 +53,7 @@ class ChannelCatalogLoaderTest {
     fun `a remembered file with no channels falls back to the bundled fixture`() = test {
         remember("junk.m3u", "#EXTM3U\n#EXTINF:-1,no url here\n")
 
-        val report = ChannelCatalogLoader(bundled, lastImport, catalog, logger).ensureLoaded()
+        val report = ChannelCatalogLoader(TestDispatcherProvider(), bundled, lastImport, catalog, logger).ensureLoaded()
 
         assertThat(report?.sourceId).isEqualTo("bundled-fixture")
         assertThat(store.channels.value.map { it.name }).containsExactly("Bundled-1")
@@ -63,7 +64,7 @@ class ChannelCatalogLoaderTest {
         remember("imported.m3u", IMPORTED_LIST)
         files.delete("$STORE/imported.m3u")
 
-        val report = ChannelCatalogLoader(bundled, lastImport, catalog, logger).ensureLoaded()
+        val report = ChannelCatalogLoader(TestDispatcherProvider(), bundled, lastImport, catalog, logger).ensureLoaded()
 
         assertThat(report?.sourceId).isEqualTo("bundled-fixture")
         assertThat(store.channels.value.map { it.name }).containsExactly("Bundled-1")
@@ -71,7 +72,7 @@ class ChannelCatalogLoaderTest {
 
     @Test
     fun `ensureLoaded loads once and then reuses the report`() = test {
-        val loader = ChannelCatalogLoader(bundled, lastImport, catalog, logger)
+        val loader = ChannelCatalogLoader(TestDispatcherProvider(), bundled, lastImport, catalog, logger)
 
         val first = loader.ensureLoaded()
         val second = loader.ensureLoaded()
@@ -85,7 +86,7 @@ class ChannelCatalogLoaderTest {
     fun `an unreadable record still starts the app on the fixture`() = test {
         files.put(lastImport.recordPath(), "{ not json")
 
-        val report = ChannelCatalogLoader(bundled, lastImport, catalog, logger).ensureLoaded()
+        val report = ChannelCatalogLoader(TestDispatcherProvider(), bundled, lastImport, catalog, logger).ensureLoaded()
 
         assertThat(report?.sourceId).isEqualTo("bundled-fixture")
     }

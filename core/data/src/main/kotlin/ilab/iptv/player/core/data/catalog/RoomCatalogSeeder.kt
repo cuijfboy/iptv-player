@@ -4,7 +4,7 @@ import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.common.LogCategory
 import ilab.iptv.player.core.common.Logger
 import ilab.iptv.player.core.database.dao.ChannelDao
-import kotlinx.coroutines.Dispatchers
+import ilab.iptv.player.core.common.DispatcherProvider
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -31,6 +31,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class RoomCatalogSeeder @Inject constructor(
+    private val dispatchers: DispatcherProvider,
     private val bundled: BundledPlaylist,
     private val catalog: ChannelCatalog,
     private val channelDao: ChannelDao,
@@ -56,7 +57,7 @@ class RoomCatalogSeeder @Inject constructor(
                 // the injected CatalogSink, which is RoomCatalogWriter in production). The seeder no
                 // longer touches RoomCatalogWriter directly: that was the second write end the 收口
                 // removed.
-                val prepared = withContext(Dispatchers.IO) {
+                val prepared = withContext(dispatchers.io) {
                     val text = bundled.read().toString(Charsets.UTF_8)
                     catalog.prepare(text, bundled.sourceId)
                 }

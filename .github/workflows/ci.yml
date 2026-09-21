@@ -22,6 +22,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 脱敏守护 (docs/05-过程记录/22-守卫与绑定.md): the TV's intranet address reached this public
+      # repo through three process records, and the commits still contain it. This step scans
+      # the **tracked** files of the checked-out tree and fails on a private address, a MAC address or
+      # a credential assignment (a password / token key set to a literal value). It needs no JDK and
+      # no SDK, so it runs first: a leak is reported in seconds instead of after the 45-minute build.
+      # Allowlist entries live in `tools/ci/sensitive-info-allowlist.txt`, each with a written reason.
+      - name: 敏感信息守护 (sensitive-info guard)
+        run: |
+          bash tools/ci/sensitive-info-guard.sh
+          # And prove the guard still fires: a scanner that silently stops matching is worse than none.
+          bash tools/ci/sensitive-info-guard.test.sh
+
       # AGP 8.11.1 checks `JavaVersion.current().isCompatibleWith(VERSION_17)`, so 17 is its floor —
       # but the whole local verification pass (dev-A rounds 2–3, 5 commands green) ran on Android
       # Studio's JBR 21.0.10, so CI uses 21 to match the toolchain that was actually verified.

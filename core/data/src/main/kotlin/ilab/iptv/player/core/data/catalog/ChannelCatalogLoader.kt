@@ -5,7 +5,7 @@ import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.common.LogCategory
 import ilab.iptv.player.core.common.Logger
 import ilab.iptv.player.core.data.playlist.RememberedPlaylistSource
-import kotlinx.coroutines.Dispatchers
+import ilab.iptv.player.core.common.DispatcherProvider
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -32,10 +32,11 @@ import kotlinx.coroutines.withContext
  * the import wins and why a *broken* remembered import falls back here instead of leaving the app
  * empty.
  *
- * Loading runs on [Dispatchers.IO] because it reads an asset; the parse itself is ~150 KB of text and
- * is measured in the report rather than assumed to be free.
+ * Loading runs on the injected [DispatcherProvider.io] because it reads an asset; the parse itself is
+ * ~150 KB of text and is measured in the report rather than assumed to be free.
  */
 class ChannelCatalogLoader(
+    private val dispatchers: DispatcherProvider,
     private val bundled: BundledPlaylist,
     private val remembered: RememberedPlaylistSource,
     private val catalog: ChannelCatalog,
@@ -61,7 +62,7 @@ class ChannelCatalogLoader(
                 if (loaded && lastFailure != null) return null
             }
             return try {
-                val restored = withContext(Dispatchers.IO) { remembered.read() }
+                val restored = withContext(dispatchers.io) { remembered.read() }
                 val report = if (restored != null) {
                     loadRemembered(restored.bytes, restored.sourceId, restored.name)
                         // A remembered import that cannot be parsed must not cost the user the app:
@@ -97,7 +98,7 @@ class ChannelCatalogLoader(
     }
 
     /** The report of the load that happened, or null before the first load / after a failure. */
-    fun report(): CatalogLoadReport? = synchronized(stateLock) { lastReport }
+    fun report(): CatalogLoadReport? = catalog.lastReport()
 
     /** Parses a remembered import; null (after logging) when the copy no longer parses. */
     private suspend fun loadRemembered(bytes: ByteArray, sourceId: String, name: String): CatalogLoadReport? =

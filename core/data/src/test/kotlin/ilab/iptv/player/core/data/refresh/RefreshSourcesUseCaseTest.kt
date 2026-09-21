@@ -5,6 +5,7 @@ import ilab.iptv.player.core.common.AppResult
 import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.data.repository.InMemoryStreamRepository
 import ilab.iptv.player.core.data.store.ChannelStore
+import ilab.iptv.player.core.data.dispatchers.TestDispatcherProvider
 import ilab.iptv.player.core.domain.repository.StreamRepository
 import ilab.iptv.player.core.model.InterruptionReason
 import ilab.iptv.player.core.model.RefreshOptions
@@ -43,6 +44,10 @@ class RefreshSourcesUseCaseTest {
         logger = logger,
         sessionIds = FakeSessionIds(),
         playback = PlaybackPrioritySignal { playing },
+        // The pipeline is the network/disk half of §6.1, so the injected dispatcher is the real IO
+        // pool here: these tests are about phases, budget and cancellation, not about threading.
+        // `InjectedDispatchersTest` is where the dispatcher itself is the subject.
+        dispatchers = TestDispatcherProvider(kotlinx.coroutines.Dispatchers.IO),
     )
 
     private fun run(

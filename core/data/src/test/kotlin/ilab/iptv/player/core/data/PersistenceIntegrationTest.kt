@@ -1,5 +1,6 @@
 package ilab.iptv.player.core.data
 
+import ilab.iptv.player.core.data.dispatchers.TestDispatcherProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import ilab.iptv.player.core.common.EventCodes
@@ -113,6 +114,7 @@ class PersistenceIntegrationTest {
     /** The importer wired onto the production stack: same `ChannelCatalog` (→ Room) the app injects. */
     private fun importerOver(rig: RoomFixtures.Rig, limits: PipelineLimits = PipelineLimits()): PlaylistImportPort =
         LocalPlaylistImportRepository(
+            dispatchers = TestDispatcherProvider(),
             files = files,
             folders = FOLDERS,
             lastImport = LastImportStore(files, FOLDERS),

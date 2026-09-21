@@ -11,6 +11,7 @@ import ilab.iptv.player.core.data.catalog.AssetBundledPlaylist
 import ilab.iptv.player.core.data.catalog.ChannelCatalog
 import ilab.iptv.player.core.data.catalog.RoomCatalogSeeder
 import ilab.iptv.player.core.data.repository.RoomChannelRepository
+import ilab.iptv.player.core.data.dispatchers.TestDispatcherProvider
 import ilab.iptv.player.core.data.repository.RoomStreamRepository
 import ilab.iptv.player.core.data.store.RoomCatalogWriter
 import ilab.iptv.player.core.database.IptvDatabase
@@ -92,6 +93,7 @@ internal object RoomFixtures {
         // would fail.
         val catalog = ChannelCatalog(writer, fixedClock)
         val seeder = RoomCatalogSeeder(
+            dispatchers = TestDispatcherProvider(),
             bundled = AssetBundledPlaylist(context().assets),
             catalog = catalog,
             channelDao = database.channelDao(),

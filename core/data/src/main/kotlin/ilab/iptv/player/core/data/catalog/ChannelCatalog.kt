@@ -33,6 +33,17 @@ class ChannelCatalog @Inject constructor(
 ) {
 
     /**
+     * The report of the last catalog actually published through [commit]. The loader's
+     * `report()` reads this so a local import (which commits through the same sink) is
+     * reflected in the numbers the device page and diagnostics show — not just the boot-time
+     * parse (dev-a-16 chore, 2026-09-22).
+     */
+    @Volatile
+    private var lastCommitted: CatalogLoadReport? = null
+
+    fun lastReport(): CatalogLoadReport? = lastCommitted
+
+    /**
      * Parse → normalize/dedupe → map → store. Kept as the one-call form for the bootstrapper and
      * the P1-2 tests; the two halves are separate below so an importer can look at the result
      * *before* it replaces what the user is currently watching (P2-6).
@@ -75,6 +86,7 @@ class ChannelCatalog @Inject constructor(
         nowMs: Long = clock.nowMs(),
     ): CatalogLoadReport {
         sink.write(prepared.mapped, nowMs)
+        lastCommitted = prepared.report
         return prepared.report
     }
 

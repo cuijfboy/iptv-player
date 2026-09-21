@@ -1,0 +1,21 @@
+# 敏感信息守护白名单 / allowlist for tools/ci/sensitive-info-guard.sh
+#
+# One entry per line:   <ERE over "path:line:text"><TAB><reason>
+#   - the PATTERN is an extended regex matched against the whole hit line, so narrow it with a
+#     path prefix or with the exact harmless value;
+#   - the REASON is mandatory and is printed every time the entry suppresses a hit, so a
+#     suppression is never silent;
+#   - `#` at the start of a line is a comment, blank lines are ignored.
+#
+# Keep this list short and boring. An entry that says "it was leaking, but we allow it" is how the
+# guard quietly dies; an entry is only acceptable when the value could not identify anything.
+#
+# --- 单测里的假凭据 / fake credentials that only exist to be redacted ---------------------------
+^core/log/src/test/kotlin/ilab/iptv/player/core/log/UrlRedactorTest\.kt:	脱敏单测的输入与期望：`?token=abc123`、`?key=zzz`、`10.0.0.9` 是喂给 UrlRedactor 的夹具值，断言它们被掩成 `***`（主机保留）；没有真实凭据或设备地址。
+^core/log/src/test/kotlin/ilab/iptv/player/core/log/LogBusTest\.kt:	同上：`?token=secret`、`?secret=zzz` 是 LogBus 脱敏分支的输入，断言落盘/落环里是 `token=***`。
+^core/log/src/test/kotlin/ilab/iptv/player/core/log/file/	FileSink/LogJsonLine 端到端单测的假口令（`token=SECRET`、`token=SECRETn`），用来证明「脱敏先于落盘」；断言里出现的是 `token=***`。
+#
+# --- 夹具/探针地址 / fixture and probe addresses ------------------------------------------------
+10\.0\.0\.9	明显的夹具地址：单元测试与 QA 样例里的占位主机（私有网段的 10.0.0.9 常被当作文档示例），不对应任何真实服务。
+10\.255\.255\.1	P0 冒烟用的「不可达地址」探针，与 `127.0.0.1:9` 同组，故意选一个本机路由不到的私网地址验证 NET_UNREACHABLE；不是任何真实主机。
+192\.168\.10\.10	QA 脱敏取证的构造探针主机：它只出现在 `secret-channel.m3u8` / `user=qa` 同现的证据行里，用来演示「路径与内网 IP 未脱敏」这条缺陷；不是真实设备或源。真正的电视地址（`192.168.10.186`）已按本轮要求从仓库脱敏。

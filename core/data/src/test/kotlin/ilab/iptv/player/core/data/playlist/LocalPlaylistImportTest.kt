@@ -3,6 +3,7 @@ package ilab.iptv.player.core.data.playlist
 import com.google.common.truth.Truth.assertThat
 import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.data.catalog.ChannelCatalog
+import ilab.iptv.player.core.data.dispatchers.TestDispatcherProvider
 import ilab.iptv.player.core.data.refresh.FakeClock
 import ilab.iptv.player.core.data.refresh.FakeSessionIds
 import ilab.iptv.player.core.data.refresh.RecordingLogger
@@ -26,10 +27,10 @@ class LocalPlaylistImportTest {
     private val folders = ImportFolders(dropFolder = "/app/files/playlists", storeFolder = "/app/files/imports")
     private val files = FakePlaylistFileSystem()
     private val store = ChannelStore()
-    private val clock = FakeClock()
-    private val catalog = ChannelCatalog(store, clock)
+    private val catalog = ChannelCatalog(store, FakeClock())
     private val lastImport = LastImportStore(files, folders)
     private val logger = RecordingLogger()
+    private val clock = FakeClock()
 
     private val importer = LocalPlaylistImportRepository(
         files = files,
@@ -40,6 +41,7 @@ class LocalPlaylistImportTest {
         clock = clock,
         sessionIds = FakeSessionIds(),
         limits = PipelineLimits(),
+        dispatchers = TestDispatcherProvider(),
     )
 
     @Test
@@ -164,6 +166,7 @@ class LocalPlaylistImportTest {
         files.put("${folders.dropFolder}/big.m3u", big)
         val capped = LocalPlaylistImportRepository(
             files, folders, lastImport, catalog, logger, clock, FakeSessionIds(), PipelineLimits(maxBytes = 512),
+            TestDispatcherProvider(),
         )
 
         val result = capped.import(candidate("big.m3u", big))
