@@ -1,8 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!--
+      P2-5: the scheduled refresh runs as a WorkManager long-running worker, i.e. as the foreground
+      service `androidx.work.impl.foreground.SystemForegroundService`. `FOREGROUND_SERVICE` is required
+      from API 28 and `FOREGROUND_SERVICE_DATA_SYNC` from API 34 (this app targets 35) — the type is
+      declared again on the service below, because a foreground service whose declared type does not
+      contain the runtime type throws on start.
+      `POST_NOTIFICATIONS`: the refresh notification is not allowed to interrupt (IMPORTANCE_LOW,
+      silent) and Android 13+ additionally asks the user; the request belongs to P2-8's settings page,
+      the declaration here just keeps the manifest honest.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Android TV: this is a leanback app and does not require a touchscreen. -->
     <uses-feature
@@ -37,6 +52,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+          P2-5: WorkManager's foreground service. It ships inside work-runtime; `tools:node="merge"`
+          makes sure the `dataSync` type (and the exported=false it already has) is what lands in the
+          merged manifest, since that is the type `ForegroundInfo` asks for at runtime.
+        -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
     </application>
 
 </manifest>

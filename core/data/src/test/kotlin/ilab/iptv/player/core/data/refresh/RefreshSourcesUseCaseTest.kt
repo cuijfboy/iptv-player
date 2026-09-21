@@ -183,6 +183,41 @@ class RefreshSourcesUseCaseTest {
         assertThat(validator.calls).isEqualTo(2) // unchanged: everything was fresh
     }
 
+    /**
+     * P2-5 item 4 (断点续跑): the checkpoint is not a file — it is the health stamp of every row this
+     * run already wrote (docs/02 §6.1 TTLs). A run that is cut off by the budget leaves its finished
+     * probes behind, and the next run (a *new* `RefreshSourcesUseCase`, i.e. the new process after a
+     * kill) skips them instead of paying for them twice.
+     */
+    @Test
+    fun `a resume after an interrupted run does not repeat the probes that already landed`() {
+        val clock = FakeClock()
+        // 2 s of "work" per shallow verdict: four of them blow through the 5 s budget, so the deep
+        // stage finds no room and finishes the run with BUDGET_EXCEEDED instead of probing anyway.
+        val shallow = FakeStreamValidator(clock = clock, advanceClockMs = 2_000)
+        val deep = FakeDeepValidator.passing()
+        val providers = listOf(FakeSourceProvider("a", entries = (1..4).map { entry(it, "a") }))
+        val options = RefreshOptions(trigger = RefreshTrigger.SCHEDULED, budgetMs = 5_000)
+
+        val first = run(useCase(providers, validators = listOf(shallow, deep), clock = clock), options).last()
+
+        assertThat(first.interrupted?.reason).isEqualTo(InterruptionReason.BUDGET_EXCEEDED)
+        assertThat(first.interrupted?.phase).isEqualTo(RefreshPhase.DEEP)
+        assertThat(shallow.calls).isEqualTo(4)
+        assertThat(deep.calls).isEmpty() // the budget stopped the deep stage before it admitted anything
+
+        // The "restart": a fresh instance over the same persisted state, one minute later.
+        clock.advance(60_000)
+        val second = run(useCase(providers, validators = listOf(shallow, deep), clock = clock)).last()
+
+        assertThat(second.phase).isEqualTo(RefreshPhase.DONE)
+        assertThat(second.interrupted).isNull()
+        assertThat(second.total).isEqualTo(4)
+        assertThat(second.okCount).isEqualTo(0) // nothing re-validated: the finished probes were fresh
+        assertThat(shallow.calls).isEqualTo(4)
+        assertThat(deep.calls).isEmpty()
+    }
+
     @Test
     fun `cancelling the collector stops the run without reaching DONE`() {
         val collected = mutableListOf<RefreshProgress>()

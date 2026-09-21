@@ -429,7 +429,7 @@ class RefreshSourcesUseCase @Inject constructor(
 
         // --- Persist: codecs/resolution, score, selection and the deep health stamp in one upsert ---
         val nowMs = clock.nowMs()
-        val updated = candidates.map { stream ->
+        val updated = candidates.mapNotNull { stream ->
             val verification = verify.getValue(stream.id)
             val deep = fields.getValue(stream.id)
             val selected = stream.id in selectedIds
@@ -437,8 +437,12 @@ class RefreshSourcesUseCase @Inject constructor(
                 // Fresh: the stream was verified within its TTL, so its score and health stand; only
                 // the selection verdict is (re)written.
                 VerificationKind.REUSED -> stream.copy(disabled = !selected)
-                // Not admitted before the deadline: this run has no verdict, so nothing is touched.
-                VerificationKind.PENDING -> stream
+                // Not admitted before the deadline: this run has no deep verdict, so the row keeps
+                // everything the store already holds — including the shallow verdict this run recorded
+                // a moment ago (`StreamRepository.recordOutcome`). Writing the pre-shallow snapshot
+                // back here would *erase* that verdict, and the next run would pay for the same probe
+                // again, which is exactly what docs/02 §6.1's 断点续跑 rule forbids.
+                VerificationKind.PENDING -> null
                 VerificationKind.PROBED -> stream.copy(
                     quality = if (deep.width > 0 || deep.height > 0) {
                         Resolutions.qualityOf(deep.width, deep.height)

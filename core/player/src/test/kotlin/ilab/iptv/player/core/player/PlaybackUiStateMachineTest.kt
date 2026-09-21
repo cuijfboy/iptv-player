@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import ilab.iptv.player.core.common.AppError
 import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.common.FailureClass
+import ilab.iptv.player.core.common.PlaybackActivity
 import ilab.iptv.player.core.model.AspectRatioMode
 import ilab.iptv.player.core.model.AudioTrackInfo
 import ilab.iptv.player.core.model.EngineState
@@ -176,6 +177,37 @@ class PlaybackUiStateMachineTest {
         val state = machine.onWatchStarted(2, 20, infoBar())
 
         assertThat(state.infoBar?.failoverHint).isNull()
+    }
+
+    /**
+     * P2-5's R7 seam: the state machine is the ONE writer of `PlaybackUiState` (§4.5 C1), so it is
+     * also the one writer of the process-wide flag the refresh path reads. The band is the same one
+     * the playback foreground service treats as foreground.
+     */
+    @Test
+    fun `the playback activity flag follows the active phase band`() {
+        val machine = PlaybackUiStateMachine()
+        try {
+            PlaybackActivity.setActive(false)
+            assertThat(PlaybackActivity.isActive()).isFalse()
+
+            machine.onEngineState(EngineState.PREPARING)
+            assertThat(PlaybackActivity.isActive()).isTrue()
+
+            machine.onFirstFrame(1_200)
+            assertThat(PlaybackActivity.isActive()).isTrue()
+
+            machine.onEngineState(EngineState.IDLE)
+            assertThat(PlaybackActivity.isActive()).isFalse()
+
+            machine.onEngineState(EngineState.PLAYING)
+            assertThat(PlaybackActivity.isActive()).isTrue()
+
+            machine.onError(error(FailureClass.TIMEOUT, retryable = true))
+            assertThat(PlaybackActivity.isActive()).isFalse()
+        } finally {
+            PlaybackActivity.setActive(false)
+        }
     }
 
     private fun infoBar(quality: String? = null) = InfoBarState(

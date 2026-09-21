@@ -145,8 +145,12 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity)
     implementation(libs.androidx.leanback)
+    // P2-5: the scheduled refresh (WorkManager long-running worker + foreground notification).
+    implementation(libs.androidx.work.runtime.ktx)
 
     testImplementation(libs.junit)
     testImplementation(libs.truth)
+    // The refresh coordinator/scheduler tests drive coroutines on a virtual clock.
+    testImplementation(libs.kotlinx.coroutines.test)
     debugImplementation(project(":core:testing"))
 }

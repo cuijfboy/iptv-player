@@ -6,6 +6,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
 import ilab.iptv.player.core.common.Logger
+import ilab.iptv.player.core.common.PlaybackActivity
 import ilab.iptv.player.core.network.HttpFetcher
 import ilab.iptv.player.core.source.deep.DeepProbeValidator
 import ilab.iptv.player.core.source.pipeline.PipelineLimits
@@ -33,13 +34,16 @@ object SourceModule {
     fun providePipelineLimits(): PipelineLimits = PipelineLimits()
 
     /**
-     * R7 seam (docs/02 §4.5 C3). Until P1-4 exposes the real playback state this reports "not
-     * playing", so concurrency is never halved; the wiring is a one-line change in the provider once
-     * `PlaybackController.state` exists. Tracked as an open item in the P2-4a report.
+     * R7 (docs/02 §4.5 C3, §6.1 播放避让): the production signal now reports the real playback state.
+     * It reads [PlaybackActivity], the process-wide flag `:core:player`'s state machine writes
+     * (P2-5). `:core:source` may not depend on `:core:player` (§3.2 matrix), so `:core:common` — the
+     * one module both already share — carries the seam; the flag is *not* a second state machine, it
+     * is a mirror of the phase band the playback foreground service already treats as "in use".
      */
     @Provides
     @Singleton
-    fun providePlaybackPrioritySignal(): PlaybackPrioritySignal = PlaybackPrioritySignal { false }
+    fun providePlaybackPrioritySignal(): PlaybackPrioritySignal =
+        PlaybackPrioritySignal { PlaybackActivity.isActive() }
 
     @Provides
     @IntoSet

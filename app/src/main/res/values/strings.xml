@@ -3,4 +3,8 @@
     <string name="app_name">IPTV Player</string>
     <string name="open_log_console">日志与设备信息</string>
     <string name="open_browse">频道列表（P1-2）</string>
+    <!-- P2-5 refresh notification channel. IMPORTANCE_LOW + silent: a scheduled refresh must never
+         interrupt playback (docs/04 P2-5 "通知不打扰"). -->
+    <string name="refresh_channel_name">源刷新</string>
+    <string name="refresh_channel_description">定时刷新频道源，静默运行，不发出提示音</string>
 </resources>

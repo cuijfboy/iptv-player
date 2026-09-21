@@ -217,8 +217,14 @@ class RefreshBackHalfTest {
         assertThat(second.lastCheckAtMs).isEqualTo(first.lastCheckAtMs)
     }
 
+    /**
+     * The deep stage must not invent a verdict when the deadline closes — but the *shallow* verdict
+     * this run already recorded stays: it is the checkpoint docs/02 §6.1's 断点续跑 rule is built on,
+     * and the final persist deliberately does not write the pre-shallow snapshot back over it (P2-5
+     * found this by driving a kill/resume pair; see `docs/05-过程记录/26-P2-5定时刷新验证.md`).
+     */
     @Test
-    fun `a deadline that closes before the deep stage leaves the rows untouched`() {
+    fun `a deadline that closes before the deep stage leaves the deep columns untouched and keeps the shallow verdict`() {
         val clock = FakeClock()
         val deep = FakeDeepValidator.passing()
         val useCase = useCase(
@@ -239,7 +245,7 @@ class RefreshBackHalfTest {
         val row = allStreams().single()
         assertThat(row.disabled).isFalse()
         assertThat(row.score).isEqualTo(0)
-        assertThat(row.lastCheckAtMs).isNull()
+        assertThat(row.lastCheckAtMs).isEqualTo(clock.nowMs())
     }
 
     @Test

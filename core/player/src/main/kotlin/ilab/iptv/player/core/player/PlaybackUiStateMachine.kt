@@ -1,6 +1,7 @@
 package ilab.iptv.player.core.player
 
 import ilab.iptv.player.core.common.AppError
+import ilab.iptv.player.core.common.PlaybackActivity
 import ilab.iptv.player.core.model.AspectRatioMode
 import ilab.iptv.player.core.model.AudioTrackInfo
 import ilab.iptv.player.core.model.EngineState
@@ -160,6 +161,24 @@ class PlaybackUiStateMachine(initial: PlaybackUiState = PlaybackUiState.EMPTY) {
 
     private fun publish(next: PlaybackUiState): PlaybackUiState {
         _state.value = next
+        // R7 playback avoidance (docs/02 §4.5 C3): mirror the phase into the process-wide flag the
+        // refresh pipeline and the WorkManager layer read. Same phase band as the foreground service
+        // ([ilab.iptv.player.feature.player.PlaybackServiceLifecycle]): a paused session is not busy.
+        PlaybackActivity.setActive(
+            when (next.phase) {
+                PlaybackPhase.PREPARING,
+                PlaybackPhase.BUFFERING,
+                PlaybackPhase.PLAYING,
+                PlaybackPhase.FAILOVER,
+                -> true
+
+                PlaybackPhase.IDLE,
+                PlaybackPhase.STOPPED,
+                PlaybackPhase.ERROR,
+                PlaybackPhase.RELEASED,
+                -> false
+            },
+        )
         return next
     }
 
