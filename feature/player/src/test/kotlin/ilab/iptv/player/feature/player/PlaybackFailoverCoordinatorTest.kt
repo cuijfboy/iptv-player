@@ -220,6 +220,28 @@ class PlaybackFailoverCoordinatorTest {
     }
 
     @Test
+    fun `a pause that came through the MediaSession is not a stall`() = runTest {
+        val harness = harness()
+        val channel = channel(1)
+        val main = stream(1, channelId = 1, score = 80)
+        val backup = stream(2, channelId = 1, score = 60)
+        harness.catalog.candidatesByChannel = mapOf(1L to listOf(main, backup))
+        // P1-7: the remote's play/pause key and the TV's system media control pause the player through
+        // the MediaSession, which never reaches the coordinator's own `paused` flag. A frozen position
+        // with `playWhenReady = false` is a *pause*, not the stall the watchdog exists for.
+        harness.port.samples = { EngineSample(0, 0, false, playWhenReady = false) }
+
+        harness.coordinator.open(channel, main)
+        advanceTimeBy(20_000)
+        runCurrent()
+
+        assertThat(harness.logger.all(EventCodes.PLAY_STALL)).isEmpty()
+        assertThat(harness.port.prepares).hasSize(1)
+        assertThat(harness.port.exhausted).isEmpty()
+        harness.stop()
+    }
+
+    @Test
     fun `switching a channel logs PLAY_SWITCH_CHANNEL with from, to and cost`() = runTest {
         val harness = harness()
         val first = channel(1)

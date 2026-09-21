@@ -12,4 +12,10 @@
     <string name="player_aspect_format">画幅：%1$s</string>
     <!-- P1-5: the digit window of docs/02 §8.2; 1 = the digits typed so far. -->
     <string name="player_channel_number">跳台：%1$s</string>
+    <!-- P1-7: the ongoing playback notification (mediaPlayback foreground service). -->
+    <string name="playback_channel_name">播放</string>
+    <string name="playback_channel_description">正在播放的频道与遥控播放控制</string>
+    <string name="playback_action_play">播放</string>
+    <string name="playback_action_pause">暂停</string>
+    <string name="playback_action_stop">停止</string>
 </resources>

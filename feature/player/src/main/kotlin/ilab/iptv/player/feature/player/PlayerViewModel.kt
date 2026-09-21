@@ -14,6 +14,7 @@ import ilab.iptv.player.core.domain.repository.ChannelRepository
 import ilab.iptv.player.core.model.AspectRatioMode
 import ilab.iptv.player.core.model.Channel
 import ilab.iptv.player.core.model.ChannelFilter
+import ilab.iptv.player.core.model.PlaybackPhase
 import ilab.iptv.player.core.model.PlaybackUiState
 import ilab.iptv.player.core.model.Stream
 import ilab.iptv.player.core.player.PlaybackSession
@@ -53,6 +54,7 @@ class PlayerViewModel @Inject constructor(
     private val failoverLimits: FailoverLimits,
     private val clock: Clock,
     private val logger: Logger,
+    private val network: NetworkAvailability,
 ) : ViewModel() {
 
     /** The session's state is the UI's state (docs/02 §4.5 C1) — no second copy lives here. */
@@ -78,12 +80,26 @@ class PlayerViewModel @Inject constructor(
 
     private var request: PlayerContract.Input? = null
 
+    /** P1-7 item 5: one retry per observed outage, and only while the screen shows a failure. */
+    private val networkRetry = NetworkRetryWire(
+        availability = network,
+        inFailureState = ::inFailureState,
+        retry = ::retry,
+    )
+
     init {
         viewModelScope.launch {
             channels.observe(ChannelFilter(group = null, favoritesOnly = false, includeHidden = false, query = null))
                 .collect { items -> _order.value = ChannelSwitchPlanner.numbered(items.map { it.channel }) }
         }
+        // P1-7 item 5: when the network comes back and the channel is sitting in a failure state,
+        // re-run the SAME retry path the failure overlay's button uses — no second retry mechanism.
+        networkRetry.attach()
     }
+
+    /** The two failure states the screen can show: a screen-level fault, or the session's ERROR phase. */
+    private fun inFailureState(): Boolean =
+        _fault.value != null || playback.value.phase == PlaybackPhase.ERROR
 
     /** Entry point from `PlayerContract` (docs/02 §8.1). */
     fun start(input: PlayerContract.Input) {
@@ -176,6 +192,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        networkRetry.detach()
         coordinator.stop(reason = "view-model-cleared")
         super.onCleared()
     }

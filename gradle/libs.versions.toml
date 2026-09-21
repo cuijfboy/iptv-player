@@ -43,6 +43,10 @@ media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = 
 # and core/player/build.gradle.kts declares it — HLS is a playback capability, not a UI concern.
 media3-exoplayer-hls = { module = "androidx.media3:media3-exoplayer-hls", version.ref = "media3" }
 media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3" }
+# P1-7 (docs/02 §7.5 "系统集成"): `MediaSession` + `MediaSessionService` — the remote's play/pause key
+# and the system media controls route through these, and the service is what makes playback survive
+# the TV freezing/caching the app. Same version as the engine (§7.1).
+media3-session = { module = "androidx.media3:media3-session", version.ref = "media3" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }
 androidx-activity = { module = "androidx.activity:activity", version.ref = "androidxActivity" }

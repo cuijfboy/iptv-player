@@ -114,6 +114,10 @@ class PlayerActivity : ComponentActivity(), SurfaceHolder.Callback {
             return
         }
         channelId = input.channelId
+        // P1-7 item 1: the playback foreground service starts with the screen. It keeps the process
+        // alive (and the audio running) when the user goes back to the launcher mid-channel, and it is
+        // what makes the remote's play/pause key reach the stream through the MediaSession.
+        PlaybackService.start(this)
         surfaceView.holder.addCallback(this)
         root.requestFocus()
         applyAspectRatio(playbackAspect())
@@ -176,7 +180,13 @@ class PlayerActivity : ComponentActivity(), SurfaceHolder.Callback {
     override fun onDestroy() {
         hideRunnable.let(mainHandler::removeCallbacks)
         commitNumberRunnable.let(mainHandler::removeCallbacks)
-        if (isFinishing) viewModel.onPlayerClosed()
+        if (isFinishing) {
+            viewModel.onPlayerClosed()
+            // P1-7 item 1: the other half of "停止播放时正确收尾" — the screen is gone for good, so the
+            // foreground service and its notification go with it. (Pressing HOME does not finish the
+            // Activity, which is exactly why playback survives it.)
+            PlaybackService.stop(this)
+        }
         super.onDestroy()
     }
 

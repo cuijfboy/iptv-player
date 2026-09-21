@@ -4,6 +4,16 @@
     tools:ignore="MissingLeanbackLauncher">
 
     <!--
+      P1-7 item 1: the playback foreground service. FOREGROUND_SERVICE is the API 28+ requirement;
+      FOREGROUND_SERVICE_MEDIA_PLAYBACK is the API 34+ one, and this app targets 35, so both must be
+      declared or the service throws on start.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- P1-7 item 5: the network-restore listener reads the default network's availability. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!--
       Same library-manifest caveat as :feature:channels: lint reads a library that ships an activity
       as if it were the whole app, so the TV hardware story and the launcher suppression are repeated
       here. The only LEANBACK_LAUNCHER stays on :app's MainActivity.
@@ -35,6 +45,37 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <!--
+          P1-7 item 1/2: the playback foreground service (docs/02 §7.2 P1/P4). `exported=true` is
+          required by Media3 — the system's media control and the TV's own UI bind to the session
+          through this component. `mediaPlayback` is the foreground-service type that tells the
+          platform this process must not be frozen while the user is watching.
+
+          The action string is media3's; it must match `MediaSessionService.SERVICE_INTERFACE`.
+        -->
+        <service
+            android:name=".PlaybackService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+                <action android:name="android.media.browse.MediaBrowserService" />
+            </intent-filter>
+        </service>
+
+        <!--
+          Media3's media-button router. Without it a KEYCODE_MEDIA_* press that is delivered while the
+          player screen is not focused has nowhere to go; it re-delivers the event to PlaybackService
+          (P1-7 item 2).
+        -->
+        <receiver
+            android:name="androidx.media3.session.MediaButtonReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

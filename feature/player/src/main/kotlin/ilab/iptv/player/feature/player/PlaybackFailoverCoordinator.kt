@@ -163,7 +163,12 @@ class PlaybackFailoverCoordinator(
                     bufferedPositionMs = sample.bufferedPositionMs,
                     isLoading = sample.isLoading,
                     nowMs = clock.nowMs(),
-                    isPaused = paused,
+                    // P1-7: the remote's play key, the notification's control and the system media
+                    // control all pause the player *through the MediaSession*, so `paused` (the
+                    // controller's own flag) does not see them. The engine's `playWhenReady` does, and
+                    // treating it as a pause is what keeps a user-driven pause from being answered
+                    // with a fail-over to another source.
+                    isPaused = paused || sample.isPausedByUser,
                 ),
             )
             when (verdict) {

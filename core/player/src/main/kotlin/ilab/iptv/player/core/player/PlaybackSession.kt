@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.view.Surface
+import androidx.media3.common.Player
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -21,6 +22,7 @@ import ilab.iptv.player.core.model.AspectRatioMode
 import ilab.iptv.player.core.model.Channel
 import ilab.iptv.player.core.model.DeviceProfile
 import ilab.iptv.player.core.model.EngineCapability
+import ilab.iptv.player.core.model.EngineState
 import ilab.iptv.player.core.model.InfoBarState
 import ilab.iptv.player.core.model.PlaybackEvent
 import ilab.iptv.player.core.model.PlaybackRequest
@@ -36,6 +38,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Singleton
 
 /**
@@ -98,6 +103,16 @@ class PlaybackSession(
     /** The UI's single input (docs/02 §4.5 C1). */
     val state: StateFlow<PlaybackUiState> = machine.state
 
+    /**
+     * The engine's own phase, mirrored read-only for the foreground service (P1-7).
+     *
+     * The notification has to say whether the stream is playing or the user paused it, and that
+     * distinction does not exist in [PlaybackUiState] (a paused ExoPlayer and a buffering one are both
+     * "buffering" there). It is a *read* of the engine, not a second writer of UI state, so C1 holds:
+     * the state machine below is still the only thing that writes `PlaybackUiState`.
+     */
+    val engineState: StateFlow<EngineState> = engine.state
+
     init {
         telemetry.onEngineInit(engine.id, engine.capabilities)
         // The engine's raw state is translated here and nowhere else: a View must never subscribe to
@@ -114,6 +129,41 @@ class PlaybackSession(
      */
     fun attachSurface(surface: Surface?) {
         engine.attach(surface)
+    }
+
+    /**
+     * The `Player` for the `MediaSession` of the foreground service (P1-7 item 2), or `null` when the
+     * engine cannot offer one.
+     *
+     * The player may only be touched on the engine thread, and `MediaSessionService.onGetSession` runs
+     * on the main thread, so this hops over and waits. The wait is bounded: an engine busy with a
+     * 12 s `prepare` must not block the service's main thread indefinitely — the caller logs and runs
+     * without a session rather than hanging.
+     */
+    fun mediaSessionPlayer(timeoutMs: Long = MEDIA_SESSION_TIMEOUT_MS): Player? {
+        val media3 = engine as? Media3Engine ?: return null
+        val latch = CountDownLatch(1)
+        val holder = AtomicReference<Player?>(null)
+        scope.launch {
+            holder.set(media3.mediaPlayer())
+            latch.countDown()
+        }
+        return try {
+            if (latch.await(timeoutMs, TimeUnit.MILLISECONDS)) holder.get() else null
+        } catch (interrupted: InterruptedException) {
+            Thread.currentThread().interrupt()
+            null
+        }
+    }
+
+    /**
+     * Audio-focus ducking (P1-7 item 3): the service asks the controller, the controller asks the
+     * engine. `true` → `AudioFocusPolicy.duckLevel`, `false` → full volume. The engine owns the
+     * player, so this is the only route to `ExoPlayer.volume` (§4.5 C2: one caller).
+     */
+    fun setDucked(ducked: Boolean) {
+        val media3 = engine as? Media3Engine ?: return
+        media3.setVolume(if (ducked) AudioFocusPolicy.DEFAULT_DUCK_VOLUME else AudioFocusPolicy.FULL_VOLUME)
     }
 
     // ---------------------------------------------------------------- commands
@@ -157,6 +207,9 @@ class PlaybackSession(
                 preferPassthrough = preferPassthrough,
                 sessionId = sessionId,
             )
+            // P1-7: the MediaSession publishes this as now-playing metadata. Written before the
+            // engine builds the `MediaItem` (the two are ordered by this call and `prepare`).
+            (engine as? Media3Engine)?.setNowPlayingTitle(channel.name)
             telemetry.onPrepareStart(engine.id, request, attempt)
             val result = engine.prepare(request)
             when (result) {
@@ -304,6 +357,13 @@ class PlaybackSession(
 
     private companion object {
         const val ENGINE_THREAD_NAME = "playback-engine"
+
+        /**
+         * How long the foreground service waits for the engine's player before giving up on the
+         * `MediaSession` (P1-7). Creating the instance is ~4 ms (S5); the budget is for an engine that
+         * is currently inside a `prepare`.
+         */
+        const val MEDIA_SESSION_TIMEOUT_MS = 3_000L
 
         /** Capabilities an IPTV stream needs before we even try: the two transports of the baseline. */
         val REQUIRED_CAPS: Set<EngineCapability> = setOf(EngineCapability.HLS, EngineCapability.HTTP_TS)

@@ -9,6 +9,7 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
@@ -128,6 +129,10 @@ class Media3Engine(
     @Volatile
     private var aspectRatio: AspectRatioMode = AspectRatioMode.FIT
 
+    /** P1-7: what the `MediaSession` calls the current stream; see [setNowPlayingTitle]. */
+    @Volatile
+    private var nowPlayingTitle: String? = null
+
     // ---------------------------------------------------------------- surface / display
 
     override fun attach(surface: Surface?) {
@@ -157,7 +162,28 @@ class Media3Engine(
             positionMs = exo.currentPosition.coerceAtLeast(0L),
             bufferedPositionMs = exo.bufferedPosition.coerceAtLeast(0L),
             isLoading = exo.playbackState == Player.STATE_BUFFERING,
+            playWhenReady = exo.playWhenReady,
         )
+    }
+
+    /**
+     * The `Player` a `MediaSession` wraps (P1-7 item 2), creating the ExoPlayer on first use.
+     *
+     * MUST be called on the engine dispatcher: `Media3Engine` creates the player on its own looper
+     * and every `Player` call has to happen there (docs/02 §4.5 C2). `PlaybackSession` is the only
+     * caller — `MediaSessionService.onGetSession` hops onto this thread through it.
+     */
+    fun mediaPlayer(): Player = ensurePlayer()
+
+    /**
+     * The name the current stream is presented under (P1-7 item 2: "元数据至少给频道名").
+     *
+     * Set by the controller before `prepare`; read on the engine thread when the `MediaItem` is built.
+     * A `@Volatile` field instead of a `PlaybackRequest` field on purpose: the request shape is the
+     * frozen interface of docs/02 §4.2, and a display name is not an engine instruction.
+     */
+    fun setNowPlayingTitle(title: String?) {
+        nowPlayingTitle = title
     }
 
     // ---------------------------------------------------------------- playback commands
@@ -168,6 +194,18 @@ class Media3Engine(
 
     override fun pause() {
         scope.launch { player?.pause() }
+    }
+
+    /**
+     * Output volume, used only for the audio-focus duck (P1-7 item 3, `AudioFocusPolicy`).
+     *
+     * Like [sample] and [mediaPlayer] this is deliberately not on the frozen `PlayerEngine`
+     * interface: the interface is the engine *contract* (docs/02 §4.4), and the duck is a
+     * service-level decision the controller applies through `PlaybackSession.setDucked`.
+     */
+    fun setVolume(volume: Float) {
+        val clamped = volume.coerceIn(0f, 1f)
+        scope.launch { player?.volume = clamped }
     }
 
     override fun stop() {
@@ -349,12 +387,24 @@ class Media3Engine(
                 stream.userAgent?.takeIf { it.isNotBlank() }?.let { setUserAgent(it) }
                 if (headers.isNotEmpty()) setDefaultRequestProperties(headers)
             }
+        // P1-7: the MediaItem carries the channel name as its title, which is what the `MediaSession`
+        // publishes as now-playing metadata (docs/02 §7.5 "系统集成"). Without it the TV's system media
+        // control has a session with nothing to name, and runs only because our own notification
+        // repeats the name.
+        val item = MediaItem.Builder()
+            .setUri(stream.url)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(nowPlayingTitle)
+                    .build(),
+            )
+            .build()
         return DefaultMediaSourceFactory(appContext)
             .setDataSourceFactory(dataSourceFactory)
             // §7.5: no double retry. The engine surfaces the first failure; `FailoverPolicy` owns the
             // retry/backoff/switch decision (§4.6, §6.2), so the internal fetch policy retries 0 times.
             .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(0))
-            .createMediaSource(MediaItem.fromUri(stream.url))
+            .createMediaSource(item)
     }
 
     private val listener = object : Player.Listener {
