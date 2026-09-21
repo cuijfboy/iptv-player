@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      P1-3 engine smoke harness (DEBUG SOURCE SET ONLY - this file is not in the release APK).
+
+      It is NOT the player UI of P1-4: no info bar, no channel list, no remote-control handling. It
+      exists so the engine can be exercised on the real device exactly as the production engine will
+      be (docs/05 section 12), and so QA can reproduce the numbers with `am start` instead of
+      trusting a report. `exported=true` because it takes its channel list on the command line.
+    -->
+    <application>
+        <activity
+            android:name="ilab.iptv.player.core.player.debug.EngineSmokeActivity"
+            android:exported="true"
+            android:label="P1-3 Engine smoke (debug)"
+            android:screenOrientation="landscape" />
+    </application>
+
+</manifest>
