@@ -28,18 +28,29 @@ class PlaybackUiStateMachine(initial: PlaybackUiState = PlaybackUiState.EMPTY) {
     private val _state = MutableStateFlow(initial)
     val state: StateFlow<PlaybackUiState> = _state.asStateFlow()
 
-    /** A new `watch` command: back to PREPARING with the info bar that belongs to the new channel. */
-    fun onWatchStarted(channelId: Long, streamId: Long, infoBar: InfoBarState): PlaybackUiState =
-        publish(
-            _state.value.copy(
+    /**
+     * A new `watch` command: back to PREPARING with the info bar that belongs to the new channel.
+     *
+     * The ONE thing carried over is the fail-over status line, and only while a fail-over is in
+     * flight (`FAILOVER` → same channel): a switch re-prepares the channel, and the user must keep
+     * seeing "正在切换备用源…" across that re-prepare instead of the line blinking off (found on the
+     * device, P1-5 §4). A different channel, or a retry from the failure overlay, starts clean.
+     */
+    fun onWatchStarted(channelId: Long, streamId: Long, infoBar: InfoBarState): PlaybackUiState {
+        val previous = _state.value
+        val inFlightFailover = previous.phase == PlaybackPhase.FAILOVER && previous.channelId == channelId
+        val hint = previous.infoBar?.failoverHint?.takeIf { inFlightFailover }
+        return publish(
+            previous.copy(
                 channelId = channelId,
                 activeStreamId = streamId,
                 phase = PlaybackPhase.PREPARING,
-                infoBar = infoBar,
+                infoBar = infoBar.copy(failoverHint = hint),
                 lastError = null,
                 errorText = null,
             ),
         )
+    }
 
     /**
      * Engine phase → business phase (§4.5 C1). `FAILOVER` is deliberately absent: no failover
@@ -82,6 +93,52 @@ class PlaybackUiStateMachine(initial: PlaybackUiState = PlaybackUiState.EMPTY) {
     /** The user pressed retry: clear the failure, go back to the starting phase (attempt is P1-6's). */
     fun onRetryRequested(): PlaybackUiState = publish(
         _state.value.copy(phase = PlaybackPhase.PREPARING, lastError = null, errorText = null),
+    )
+
+    // ---------------------------------------------------------------- fail-over (P1-5 wiring)
+
+    /**
+     * A fail-over decision is being applied (docs/02 §4.5 C1: "发生切换决策时置 `FAILOVER`（覆盖映射）").
+     *
+     * This is the one phase the engine cannot produce: the engine only reports `EngineState` and the
+     * controller overwrites the mapping while it decides and re-prepares. The hint is what the info
+     * bar shows ("正在切换备用源…" / "正在重试…"), so the user can see the state machine working.
+     */
+    fun onFailoverRunning(hint: String): PlaybackUiState = publish(
+        _state.value.copy(
+            phase = PlaybackPhase.FAILOVER,
+            infoBar = _state.value.infoBar?.copy(failoverHint = hint),
+            lastError = null,
+            errorText = null,
+        ),
+    )
+
+    /**
+     * The switch is done: the channel is now playing [toStreamId]. `failoverCount` is the session's
+     * "how many times did we have to move" number that `PLAY_END` and the info bar report.
+     */
+    fun onFailoverSwitched(toStreamId: Long, hint: String): PlaybackUiState = publish(
+        _state.value.copy(
+            activeStreamId = toStreamId,
+            phase = PlaybackPhase.BUFFERING,
+            failoverCount = _state.value.failoverCount + 1,
+            infoBar = _state.value.infoBar?.copy(failoverHint = hint),
+            lastError = null,
+            errorText = null,
+        ),
+    )
+
+    /**
+     * Every candidate is gone (docs/01 F4): no source left, so the screen shows the row's user
+     * message ("该频道暂时不可用") as the failure text instead of the per-error hint.
+     */
+    fun onFailoverExhausted(error: AppError?, message: String): PlaybackUiState = publish(
+        _state.value.copy(
+            phase = PlaybackPhase.ERROR,
+            infoBar = _state.value.infoBar?.copy(failoverHint = message),
+            lastError = error,
+            errorText = message,
+        ),
     )
 
     fun onAudioTracks(tracks: List<AudioTrackInfo>, selectedId: String?): PlaybackUiState = publish(

@@ -4,9 +4,16 @@ import android.view.Surface
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import ilab.iptv.player.core.common.AppResult
+import ilab.iptv.player.core.common.Clock
+import ilab.iptv.player.core.common.Logger
+import ilab.iptv.player.core.domain.channel.NumberedChannel
+import ilab.iptv.player.core.domain.playback.DefaultFailoverPolicy
+import ilab.iptv.player.core.domain.playback.FailoverLimits
+import ilab.iptv.player.core.domain.playback.PlaybackWatchdog
 import ilab.iptv.player.core.domain.repository.ChannelRepository
 import ilab.iptv.player.core.model.AspectRatioMode
+import ilab.iptv.player.core.model.Channel
+import ilab.iptv.player.core.model.ChannelFilter
 import ilab.iptv.player.core.model.PlaybackUiState
 import ilab.iptv.player.core.model.Stream
 import ilab.iptv.player.core.player.PlaybackSession
@@ -19,18 +26,33 @@ import javax.inject.Inject
 
 /**
  * The player screen's one-way data flow (docs/02 §8.1): it resolves the channel and its first
- * candidate stream through the [ChannelRepository] port, hands them to the single
- * [PlaybackSession], and forwards the session's [PlaybackUiState] to the view. The view never talks
- * to a repository or to an engine.
+ * candidate stream through the [ChannelRepository] port, hands them to the single [PlaybackSession]
+ * — through [PlaybackFailoverCoordinator], which owns the fail-over wiring of P1-5 — and forwards
+ * the session's [PlaybackUiState] to the view. The view never talks to a repository or to an engine.
  *
- * The screen-level [fault] covers the two failures the session cannot see, because they happen
- * before it is asked to play anything: the channel does not exist, or it has no stream at all. Both
- * must land in the same readable overlay as a playback failure (P1-4 item 3).
+ * THREE JOBS, in order:
+ * 1. **resolve** the play input (`PlayerContract`) into a channel + stream, or the screen-level
+ *    [fault] when the channel does not exist / has no stream at all — the two failures that happen
+ *    before the session is asked to play anything (P1-4 item 3);
+ * 2. **drive the fail-over wiring**: start the coordinator's session and let it retry/switch/give up
+ *    (docs/02 §4.6) while the state it produces reaches the same info bar and overlay;
+ * 3. **switch channels** on the remote (P1-5 item 1): UP/DOWN inside the current group and a direct
+ *    jump by channel number, both resolved through [ChannelSwitchPlanner] so the order is the same one
+ *    the browse list shows (docs/01 D12).
+ *
+ * Channel switches go through the coordinator's `open`, i.e. the SAME [PlaybackSession] and therefore
+ * the same engine instance — §6.2's "换台时复用同一个 `PlayerEngine` 实例（`stop() + prepare()`）".
  */
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     private val channels: ChannelRepository,
     private val session: PlaybackSession,
+    private val failoverPolicy: DefaultFailoverPolicy,
+    private val failoverCatalog: FailoverCatalog,
+    private val watchdog: PlaybackWatchdog,
+    private val failoverLimits: FailoverLimits,
+    private val clock: Clock,
+    private val logger: Logger,
 ) : ViewModel() {
 
     /** The session's state is the UI's state (docs/02 §4.5 C1) — no second copy lives here. */
@@ -39,7 +61,29 @@ class PlayerViewModel @Inject constructor(
     private val _fault = MutableStateFlow<String?>(null)
     val fault: StateFlow<String?> = _fault.asStateFlow()
 
+    /** Sort+number order of the whole catalog — the same order the browse list shows (§8.1/D12). */
+    private val _order = MutableStateFlow<List<NumberedChannel>>(emptyList())
+    val order: StateFlow<List<NumberedChannel>> = _order.asStateFlow()
+
+    private val coordinator = PlaybackFailoverCoordinator(
+        port = SessionPlaybackPort(session),
+        policy = failoverPolicy,
+        catalog = failoverCatalog,
+        watchdog = watchdog,
+        clock = clock,
+        logger = logger,
+        scope = viewModelScope,
+        limits = failoverLimits,
+    )
+
     private var request: PlayerContract.Input? = null
+
+    init {
+        viewModelScope.launch {
+            channels.observe(ChannelFilter(group = null, favoritesOnly = false, includeHidden = false, query = null))
+                .collect { items -> _order.value = ChannelSwitchPlanner.numbered(items.map { it.channel }) }
+        }
+    }
 
     /** Entry point from `PlayerContract` (docs/02 §8.1). */
     fun start(input: PlayerContract.Input) {
@@ -56,23 +100,60 @@ class PlayerViewModel @Inject constructor(
                 _fault.value = "「${item.channel.name}」没有可用的流"
                 return@launch
             }
-            val result = session.watch(item.channel, stream)
-            if (result is AppResult.Ok && !input.autoplay) session.pause()
+            coordinator.open(item.channel, stream)
+            if (!input.autoplay) {
+                coordinator.setPaused(true)
+                session.pause()
+            }
         }
     }
 
-    /** Failure-overlay button: re-run the whole path (channel lookup included) or just the stream. */
+    /**
+     * Failure-overlay button: re-run the whole path. With fail-over wired, a manual retry starts a
+     * fresh session on the same channel instead of one more attempt on the same stream — the policy's
+     * switch budget and its permanent demotions are per session (docs/02 §4.3), and pressing "重试"
+     * means "start this channel again", not "reuse a source that was just given up on".
+     */
     fun retry() {
         val current = request ?: return
-        if (_fault.value != null) {
-            start(current)
-            return
-        }
+        start(current)
+    }
+
+    // ---------------------------------------------------------------- channel switching (P1-5 item 1)
+
+    /**
+     * UP/DOWN on the remote: the neighbouring channel inside the current group. Group edges clamp; a
+     * channel that is not in the catalog any more does nothing.
+     */
+    fun switchChannel(delta: Int) {
+        val currentId = playback.value.channelId ?: return
+        val target = ChannelSwitchPlanner.neighbor(_order.value, currentId, delta) ?: return
+        openChannel(target)
+    }
+
+    /** Digit jump (docs/02 §8.2 数字键跳台): the channel carrying the number the user typed. */
+    fun jumpToNumber(number: Int) {
+        val target = ChannelSwitchPlanner.byNumber(_order.value, number) ?: return
+        openChannel(target)
+    }
+
+    private fun openChannel(target: Channel) {
+        if (target.id == playback.value.channelId) return
         viewModelScope.launch {
-            val result = session.retry()
-            if (result == null) start(current)
+            val item = channels.get(target.id)
+            val stream = item?.streams?.firstOrNull()
+            if (item == null || stream == null) {
+                _fault.value = "「${target.name}」没有可用的流"
+                return@launch
+            }
+            val fromChannelId = playback.value.channelId
+            _fault.value = null
+            request = PlayerContract.Input(channelId = target.id, streamId = stream.id, autoplay = true)
+            coordinator.open(item.channel, stream, switchedFromChannelId = fromChannelId)
         }
     }
+
+    // ---------------------------------------------------------------- screen controls
 
     /** OK on the "画幅" control: next of the four §7.4 modes. */
     fun cycleAspectRatio(): AspectRatioMode {
@@ -81,10 +162,23 @@ class PlayerViewModel @Inject constructor(
         return next
     }
 
+    /** docs/02 §8.2: `KEYCODE_MEDIA_*` are the play/pause controls; a paused stream never stalls. */
+    fun setPaused(paused: Boolean) {
+        coordinator.setPaused(paused)
+        if (paused) session.pause() else session.play()
+    }
+
     fun attachSurface(surface: Surface?) = session.attachSurface(surface)
 
     /** The screen is gone for good: end the session, keep the engine instance (§7.2 P3/P5). */
-    fun onPlayerClosed() = session.stop(reason = "screen-closed")
+    fun onPlayerClosed() {
+        coordinator.stop(reason = "screen-closed")
+    }
+
+    override fun onCleared() {
+        coordinator.stop(reason = "view-model-cleared")
+        super.onCleared()
+    }
 
     /** docs/02 §8.2: an explicit起始流 wins, otherwise the repository's first candidate. */
     private fun selectStream(streams: List<Stream>, streamId: Long?): Stream? =

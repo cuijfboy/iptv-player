@@ -104,6 +104,80 @@ class PlaybackUiStateMachineTest {
         assertThat(machine.onReleased().phase).isEqualTo(PlaybackPhase.RELEASED)
     }
 
+    // ---------------------------------------------------------------- P1-5 fail-over wiring
+
+    @Test
+    fun `a failover decision overrides the engine mapping and shows the hint`() {
+        machine.onWatchStarted(1, 10, infoBar())
+        machine.onError(error(FailureClass.HTTP_CLIENT, retryable = false, status = 404))
+
+        val state = machine.onFailoverRunning("正在切换备用源…")
+
+        assertThat(state.phase).isEqualTo(PlaybackPhase.FAILOVER)
+        assertThat(state.infoBar?.failoverHint).isEqualTo("正在切换备用源…")
+        // The per-error text is cleared: the screen now says what the state machine is doing.
+        assertThat(state.errorText).isNull()
+        assertThat(state.lastError).isNull()
+    }
+
+    @Test
+    fun `a completed switch counts and names the stream that is now playing`() {
+        machine.onWatchStarted(1, 10, infoBar())
+        machine.onFailoverRunning("正在切换备用源…")
+
+        val state = machine.onFailoverSwitched(toStreamId = 11, hint = "已切换备用源")
+
+        assertThat(state.activeStreamId).isEqualTo(11)
+        assertThat(state.failoverCount).isEqualTo(1)
+        assertThat(state.infoBar?.failoverHint).isEqualTo("已切换备用源")
+    }
+
+    @Test
+    fun `giving up shows the policy message as the failure text`() {
+        machine.onWatchStarted(1, 10, infoBar())
+        val error = error(FailureClass.PLAYLIST_GONE, retryable = false)
+
+        val state = machine.onFailoverExhausted(error, "该频道暂时不可用")
+
+        assertThat(state.phase).isEqualTo(PlaybackPhase.ERROR)
+        assertThat(state.errorText).isEqualTo("该频道暂时不可用")
+        assertThat(state.lastError).isEqualTo(error)
+        assertThat(state.infoBar?.failoverHint).isEqualTo("该频道暂时不可用")
+    }
+
+    @Test
+    fun `a failover re-prepare keeps the status line on screen`() {
+        machine.onWatchStarted(1, 10, infoBar())
+        machine.onFailoverRunning("正在切换备用源…")
+
+        // The controller re-prepares the same channel with the backup stream: same channel, FAILOVER.
+        val state = machine.onWatchStarted(1, 11, infoBar())
+
+        assertThat(state.phase).isEqualTo(PlaybackPhase.PREPARING)
+        assertThat(state.activeStreamId).isEqualTo(11)
+        assertThat(state.infoBar?.failoverHint).isEqualTo("正在切换备用源…")
+    }
+
+    @Test
+    fun `a retry after giving up starts with a clean status line`() {
+        machine.onWatchStarted(1, 10, infoBar())
+        machine.onFailoverExhausted(error(FailureClass.PLAYLIST_GONE, retryable = false), "该频道暂时不可用")
+
+        val state = machine.onWatchStarted(1, 10, infoBar())
+
+        assertThat(state.infoBar?.failoverHint).isNull()
+    }
+
+    @Test
+    fun `switching to another channel starts with a clean status line`() {
+        machine.onWatchStarted(1, 10, infoBar())
+        machine.onFailoverRunning("正在切换备用源…")
+
+        val state = machine.onWatchStarted(2, 20, infoBar())
+
+        assertThat(state.infoBar?.failoverHint).isNull()
+    }
+
     private fun infoBar(quality: String? = null) = InfoBarState(
         channelName = "CCTV1",
         logoUrl = null,

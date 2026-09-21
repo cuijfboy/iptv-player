@@ -167,6 +167,21 @@
                 android:textColor="#FF9A9AA5"
                 android:textSize="18sp" />
 
+            <!-- P1-5 status line: what the fail-over state machine is doing ("正在切换备用源…" /
+                 "已切换备用源" / "无可用源") or the digits of a channel number being typed. It is
+                 the same line on purpose — the user never needs both at once. -->
+            <TextView
+                android:id="@+id/info_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="#FFFFB84D"
+                android:textSize="20sp"
+                android:visibility="gone"
+                tools:text="正在切换备用源…"
+                tools:visibility="visible" />
+
         </LinearLayout>
 
         <!-- The only focusable control of this screen this round: the §7.4 display mode. -->

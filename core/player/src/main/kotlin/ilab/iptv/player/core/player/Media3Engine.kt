@@ -142,6 +142,24 @@ class Media3Engine(
     /** The frozen four-mode parameter, as set by the controller. */
     fun aspectRatio(): AspectRatioMode = aspectRatio
 
+    /**
+     * Live read of position / buffered position / buffering, for the fail-over watchdog (P1-5).
+     *
+     * Deliberately NOT cached and NOT on the `PlayerEngine` interface: `ExoPlayer` may only be read
+     * from its application looper, so this runs on [dispatcher] and the caller gets it through
+     * `PlaybackSession.sample()` (docs/02 §4.5 C2). Returning [EngineSample.EMPTY] before the first
+     * `prepare` keeps the caller free of null handling.
+     */
+    fun sample(): EngineSample {
+        val exo = player ?: return EngineSample.EMPTY
+        if (exo.currentMediaItem == null) return EngineSample.EMPTY
+        return EngineSample(
+            positionMs = exo.currentPosition.coerceAtLeast(0L),
+            bufferedPositionMs = exo.bufferedPosition.coerceAtLeast(0L),
+            isLoading = exo.playbackState == Player.STATE_BUFFERING,
+        )
+    }
+
     // ---------------------------------------------------------------- playback commands
 
     override fun play() {

@@ -11,6 +11,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import ilab.iptv.player.core.common.AppError
 import ilab.iptv.player.core.common.AppResult
 import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.common.LogCategory
@@ -34,6 +35,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import javax.inject.Singleton
 
 /**
@@ -46,11 +48,14 @@ import javax.inject.Singleton
  * domain port (`PlaybackCommand` + `PlaybackController`, docs/02 §4.3) also carries failover and
  * audio-focus duties that P1-6/P1-7 own, and promising them here would be a lie. When P1-6 lands,
  * `PlaybackController` wraps this session instead of replacing it — the engine plumbing, the
- * `PLAY_*` telemetry and the state machine all stay.
+ * `PLAY_*` telemetry and the state machine all stay. P1-5 did exactly that: the fail-over wiring
+ * (`PlaybackFailoverCoordinator` in `:feature:player`, the only module allowed to see BOTH
+ * `:core:player` and `:core:domain`) drives this session, which remains the single writer of
+ * `PlaybackUiState` (§4.5 C1) through the narrow hooks below.
  *
- * WHAT IT DOES NOT DO (boundaries): no failover decision (P1-6), no watchdog (P1-6), no MediaSession
- * / audio focus / foreground service (P1-7), no channel-switching keymap (P1-5), no View of any kind
- * (§7.4: the engine never creates or owns a View).
+ * WHAT IT DOES NOT DO (boundaries): it makes no fail-over decision of its own (the policy lives in
+ * `:core:domain`, the wiring in `:feature:player`); no MediaSession / audio focus / foreground
+ * service (P1-7); no View of any kind (§7.4: the engine never creates or owns a View).
  *
  * THREADING (§4.5 C2): a single HandlerThread is both the engine dispatcher and ExoPlayer's
  * application looper — the requirement P1-3 measured (a plain dispatcher fails at `buildPlayer`).
@@ -119,7 +124,12 @@ class PlaybackSession(
      * The engine's own result comes back to the caller; the UI state is updated either way,
      * including the readable failure text of P1-4 item 3.
      */
-    suspend fun watch(channel: Channel, stream: Stream, attempt: Int = 1): AppResult<PreparedMedia> =
+    suspend fun watch(
+        channel: Channel,
+        stream: Stream,
+        attempt: Int = 1,
+        preferPassthrough: Boolean = tuning.normalized().preferPassthrough,
+    ): AppResult<PreparedMedia> =
         watchMutex.withLock {
             this.channel = channel
             this.stream = stream
@@ -141,7 +151,10 @@ class PlaybackSession(
                 channelId = channel.id,
                 stream = stream,
                 timeoutMs = tuning.normalized().prepareTimeoutMs,
-                preferPassthrough = tuning.normalized().preferPassthrough,
+                // P1-5 wiring, docs/02 §7.6 step 2: the NO_CAPABILITY row retries the same stream
+                // with the compressed bitstream handed over disabled; every other path keeps the
+                // tuning default.
+                preferPassthrough = preferPassthrough,
                 sessionId = sessionId,
             )
             telemetry.onPrepareStart(engine.id, request, attempt)
@@ -155,6 +168,35 @@ class PlaybackSession(
             }
             result
         }
+
+    /**
+     * Fault-tolerant read of the engine's live position/buffering, for the fail-over watchdog
+     * (docs/02 §6.2). `ExoPlayer` may only be read on its application looper, which is exactly the
+     * session's engine dispatcher (§4.5 C2), so this hops there instead of touching the player.
+     */
+    suspend fun sample(): EngineSample = withContext(dispatcher) {
+        (engine as? Media3Engine)?.sample() ?: EngineSample.EMPTY
+    }
+
+    // ---------------------------------------------------------------- fail-over presentation (P1-5)
+
+    /**
+     * A decision is being applied. The controller (P1-5's fail-over wiring) calls this when it asks
+     * the policy and is about to retry or switch (docs/02 §4.5 C1 "发生切换决策时置 FAILOVER").
+     */
+    fun onFailoverRunning(hint: String) {
+        machine.onFailoverRunning(hint)
+    }
+
+    /** The switch took effect: what the info bar shows and what `PLAY_END` reports as failoverCount. */
+    fun onFailoverSwitched(toStreamId: Long, hint: String) {
+        machine.onFailoverSwitched(toStreamId, hint)
+    }
+
+    /** No candidate left: the channel stays unavailable and the screen shows the policy's message. */
+    fun onFailoverExhausted(error: AppError?, message: String) {
+        machine.onFailoverExhausted(error, message)
+    }
 
     /** Retry entry point of the failure overlay: same channel, same stream, one attempt later. */
     suspend fun retry(): AppResult<PreparedMedia>? {

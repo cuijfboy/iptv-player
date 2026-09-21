@@ -15,4 +15,7 @@ dependencies {
     // The browse screen starts this Activity through PlayerContract (:core:ui), and both features
     // share the contract's intent filter — no feature-to-feature dependency (docs/02 §3.2).
     testImplementation(libs.truth)
+    // P1-5's fail-over wiring is a coroutine loop with a watchdog on a virtual clock, so the tests
+    // drive virtual time instead of sleeping through real 1 s backoffs and 8 s stall thresholds.
+    testImplementation(libs.kotlinx.coroutines.test)
 }
