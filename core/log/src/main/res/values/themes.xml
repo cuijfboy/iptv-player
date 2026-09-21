@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Console-only theme (BUG-012): same parent as the app theme (app/src/main/res/values/themes.xml)
+      so the window chrome is unchanged, but the window background is the console's own dark tone —
+      which is why the layout no longer paints a full-screen background of its own. Those two paints
+      were lint's `Overdraw` warning; one of them is now the window, the other is gone.
+    -->
+    <style name="LogConsoleTheme" parent="android:Theme.Material.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">@color/log_console_window</item>
+    </style>
+</resources>

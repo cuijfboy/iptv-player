@@ -126,6 +126,88 @@ class LogFilePolicyTest {
         assertThat(plan(entries, active = "iptv-20260922.log")).containsExactly("/logs/iptv-20260101.2.log")
     }
 
+    // --- BUG-011: today's data is protected from the copy ceiling ---------------------------------
+
+    @Test
+    fun `the copy ceiling never reaps the day's own segment files`() {
+        val capped = LogFilePolicy(directoryPath = "/logs", maxFileCount = 3)
+        val entries = buildList {
+            add(entry("iptv-20260922.log"))
+            (1..5).forEach { add(entry("iptv-20260922.$it.log")) }
+        }
+
+        // 6 managed files > ceiling 3 — but every one of them belongs to today, so nothing may go.
+        val result = capped.cleanupPlan(entries, nowMs, capped.path("iptv-20260922.log"), dayKey)
+
+        assertThat(result).isEmpty()
+    }
+
+    @Test
+    fun `the copy ceiling still reaps earlier days while today is chatty`() {
+        val capped = LogFilePolicy(directoryPath = "/logs", maxFileCount = 3)
+        val entries = listOf(
+            entry("iptv-20260922.log"),
+            entry("iptv-20260922.1.log"),
+            entry("iptv-20260922.2.log"),
+            entry("iptv-20260921.log"),
+            entry("iptv-20260920.log"),
+            entry("iptv-20260919.log"),
+        )
+
+        val result = capped.cleanupPlan(entries, nowMs, capped.path("iptv-20260922.log"), dayKey)
+
+        // 6 managed > 3: the three earlier days go, oldest day first; today's files are not candidates.
+        assertThat(result).containsExactly(
+            "/logs/iptv-20260919.log",
+            "/logs/iptv-20260920.log",
+            "/logs/iptv-20260921.log",
+        ).inOrder()
+    }
+
+    @Test
+    fun `over the byte budget earlier days go before the day's own segments`() {
+        val tiny = LogFilePolicy(directoryPath = "/logs", maxTotalBytes = 250L, maxFileCount = 99)
+        val entries = listOf(
+            entry("iptv-20260922.log", size = 100L), // active base — protected
+            entry("iptv-20260922.1.log", size = 100L),
+            entry("iptv-20260922.2.log", size = 100L),
+            entry("iptv-20260921.log", size = 100L),
+        )
+
+        val result = tiny.cleanupPlan(entries, nowMs, tiny.path("iptv-20260922.log"), dayKey)
+
+        // 400 B > 250 B: yesterday first, then the oldest of today's segments, then it stops (200 B).
+        assertThat(result).containsExactly(
+            "/logs/iptv-20260921.log",
+            "/logs/iptv-20260922.1.log",
+        ).inOrder()
+    }
+
+    @Test
+    fun `today's base file is never deleted even when it alone blows the budgets`() {
+        val tiny = LogFilePolicy(directoryPath = "/logs", maxTotalBytes = 50L, maxFileCount = 1)
+        val entries = listOf(entry("iptv-20260922.log", size = 900L))
+
+        // With the active path (normal writes) and without it (the sink has not opened the file yet).
+        assertThat(tiny.cleanupPlan(entries, nowMs, tiny.path("iptv-20260922.log"), dayKey)).isEmpty()
+        assertThat(tiny.cleanupPlan(entries, nowMs, null, dayKey)).isEmpty()
+    }
+
+    @Test
+    fun `deletion order is expired, then earlier days, then the day's own segments`() {
+        val tight = LogFilePolicy(directoryPath = "/logs", maxFileCount = 3, maxTotalBytes = 260L)
+        val entries = listOf(
+            entry("iptv-20260922.log", size = 100L), // active base — protected
+            entry("iptv-20260922.1.log", size = 100L), // today, never first
+            entry("iptv-20260921.log", size = 100L), // earlier day
+            entry("iptv-20260101.log", size = 100L), // expired (way outside the 7-day window)
+        )
+
+        val result = tight.cleanupPlan(entries, nowMs, tight.path("iptv-20260922.log"), dayKey)
+
+        assertThat(result).containsExactly("/logs/iptv-20260101.log", "/logs/iptv-20260921.log").inOrder()
+    }
+
     @Test
     fun `foreign files are ignored and do not consume the byte budget`() {
         val small = LogFilePolicy(directoryPath = "/logs", maxTotalBytes = 150L, maxFileCount = 99)

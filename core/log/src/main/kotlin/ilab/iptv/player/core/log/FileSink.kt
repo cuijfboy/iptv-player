@@ -21,7 +21,11 @@ import java.util.concurrent.atomic.AtomicLong
  *   [LogFilePolicy.maxFileBytes] it is renamed to `iptv-20260922.1.log` and the base name starts
  *   empty again, so the newest data is always in the base file;
  * - **retention** 7 days or 50 MB, oldest first, with the copy-count ceiling from
- *   [LogFilePolicy.maxFileCount] (not in the docs — a chosen default, recorded in the P1-8 report);
+ *   [LogFilePolicy.maxFileCount] (not in the docs — a chosen default, recorded in the P1-8 report).
+ *   Since the BUG-011 fix the ceiling only reaps **earlier** days: the active base file and today's
+ *   segment files are never deleted by it, so the file the tester is about to `adb pull` survives;
+ *   today's segments are bounded by the 50 MB budget alone (the manual 清理 button uses the same
+ *   rule, because both go through [LogFilePolicy.cleanupPlan]);
  * - **cleanup** on the first write after startup (the "启动时" hook) and after every rotation;
  *   [cleanupNow] is the manual hook the diagnostics page (and, later, "每次刷新结束") calls;
  * - **write failure degrades instead of crashing or spinning**: the error is counted, the reason

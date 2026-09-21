@@ -148,6 +148,29 @@ class FileSinkPipelineTest {
         )
     }
 
+    @Test
+    fun `a chatty day keeps all of its rotated segments on a real filesystem`() {
+        dir.mkdirs()
+        // Today's base file and four rotated segments, plus one earlier day inside the window: the
+        // QA shape of BUG-011 (24 files, 11 of them today's) with the numbers dialled down.
+        (1..4).forEach { index -> File(dir, "iptv-$day.$index.log").writeText("""{"seq":0}""" + "\n") }
+        File(dir, "iptv-20260921.log").writeText("""{"seq":0}""" + "\n")
+        val bus = newBus(LogFilePolicy(directoryPath = dir.absolutePath, maxFileCount = 2))
+
+        bus.i(category = LogCategory.APP, code = "APP_START", message = "app started")
+        bus.flush(FLUSH_TIMEOUT_MS)
+
+        // Only the earlier day is reaped: today's base file and every segment of today survive, so
+        // the log a tester is about to `adb pull` cannot be reaped by its own file count.
+        assertThat(dir.listFiles()!!.map { it.name }.sorted()).containsExactly(
+            "iptv-$day.1.log",
+            "iptv-$day.2.log",
+            "iptv-$day.3.log",
+            "iptv-$day.4.log",
+            "iptv-$day.log",
+        )
+    }
+
     private fun newBus(policy: LogFilePolicy): LogBus {
         val sink = FileSink(
             policy = policy,

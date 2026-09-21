@@ -153,6 +153,21 @@ class FileSinkTest {
         assertThat(fs.names()).contains("crash-20260101.txt")
     }
 
+    @Test
+    fun `the manual cleanup keeps today's segments and reaps an earlier day instead`() {
+        val capped = LogFilePolicy(directoryPath = dir, maxFileCount = 2)
+        fs.seed("$dir/iptv-$day.1.log", sizeBytes = 10L)
+        fs.seed("$dir/iptv-$day.2.log", sizeBytes = 10L)
+        fs.seed("$dir/iptv-20260921.log", sizeBytes = 10L)
+        val sink = sink(capped)
+
+        // What the diagnostics page's 清理 button calls: 3 managed files, ceiling 2.
+        assertThat(sink.cleanupNow()).isEqualTo(1)
+
+        // The earlier day goes; both of today's segments survive, even though the ceiling is 2.
+        assertThat(fs.names()).containsExactly("iptv-$day.1.log", "iptv-$day.2.log")
+    }
+
     // --- degradation ------------------------------------------------------------------------
 
     @Test

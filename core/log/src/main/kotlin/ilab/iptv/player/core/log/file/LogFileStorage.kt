@@ -19,7 +19,14 @@ object LogFileStorage {
     fun logDirectory(context: Context): String? =
         context.getExternalFilesDir(null)?.let { File(it, LOG_DIR_NAME).absolutePath }
 
-    /** `/sdcard/Android/data/<pkg>/files/logs` — the published, adb-friendly form (docs/03 §6). */
+    /**
+     * `/sdcard/Android/data/<pkg>/files/logs` — the published, adb-friendly form (docs/03 §6).
+     *
+     * `SdCardPath` is suppressed because the hard-coded `/sdcard/` is the point: docs/03 §6 publishes
+     * this exact string as the `adb pull` path, and the real directory is still resolved through
+     * `Context.getExternalFilesDir` in [logDirectory] — this is only the display/pull spelling of it.
+     */
+    @Suppress("SdCardPath")
     fun deviceDirectory(context: Context): String =
         "/sdcard/Android/data/${context.packageName}/files/$LOG_DIR_NAME"
 

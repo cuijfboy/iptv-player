@@ -2,11 +2,13 @@
 <!--
   Minimal P0-6 console (docs/03 §7.2 is the full P2-8 panel). Plain framework views only: no
   Compose/leanback dependency, D-pad focusable buttons, readable from a TV across the room.
+
+  No background on the root: the window paints it (`LogConsoleTheme` in values/themes.xml), so the
+  old full-screen root background was a second paint over the window — lint's `Overdraw` (BUG-012).
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#FF101014"
     android:orientation="vertical"
     android:padding="24dp">
 
@@ -21,16 +23,19 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        style="?android:attr/buttonBarStyle">
 
         <Button
             android:id="@+id/level_button"
+            style="?android:attr/buttonBarButtonStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:focusable="true" />
 
         <Button
             android:id="@+id/clear_button"
+            style="?android:attr/buttonBarButtonStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="12dp"
@@ -43,16 +48,19 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        style="?android:attr/buttonBarStyle">
 
         <Button
             android:id="@+id/file_toggle_button"
+            style="?android:attr/buttonBarButtonStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:focusable="true" />
 
         <Button
             android:id="@+id/flush_button"
+            style="?android:attr/buttonBarButtonStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="12dp"
@@ -61,6 +69,7 @@
 
         <Button
             android:id="@+id/cleanup_button"
+            style="?android:attr/buttonBarButtonStyle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="12dp"
@@ -74,7 +83,7 @@
         android:layout_height="0dp"
         android:layout_marginTop="8dp"
         android:layout_weight="1"
-        android:background="#FF181820">
+        android:background="@color/log_console_panel">
 
         <TextView
             android:id="@+id/log_text"

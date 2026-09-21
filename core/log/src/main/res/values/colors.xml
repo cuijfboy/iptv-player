@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- P1-8 lint pack (BUG-012): the console's two dark tones, named so the window background and
+         the log panel can be told apart instead of being two anonymous hex literals in two files. -->
+    <color name="log_console_window">#FF101014</color>
+    <color name="log_console_panel">#FF181820</color>
+</resources>

@@ -25,8 +25,9 @@ data class LogFileEntry(
  * - `retentionDays` = **7** and `maxTotalBytes` = **50 MB** ("保留 7 天或总量 50 MB，先删最旧").
  *
  * `maxFileCount` is **not** in docs/03 §6, so this default is a chosen one (recorded in
- * `docs/05-过程记录/13-P1-8日志落盘验证.md`): **12** files = 24 MB worst case, which bounds a
- * single chatty day without ever fighting the 50 MB budget.
+ * `docs/05-过程记录/13-P1-8日志落盘验证.md`): **12** files = 24 MB worst case. Since the BUG-011
+ * fix it is a ceiling on **earlier days only** — the day's own segment files are exempt (they are
+ * bounded by [maxTotalBytes] instead), so a busy day can never be reaped down by its own file count.
  *
  * This class is pure Kotlin — no Android and no filesystem — so every rule is unit-tested
  * off-device; the filesystem itself arrives through [LogFileSystem].
@@ -96,8 +97,15 @@ data class LogFilePolicy(
 
     /**
      * Files to delete, **oldest first**, so the caller can simply delete them in order (docs/03 §6
-     * "先删最旧"). Two reasons to delete: the day is older than [retentionDays], or the managed
-     * total is over [maxTotalBytes] / [maxFileCount]. The active file is never in the plan.
+     * "先删最旧"). Three reasons to delete, applied in this order (god 裁决 2026-09-22, BUG-011):
+     * 1. the day in the name is older than [retentionDays];
+     * 2. the copy-count ceiling [maxFileCount] is exceeded — this may only reap **earlier** days;
+     * 3. the byte budget [maxTotalBytes] is exceeded — oldest day first, the day's own segments last.
+     *
+     * **Today's file is protected**: the active base file never enters the plan, and today's segment
+     * files are exempt from the copy-count ceiling (they are bounded by the 50 MB budget alone), so
+     * a busy day can never delete the log the tester is about to pull. The count / byte budget is
+     * still measured over everything this sink owns, the active file included.
      *
      * `crash-*.txt`-style foreign files are ignored entirely — their budget belongs to their own
      * sink (docs/03 §5 keeps them at L4).
@@ -108,32 +116,58 @@ data class LogFilePolicy(
         activeFilePath: String?,
         dayKey: DayKeyFormat,
     ): List<String> {
-        val todayIndex = dayIndexOf(dayKey.key(nowMs)) ?: return emptyList()
-        val candidates = entries.filter { isManaged(it.name) && path(it.name) != activeFilePath }
+        val todayKey = dayKey.key(nowMs)
+        val todayIndex = dayIndexOf(todayKey) ?: return emptyList()
+        val todayBaseName = activeFileName(todayKey)
+        val managed = entries.filter { isManaged(it.name) }
+
+        // The active base file and today's base file are both untouchable: the first holds the newest
+        // data, the second is where the next append goes (it looks inactive only because the sink has
+        // not opened it yet).
+        val candidates = managed
+            .filter { path(it.name) != activeFilePath && it.name != todayBaseName }
+            .sortedWith(
+                compareBy(
+                    { entryDayIndex(it, dayKey, todayIndex) },
+                    { segmentIndexOf(it.name) ?: BASE_SEGMENT_INDEX },
+                    { it.name },
+                ),
+            )
         if (candidates.isEmpty()) return emptyList()
 
-        val ordered = candidates.sortedWith(
-            compareBy(
-                { entryDayIndex(it, dayKey, todayIndex) },
-                { segmentIndexOf(it.name) ?: BASE_SEGMENT_INDEX },
-                { it.name },
-            ),
-        )
-
         // Budget is measured over everything this sink owns, active file included.
-        var managedTotalBytes = entries.filter { isManaged(it.name) }.sumOf { it.sizeBytes }
-        var managedCount = entries.count { isManaged(it.name) }
+        var managedTotalBytes = managed.sumOf { it.sizeBytes }
+        var managedCount = managed.size
 
         val plan = mutableListOf<String>()
-        ordered.forEach { entry ->
-            val expired = todayIndex - entryDayIndex(entry, dayKey, todayIndex) > retentionDays
-            val overBudget = managedTotalBytes > maxTotalBytes || managedCount > maxFileCount
-            if (expired || overBudget) {
-                plan += path(entry.name)
-                managedTotalBytes -= entry.sizeBytes
-                managedCount -= 1
+        val planned = mutableSetOf<String>()
+
+        fun reap(entry: LogFileEntry) {
+            plan += path(entry.name)
+            planned += entry.name
+            managedTotalBytes -= entry.sizeBytes
+            managedCount -= 1
+        }
+
+        // ① Expired days go first, whatever the budgets say (never true for today's own files).
+        candidates.forEach { entry ->
+            if (todayIndex - entryDayIndex(entry, dayKey, todayIndex) > retentionDays) reap(entry)
+        }
+
+        // ② Copy-count ceiling: only earlier days may be reaped. Today's segments are exempt, so a
+        //    chatty day cannot cut into its own evidence; older days are where the ceiling bites.
+        candidates.forEach { entry ->
+            if (entry.name !in planned && dayOf(entry.name) != todayKey && managedCount > maxFileCount) {
+                reap(entry)
             }
         }
+
+        // ③ Byte budget: oldest first, so earlier days go before today's segments; the budget stops
+        //    exactly at the ceiling instead of deleting one file too many.
+        candidates.forEach { entry ->
+            if (entry.name !in planned && managedTotalBytes > maxTotalBytes) reap(entry)
+        }
+
         return plan
     }
 
