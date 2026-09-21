@@ -175,3 +175,37 @@
 - **最担心的一条**：CR-01 —— 架构文档写「CI 强制」，而构建期实际只守着「纯 Kotlin 模块不许 import Android」这一条文本规则；「只有 `:feature:player` 能碰 `:core:player`」「`:app` 只做组装」目前全靠人自觉，实测可无声违反。这是 P0 骨架的核心价值所在，建议优先于其他建议项处理。
 - **签字**：评审人 arch（Oscar / `worker-arch-3`） ｜ 作者 dev-A / dev-A-2 **待确认** ｜ god 集成 **待签**
 - **后续**：本记录只登记不修；作者按上表修复后在 `03-测试计划与用例.md` §8 触发式回归矩阵跑对应回归，再由 arch 复评闭环项。
+
+---
+
+## 5. 遗留项处理结果（文档批 `DOC-2`，2026-09-21）
+
+> 本卡 `DOC-2` 只做文档口径，不写代码。下表逐条说明 13 条 CR 的落点：已办（实现/文档）、部分办、或不采纳 + 理由。「实现」列指的是修复包 commit `02e84f8`（已由 QA 在 `09-P0修复复验报告.md` 反证复核）。
+
+| CR | 级别 | 处理结果 | 说明 |
+|---|---|---|---|
+| CR-01 依赖守护只覆盖规则 1 | 重要 | ✅ 已办（实现 `02e84f8`） | 新增约定插件 `iptv.module.dependencies`（任务 `verifyModuleDependencies`，挂 `check`），以矩阵为唯一数据源；QA 反证 A（`:app` + `:core:player`）/ B（`:core:data` 改 `api`）均 FAILED。文档侧随本批的 CR-03 定稿。|
+| CR-02 规则 1 守护只扫 `src/` | 建议 | ✅ 已办（文档口径） | `docs/02 §3.2` 规则 1 明确「只扫**源码**（`src/`）」；构建脚本里的依赖声明改由 CR-01 的矩阵守护覆盖（同源收口）。|
+| CR-03 §3.2 矩阵与规则矛盾 + 缺 `:core:testing` | 重要（文档） | ✅ 已办（本批） | `docs/02 §3.2` 按 god 裁决重写：守护**只约束「直接声明」**，传递依赖不违规但中间模块必须用 `implementation` 暴露；删除 `app` 行 `database`/`player` 的错标 ✅，补 `:core:testing` 列/行（`:app` 以 `debugImplementation` 引用）。|
+| CR-04 `AppError` 缺 4 工厂 | 重要 | ✅ 已办（实现 `02e84f8`） | 15 项 `FailureClass` 与 `docs/02 §4.6` 逐字一致（QA 复验）。|
+| CR-05 `Logger` 便捷方法伪信封 | 重要 | ✅ 已办（实现 `02e84f8`） | 五个快捷方法去伪信封、对外签名不变（QA 复验）。|
+| CR-06 清单缺 `usesCleartextTraffic` | 重要 | ✅ 已办（实现 `02e84f8`） | APK 二进制清单实测 `usesCleartextTraffic=true`（产物层）。|
+| CR-07 签名闸门 → 静默未签名包 | 建议 | ✅ 已办（实现 `02e84f8`） | 缺口令时 `:app:requireReleaseSigning` 显式失败、不产未签名 APK（QA 反证）。|
+| CR-08 约定插件样板重复 + namespace 隐式推导 | 建议 | ⚠️ 部分办（文档） | **文档侧已办**：namespace 推导规则（`"ilab.iptv.player" + 模块路径`，改目录名会静默改 namespace）已写入 `docs/02 §14`。**代码侧不办**（抽取 `IptvConvention.kt` 消除 6 处样板）：纯整洁性、无功能风险，不列本阶段必办，转 P1 可选。|
+| CR-09 注释卡号过期 + `EventCodes` | 建议 | ⚠️ 部分办 / 文档侧不采纳 | `EventCodes` 已在 P0-6（`dc77fb5`）落地，P0-7 的两条 CI 规则已随 CI 收口；**注释卡号属代码注释**，随实现修正，文档层无动作。|
+| CR-10 空壳模块无占位 + `libs` 冗余声明 | 建议 | ❌ 不采纳（文档层） | 属代码占位文件/依赖清单，P1 各卡落地时自然填充；`docs/02 §3.1` 已列各模块职责与「关键内容」，无需再写「未实现」标记。|
+| CR-11 图标是系统 drawable + `allowBackup=true` | 建议 | ✅ 已办（实现 `02e84f8`） | `allowBackup=false`、icon/banner 指向应用自有资源（产物层实测）；正式图标随 P1 设计系统补。|
+| CR-12 `gradle.properties` 硬编码 JBR 路径 | 建议 | ⚠️ 部分办（文档） | **文档侧已办**：`docs/02 §14` 注明「非 macOS 机器须用 `-Dorg.gradle.java.home=…` 覆盖（`-D` 优先于该文件）」。**该行保留**（本机确无系统 Java），不办删除。|
+| CR-13 CI 从未真跑 + SDK 组件 | 重要 | ✅ 已办 | CI 覆盖面已修（显式 `sdkmanager` + `check lint` + `assembleRelease` skip 降级）；首次真跑 run `35615696372` **success**（commit `528fffb`）。|
+
+**结论**：13 条中 **8 条已办（含实现）+ 3 条部分办**（CR-08/CR-09/CR-12，均为文档侧已落、代码侧转 P1 或随实现修正）+ **1 条不采纳**（CR-10，文档层无动作）；CR-02 已随 CR-01 收口。**无遗留阻断、无遗留重要项**。
+
+> **同批文档口径（QA 台账三题 + god 决策）**：① **BUG-001** → `docs/04 §8` 命令入口改为 `ilab.iptv.player.MainActivity`；② **BUG-002** → 与 CR-03 同一处，`docs/02 §3.2` 矩阵与规则按 god 裁决重写；③ **BUG-004** → `docs/04 §8` 注明「APK 不可字节复现，SHA256 只标识单次构建产物」；④ **D12**（频道号优先级 `用户编辑 > tvg-chno > 自动编号`，god 决策 2026-09-21）已写入 `docs/01 §5`，口径同步 `docs/02 §8.2`。（缺陷台账 `04-缺陷台账.md` 的状态栏由 QA 写，本批不改其结论。）
+
+**新增开放问题（转下阶段）**：
+
+1. **全量 658 条 Media3 复测**（W-S1-3）——P1 入口条件，用于补齐 `Media3 − MediaPlayer` 差值；已写入 `docs/02 §7.8`。
+2. **人工听音 + AVR 透传实测**——S2 的「出声」是路径级证据，AC3/EAC3 直通到功放的听感与 HDMI ARC/AVR 路径均未测（`docs/02 §7.6` 限制）。
+3. **直播封装下的 AC3 直通**——S2 用的是裸 ES 测试向量，非 HLS/TS 直播源，该路径未验证（同上）。
+4. **真实产品冷启动**——S6 是夹具级下限（不含频道表/Room/台标），P1 带数据后须复测（`docs/02 §8.6` 限制）。
+5. **签名 release 的 CI 分支**——仓库 secrets 未配齐前该步骤走 skip，卡 `SECRETS-1`（blocked，待人工加 GitHub Actions secrets）。
