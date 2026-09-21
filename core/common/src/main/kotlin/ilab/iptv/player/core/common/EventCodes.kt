@@ -65,8 +65,26 @@ object EventCodes {
     const val PLAY_END = "PLAY_END"
     const val PLAY_ENGINE_INIT = "PLAY_ENGINE_INIT"
     const val PLAY_ENGINE_RELEASE = "PLAY_ENGINE_RELEASE"
+    /**
+     * Audio focus, one event per change (P1-7 item 3, P1-7 §7.3.2). `reason` is the focus event
+     * (`GAIN` / `LOSS` / `LOSS_TRANSIENT` / `LOSS_TRANSIENT_CAN_DUCK`): "the TV was taken by another
+     * app" and "we were only ducked" have different remedies, so they must not share a code.
+     */
+    const val PLAY_FOCUS_CHANGE = "PLAY_FOCUS_CHANGE"
+    /**
+     * A retry released by the network coming back (P1-7 item 5, P1-7 §7.3.2). `attempt` is the
+     * retry number for this session — a channel that keeps bouncing needs the count in one place.
+     */
+    const val PLAY_NET_RETRY = "PLAY_NET_RETRY"
 
     // --- SERVICE / WORK / PERF / CRASH ---
+    /**
+     * The playback foreground service entering / leaving the foreground (P1-7 items 1–2, §7.3.2).
+     * `result` answers "did the foreground state actually take": a `START` with `result=failed` is
+     * the Android 12 background-start rejection, which is otherwise invisible.
+     */
+    const val SERVICE_PLAYBACK_START = "SERVICE_PLAYBACK_START"
+    const val SERVICE_PLAYBACK_STOP = "SERVICE_PLAYBACK_STOP"
     const val SERVICE_REFRESH_START = "SERVICE_REFRESH_START"
     const val SERVICE_REFRESH_STOP = "SERVICE_REFRESH_STOP"
     const val WORK_SCHEDULE = "WORK_SCHEDULE"
@@ -92,6 +110,8 @@ object EventCodes {
         DB_UPSERT, DB_FAIL,
         PLAY_PREPARE_START, PLAY_FIRST_FRAME, PLAY_PREPARE_FAIL, PLAY_FAILOVER,
         PLAY_STALL, PLAY_SWITCH_CHANNEL, PLAY_END, PLAY_ENGINE_INIT, PLAY_ENGINE_RELEASE,
+        PLAY_FOCUS_CHANGE, PLAY_NET_RETRY,
+        SERVICE_PLAYBACK_START, SERVICE_PLAYBACK_STOP,
         SERVICE_REFRESH_START, SERVICE_REFRESH_STOP,
         WORK_SCHEDULE, WORK_RUN,
         PERF_STARTUP, PERF_EPG_GRID,

@@ -12,6 +12,7 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import ilab.iptv.player.core.common.Logger
 import ilab.iptv.player.core.model.EngineState
 import ilab.iptv.player.core.model.PlaybackPhase
 import ilab.iptv.player.core.player.PlaybackSession
@@ -54,13 +55,18 @@ class PlaybackService : MediaSessionService() {
     @InstallIn(SingletonComponent::class)
     interface ServiceEntryPoint {
         fun playbackSession(): PlaybackSession
+
+        /** The event emitter of docs/03 §3.3.1 needs the same logger the rest of the app uses. */
+        fun logger(): Logger
     }
 
-    private val session: PlaybackSession by lazy {
-        EntryPointAccessors
-            .fromApplication(applicationContext, ServiceEntryPoint::class.java)
-            .playbackSession()
+    private val entryPoint: ServiceEntryPoint by lazy {
+        EntryPointAccessors.fromApplication(applicationContext, ServiceEntryPoint::class.java)
     }
+
+    private val session: PlaybackSession by lazy { entryPoint.playbackSession() }
+
+    private val events: PlaybackSystemEvents by lazy { PlaybackSystemEvents(entryPoint.logger()) }
 
     private val lifecycle = PlaybackServiceLifecycle()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -72,7 +78,11 @@ class PlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         PlaybackNotifications.ensureChannel(this)
-        audioFocus = AudioFocusController(this, target = focusTarget)
+        audioFocus = AudioFocusController(
+            context = this,
+            target = focusTarget,
+            onDecision = { event, decision -> events.focusChanged(event, decision) },
+        )
         // The session must exist before Media3 can be asked for it, and `addSession` is what makes
         // Media3 drive the notification/foreground callbacks for it (P1-7 item 1).
         ensureMediaSession()?.let(::addSession)
@@ -122,6 +132,13 @@ class PlaybackService : MediaSessionService() {
     override fun onDestroy() {
         stateObserver?.cancel()
         stateObserver = null
+        // A service torn down while it was foreground (system reclaim, task removed, `stopService`)
+        // never runs the STOPPED row below, so report the stop here or the foreground/stop pair would
+        // be unbalanced in the log.
+        if (lifecycle.state == PlaybackServiceLifecycle.State.FOREGROUND) {
+            val ui = session.state.value
+            events.playbackServiceStopped("service-destroyed", ui.channelId, ui.activeStreamId)
+        }
         apply(lifecycle.onDestroyed())
         // Focus before the session: a released focus request outliving a paused player is the failure
         // the next app on the TV would pay for.
@@ -139,12 +156,27 @@ class PlaybackService : MediaSessionService() {
             audioFocus?.release()
             removeNotification()
         }
-        if (action.startForeground || action.updateNotification) {
+        if (action.startForeground) {
+            val ui = session.state.value
+            try {
+                postNotification(currentContent())
+                events.playbackServiceStarted(ui.channelId, ui.activeStreamId, ui.phase.name)
+            } catch (denied: Throwable) {
+                // API 31+ rejects a background foreground-service start; nothing is on screen, so the
+                // event is the only place this failure can be seen (docs/03 §3.3.1).
+                events.playbackServiceStartFailed(ui.phase.name, denied)
+                throw denied
+            }
+        } else if (action.updateNotification) {
             postNotification(currentContent())
         }
         // The notification is already gone (`removeNotification` above); this is the second half of
         // "停止播放时正确收尾": nothing of ours is left running.
-        if (action.stopSelf) stopSelf()
+        if (action.stopSelf) {
+            val ui = session.state.value
+            events.playbackServiceStopped("phase-${ui.phase.name.lowercase()}", ui.channelId, ui.activeStreamId)
+            stopSelf()
+        }
     }
 
     /**

@@ -16,6 +16,10 @@ class NetworkRetryWire(
     private val inFailureState: () -> Boolean,
     private val retry: () -> Unit,
     private val gate: NetworkRetryGate = NetworkRetryGate(),
+    /** Where the released retry is reported (`PLAY_NET_RETRY`); null in the pure-logic tests. */
+    private val events: PlaybackSystemEvents? = null,
+    /** The channel that is being retried, read at the moment of the callback. */
+    private val channelId: () -> Long? = { null },
 ) {
 
     /** How many retries the network has released so far (evidence + tests). */
@@ -27,7 +31,10 @@ class NetworkRetryWire(
             onAvailable = {
                 // The gate answers false for the registration callback and for any availability that
                 // is not preceded by an observed outage, so this cannot restart a healthy channel.
-                if (gate.onNetworkAvailable(inFailureState())) retry()
+                if (gate.onNetworkAvailable(inFailureState())) {
+                    events?.networkRetry(attempt = gate.retriesReleased, channelId = channelId())
+                    retry()
+                }
             },
         )
     }

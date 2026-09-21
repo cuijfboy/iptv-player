@@ -80,11 +80,16 @@ class PlayerViewModel @Inject constructor(
 
     private var request: PlayerContract.Input? = null
 
+    /** The key-path event emitter of P1-7 (§3.3.1): the network retry is reported through here. */
+    private val events = PlaybackSystemEvents(logger)
+
     /** P1-7 item 5: one retry per observed outage, and only while the screen shows a failure. */
     private val networkRetry = NetworkRetryWire(
         availability = network,
         inFailureState = ::inFailureState,
         retry = ::retry,
+        events = events,
+        channelId = { playback.value.channelId },
     )
 
     init {

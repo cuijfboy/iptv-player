@@ -5,8 +5,9 @@ import org.junit.Test
 
 /**
  * Guards the docs/03 §3.3 registry: uppercase snake case, no duplicates, and the size matches the
- * table in the design doc (46 codes). A code added without updating the doc, or one typo'd into a
- * duplicate, fails here instead of silently splitting a dashboard in production.
+ * table in the design doc (50 codes: 46 + the four P1-7 key-path codes of §3.3.1). A code added
+ * without updating the doc, or one typo'd into a duplicate, fails here instead of silently splitting
+ * a dashboard in production.
  */
 class EventCodesTest {
 
@@ -21,8 +22,9 @@ class EventCodesTest {
     @Test
     fun `registry has no duplicates and matches the docs 03 table`() {
         // counted from docs/03 §3.3 (46 codes, counting `/`-joined pairs as two codes)
-        assertThat(EventCodes.ALL).hasSize(46)
-        assertThat(EventCodes.ALL.toList().distinct()).hasSize(46)
+        // + the four key-path codes of docs/03 §3.3.1 = 50
+        assertThat(EventCodes.ALL).hasSize(50)
+        assertThat(EventCodes.ALL.toList().distinct()).hasSize(50)
     }
 
     @Test
