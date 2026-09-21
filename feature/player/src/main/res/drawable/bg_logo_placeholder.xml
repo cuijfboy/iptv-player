@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Channel logo placeholder (P1-2's promise, reused by the info bar until real logo loading). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#33FFFFFF" />
+    <corners android:radius="8dp" />
+    <stroke
+        android:width="1dp"
+        android:color="#55FFFFFF" />
+</shape>

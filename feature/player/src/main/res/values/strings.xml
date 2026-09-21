@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="player_starting">正在起播…</string>
+    <string name="player_buffering">缓冲中…</string>
+    <string name="player_error_default">播放失败，按「重试」再试一次</string>
+    <string name="player_retry">重试</string>
+    <string name="player_channel_unknown">未知频道</string>
+    <string name="player_quality_pending">清晰度待确认</string>
+    <string name="player_now_next_placeholder">节目单（now-next）待接入 · P2-7</string>
+    <string name="player_aspect_default">画幅：适应</string>
+    <!-- 1 = the mode label from AspectRatioCycle. -->
+    <string name="player_aspect_format">画幅：%1$s</string>
+</resources>

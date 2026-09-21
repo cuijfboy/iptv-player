@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Player screen (docs/02 §7.4/§8.2). Layer order is the frozen one: the SurfaceView is at the bottom,
+  the status/failure overlay sits above it, and the info bar is the top layer. The info bar is drawn
+  with the video still visible behind it, which is why it is a sibling overlay and not a container.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/player_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FF000000"
+    android:clipChildren="false"
+    android:defaultFocusHighlightEnabled="false"
+    android:focusable="true"
+    android:focusableInTouchMode="true"
+    tools:targetApi="o">
+
+    <!-- The engine adapter for the four §7.4 display modes: resizeMode + fixed ratio are applied by
+         PlayerActivity from AspectRatioPlan, never invented in the layout. -->
+    <androidx.media3.ui.AspectRatioFrameLayout
+        android:id="@+id/player_frame"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <SurfaceView
+            android:id="@+id/player_surface"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+    </androidx.media3.ui.AspectRatioFrameLayout>
+
+    <!-- Starting / buffering (P1-4 item 3). Centered, translucent, and never focusable: the remote
+         must not be able to land on a status label. -->
+    <LinearLayout
+        android:id="@+id/player_status_group"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:background="@drawable/bg_player_overlay"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:paddingHorizontal="32dp"
+        android:paddingVertical="24dp"
+        android:visibility="gone"
+        tools:visibility="visible">
+
+        <ProgressBar
+            android:id="@+id/player_spinner"
+            style="?android:attr/progressBarStyleLarge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/player_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/player_starting"
+            android:textColor="#FFE6E6E6"
+            android:textSize="24sp" />
+
+    </LinearLayout>
+
+    <!-- Failure + retry (P1-4 item 3: "失败要有可读提示与重试入口"). -->
+    <LinearLayout
+        android:id="@+id/player_error_group"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:background="@drawable/bg_player_overlay"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:paddingHorizontal="48dp"
+        android:paddingVertical="32dp"
+        android:visibility="gone"
+        tools:visibility="visible">
+
+        <TextView
+            android:id="@+id/player_error"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="@string/player_error_default"
+            android:textColor="#FFE6E6E6"
+            android:textSize="24sp" />
+
+        <TextView
+            android:id="@+id/player_retry"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:background="@drawable/bg_player_button"
+            android:clickable="true"
+            android:defaultFocusHighlightEnabled="false"
+            android:focusable="true"
+            android:minHeight="48dp"
+            android:minWidth="160dp"
+            android:gravity="center"
+            android:paddingHorizontal="32dp"
+            android:paddingVertical="12dp"
+            android:text="@string/player_retry"
+            android:textColor="#FFE6E6E6"
+            android:textSize="22sp" />
+
+    </LinearLayout>
+
+    <!-- Info bar (P1-4 item 2). Alpha-faded by PlayerActivity after 5 s of no key; the channel logo
+         is a placeholder (P1-2 same promise) and now/next is a placeholder until EPG lands (P2-7). -->
+    <LinearLayout
+        android:id="@+id/info_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:background="@drawable/bg_info_bar"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="32dp"
+        android:paddingVertical="20dp"
+        android:visibility="gone"
+        tools:visibility="visible">
+
+        <TextView
+            android:id="@+id/info_logo"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:background="@drawable/bg_logo_placeholder"
+            android:gravity="center"
+            android:textColor="#FFE6E6E6"
+            android:textSize="26sp"
+            tools:text="C" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="24dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/info_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="#FFE6E6E6"
+                android:textSize="30sp"
+                tools:text="CCTV1 综合" />
+
+            <TextView
+                android:id="@+id/info_quality"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="#FFB9B9C6"
+                android:textSize="18sp"
+                tools:text="1080p H.264 AAC" />
+
+            <TextView
+                android:id="@+id/info_now_next"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="@string/player_now_next_placeholder"
+                android:textColor="#FF9A9AA5"
+                android:textSize="18sp" />
+
+        </LinearLayout>
+
+        <!-- The only focusable control of this screen this round: the §7.4 display mode. -->
+        <TextView
+            android:id="@+id/info_aspect"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="24dp"
+            android:background="@drawable/bg_player_button"
+            android:clickable="true"
+            android:defaultFocusHighlightEnabled="false"
+            android:focusable="true"
+            android:minHeight="48dp"
+            android:minWidth="160dp"
+            android:gravity="center"
+            android:paddingHorizontal="24dp"
+            android:paddingVertical="12dp"
+            android:text="@string/player_aspect_default"
+            android:textColor="#FFE6E6E6"
+            android:textSize="22sp" />
+
+    </LinearLayout>
+
+</FrameLayout>

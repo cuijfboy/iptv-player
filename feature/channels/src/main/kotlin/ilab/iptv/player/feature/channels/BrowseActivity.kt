@@ -2,6 +2,7 @@ package ilab.iptv.player.feature.channels
 
 import android.os.Bundle
 import android.widget.TextView
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.viewModels
 import androidx.lifecycle.lifecycleScope
@@ -11,6 +12,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.common.LogCategory
 import ilab.iptv.player.core.common.Logger
+import ilab.iptv.player.core.ui.player.PlayerContract
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -18,10 +20,13 @@ import javax.inject.Inject
  * The P1-2 browse screen: a grouped, virtualized channel list with a remote-driven focus path
  * (docs/02 §8.1/§8.2) and a live frame-rate readout for the §8.4 budget.
  *
- * Scope honesty: this is the *list* stage. Selecting a channel does nothing yet (playback is P1-3/P1-4,
- * dev-B), there is no search (P3-2) and no EPG column (P3-1). The header line exists because the fps
- * target is part of the acceptance criteria and a screenshot has to carry the numbers, not just the
- * layout.
+ * P1-4 adds the entry point: OK/Enter on a row opens the player through [PlayerContract] (an action,
+ * not a class reference — docs/02 §3.2 forbids feature → feature dependencies), and the result is
+ * used to put focus back on the channel that was playing (§8.1's 播放返回 contract).
+ *
+ * Scope honesty: there is still no search (P3-2) and no EPG column (P3-1). The header line exists
+ * because the fps target is part of the acceptance criteria and a screenshot has to carry the
+ * numbers, not just the layout.
  */
 @AndroidEntryPoint
 class BrowseActivity : ComponentActivity() {
@@ -61,13 +66,30 @@ class BrowseActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * docs/02 §8.1 播放返回: `RESULT_OK` carries the channel id and the browse screen restores focus on
+     * it — "找不到则回到分组首项" is the fallback below.
+     */
+    private val playerLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        val channelId = result.data
+            ?.takeIf { result.resultCode == RESULT_OK }
+            ?.getLongExtra(PlayerContract.EXTRA_RESULT_CHANNEL_ID, MISSING_CHANNEL_ID)
+            ?.takeIf { it != MISSING_CHANNEL_ID }
+        restoreFocusOrFirstRow(channelId)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_browse)
 
         header = findViewById(R.id.browse_header)
         list = findViewById(R.id.channel_list)
-        adapter = ChannelListAdapter { item -> onChannelFocused(item) }
+        adapter = ChannelListAdapter(
+            onChannelFocused = { item -> onChannelFocused(item) },
+            onChannelSelected = { item -> openPlayer(item) },
+        )
         list.layoutManager = LinearLayoutManager(this)
         list.adapter = adapter
         list.setHasFixedSize(true)
@@ -116,6 +138,31 @@ class BrowseActivity : ComponentActivity() {
         renderHeader()
     }
 
+    /** OK/Enter on a row (P1-4 item 1: "列表项 OK/Enter 打开播放"). */
+    private fun openPlayer(item: ChannelListRow.ChannelItem) {
+        playerLauncher.launch(PlayerContract.intent(this, channelId = item.channelId))
+    }
+
+    /**
+     * Puts the remote back where the user left it. The row may not exist any more (the catalog can be
+     * re-loaded while the player is up), in which case focus goes to the first channel row — the
+     * documented fallback of docs/02 §8.1.
+     */
+    private fun restoreFocusOrFirstRow(channelId: Long?) {
+        val rows = adapter.currentList
+        val position = when {
+            channelId != null -> rows.indexOfFirst {
+                it is ChannelListRow.ChannelItem && it.channelId == channelId
+            }
+
+            else -> -1
+        }
+        val target = if (position >= 0) position else rows.indexOfFirst { it is ChannelListRow.ChannelItem }
+        if (target < 0) return
+        list.scrollToPosition(target)
+        list.post { list.findViewHolderForAdapterPosition(target)?.itemView?.requestFocus() }
+    }
+
     /**
      * The on-screen proof line: how many channels/groups/streams the repository produced, the frame
      * statistics over the current scroll window, and which row has focus.
@@ -152,5 +199,7 @@ class BrowseActivity : ComponentActivity() {
         const val SCREEN_NAME = "Browse"
         /** docs/02 §8.5: 60 Hz budget + documented 0.3 ms tolerance. */
         const val JANK_THRESHOLD_MS = 17.0
+        /** No channel id came back: sentinel from the framework's default long. */
+        const val MISSING_CHANNEL_ID = Long.MIN_VALUE
     }
 }

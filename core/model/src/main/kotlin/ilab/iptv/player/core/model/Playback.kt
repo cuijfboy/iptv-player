@@ -65,3 +65,53 @@ sealed interface PlaybackEvent {
     data class AudioTracks(val tracks: List<AudioTrackInfo>, val selectedId: String?) : PlaybackEvent
     data class Capabilities(val caps: Set<EngineCapability>) : PlaybackEvent
 }
+
+// ---------------------------------------------------------------- application-side state
+
+/**
+ * Business phase of one playback session (docs/02 §4.2). [PlaybackUiState] is the ONLY state the
+ * UI consumes; the engine's [EngineState] never crosses into a View (docs/02 §4.5 C1).
+ */
+enum class PlaybackPhase { IDLE, PREPARING, BUFFERING, PLAYING, FAILOVER, STOPPED, ERROR, RELEASED }
+
+/**
+ * What the info bar shows (docs/02 §4.2, P1-4). `nowNext` is a **placeholder** this round: real EPG
+ * data is P2-7, so the field is carried but stays null until then.
+ */
+data class InfoBarState(
+    val channelName: String,
+    val logoUrl: String?,
+    val qualityLabel: String?,
+    val nowNext: NowNext?,
+    val failoverHint: String? = null,
+)
+
+/** Everything the player screen renders (docs/02 §4.2, frozen shape). */
+data class PlaybackUiState(
+    val channelId: Long?,
+    val phase: PlaybackPhase,
+    val activeStreamId: Long?,
+    val infoBar: InfoBarState?,
+    val aspectRatio: AspectRatioMode,
+    val audioTracks: List<AudioTrackInfo>,
+    val selectedAudioTrackId: String?,
+    val failoverCount: Int,
+    val lastError: AppError?,
+    /** Human-readable failure for the on-screen prompt (P1-4 item 3: "失败要有可读提示与重试入口"). */
+    val errorText: String?,
+) {
+    companion object {
+        val EMPTY = PlaybackUiState(
+            channelId = null,
+            phase = PlaybackPhase.IDLE,
+            activeStreamId = null,
+            infoBar = null,
+            aspectRatio = AspectRatioMode.FIT,
+            audioTracks = emptyList(),
+            selectedAudioTrackId = null,
+            failoverCount = 0,
+            lastError = null,
+            errorText = null,
+        )
+    }
+}

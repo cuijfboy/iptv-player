@@ -21,6 +21,7 @@ import ilab.iptv.player.core.domain.channel.ChannelNumberSource
  */
 class ChannelListAdapter(
     private val onChannelFocused: (ChannelListRow.ChannelItem) -> Unit = {},
+    private val onChannelSelected: (ChannelListRow.ChannelItem) -> Unit = {},
 ) : ListAdapter<ChannelListRow, RecyclerView.ViewHolder>(Diff) {
 
     init {
@@ -39,7 +40,11 @@ class ChannelListAdapter(
         return if (viewType == TYPE_HEADER) {
             HeaderHolder(inflater.inflate(R.layout.item_channel_group_header, parent, false))
         } else {
-            ChannelHolder(inflater.inflate(R.layout.item_channel, parent, false), onChannelFocused)
+            ChannelHolder(
+                inflater.inflate(R.layout.item_channel, parent, false),
+                onChannelFocused,
+                onChannelSelected,
+            )
         }
     }
 
@@ -65,6 +70,7 @@ class ChannelListAdapter(
     private class ChannelHolder(
         view: View,
         private val onFocused: (ChannelListRow.ChannelItem) -> Unit,
+        private val onSelected: (ChannelListRow.ChannelItem) -> Unit,
     ) : RecyclerView.ViewHolder(view) {
 
         private val number: TextView = view.findViewById(R.id.channel_number)
@@ -77,6 +83,10 @@ class ChannelListAdapter(
         init {
             itemView.isFocusable = true
             itemView.isFocusableInTouchMode = true
+            // docs/02 §8.1/§8.2: OK/Enter on a focused row opens playback. A focused, clickable view
+            // receives KEYCODE_DPAD_CENTER/ENTER as a click, so this is the whole remote path — no
+            // key listener of our own, and the same code runs for a tap on a phone.
+            itemView.setOnClickListener { row?.let(onSelected) }
             // docs/02 §8.2: the default highlight is disabled in XML; this is the "highlight + scale"
             // half (the selector background is the other half).
             itemView.setOnFocusChangeListener { focusedView, hasFocus ->

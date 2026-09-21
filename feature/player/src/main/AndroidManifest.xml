@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="MissingLeanbackLauncher">
+
+    <!--
+      Same library-manifest caveat as :feature:channels: lint reads a library that ships an activity
+      as if it were the whole app, so the TV hardware story and the launcher suppression are repeated
+      here. The only LEANBACK_LAUNCHER stays on :app's MainActivity.
+    -->
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+
+    <application>
+        <!--
+          P1-4 player screen (docs/02 §8.1). It is started through PlayerContract's action rather
+          than by class name, so :feature:channels never needs this module on its compile path
+          (docs/02 §3.2: no feature to feature dependency). PlayerContract.intent() pins
+          `setPackage`, so only our own app can bind this filter; the device proof still drives it
+          with `adb shell am start -a ilab.iptv.player.action.PLAY`, passing CHANNEL_ID as a long
+          extra.
+        -->
+        <activity
+            android:name=".PlayerActivity"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:screenOrientation="landscape">
+            <intent-filter>
+                <action android:name="ilab.iptv.player.action.PLAY" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>
