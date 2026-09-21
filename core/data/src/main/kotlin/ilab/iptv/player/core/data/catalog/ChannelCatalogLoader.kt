@@ -9,12 +9,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Loads the playlist the app should open with, exactly once per process: **the remembered local
  * import if there is one, otherwise the bundled P1-2 fixture**.
+ *
+ * **TEST-ONLY in production (god's 2026-09-22 收口 ruling).** This is the *in-memory* recovery path:
+ * it re-reads the kept import copy and republishes it into the process-wide store on every start.
+ * Production no longer needs it — the catalog is durable in Room, so a restart reads SQLite and never
+ * re-parses anything (`RoomCatalogSeeder`). It is kept, un-annotated so Hilt can never wire it, to
+ * pin the memory path's own recovery semantics in `ChannelCatalogLoaderTest`, and as the reference
+ * for the fixture-vs-import precedence the Room path replaces with durability. The trade-off is
+ * written down in `docs/05-过程记录/23-持久化集成收口.md`.
  *
  * `ensureLoaded()` is idempotent and concurrency-safe: the browse screen can call it from several
  * coroutines (and after a rotation) without parsing the list twice.
@@ -29,8 +35,7 @@ import javax.inject.Singleton
  * Loading runs on [Dispatchers.IO] because it reads an asset; the parse itself is ~150 KB of text and
  * is measured in the report rather than assumed to be free.
  */
-@Singleton
-class ChannelCatalogLoader @Inject constructor(
+class ChannelCatalogLoader(
     private val bundled: BundledPlaylist,
     private val remembered: RememberedPlaylistSource,
     private val catalog: ChannelCatalog,
@@ -95,7 +100,7 @@ class ChannelCatalogLoader @Inject constructor(
     fun report(): CatalogLoadReport? = synchronized(stateLock) { lastReport }
 
     /** Parses a remembered import; null (after logging) when the copy no longer parses. */
-    private fun loadRemembered(bytes: ByteArray, sourceId: String, name: String): CatalogLoadReport? =
+    private suspend fun loadRemembered(bytes: ByteArray, sourceId: String, name: String): CatalogLoadReport? =
         when (val result = catalog.prepare(bytes, sourceId)) {
             is AppResult.Ok -> if (result.value.report.channels == 0) {
                 // A truncated or foreign file can parse "successfully" into nothing. Publishing that
@@ -140,7 +145,7 @@ class ChannelCatalogLoader @Inject constructor(
         }
 
     /** Reads and parses the bundled fixture; null when even that fails (there is no further fallback). */
-    private fun loadBundled(): CatalogLoadReport? = when (
+    private suspend fun loadBundled(): CatalogLoadReport? = when (
         val result = catalog.prepare(bundled.read(), bundled.sourceId)
     ) {
         is AppResult.Ok -> catalog.commit(result.value)

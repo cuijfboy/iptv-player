@@ -7,6 +7,7 @@ import ilab.iptv.player.core.common.FailureClass
 import ilab.iptv.player.core.data.catalog.CatalogBootstrapper
 import ilab.iptv.player.core.data.catalog.CatalogLoadReport
 import ilab.iptv.player.core.data.catalog.ChannelCatalog
+import ilab.iptv.player.core.data.refresh.FakeClock
 import ilab.iptv.player.core.data.repository.InMemoryChannelRepository
 import ilab.iptv.player.core.data.repository.InMemoryStreamRepository
 import ilab.iptv.player.core.data.store.ChannelStore
@@ -315,7 +316,7 @@ class RoomRepositoryTest {
 
     private fun inMemoryRepository(): InMemoryChannelRepository {
         val store = ChannelStore()
-        val catalog = ChannelCatalog(store)
+        val catalog = ChannelCatalog(store, FakeClock())
         return InMemoryChannelRepository(store, FakeBootstrapper(catalog, Fixtures.text(Fixtures.BASELINE_PLAYLIST)))
     }
 

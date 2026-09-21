@@ -92,6 +92,10 @@ abstract class ChannelDao {
     @Query("SELECT COUNT(*) FROM channel")
     abstract suspend fun count(): Int
 
+    /** Every stored channel id — the replace write ([RoomCatalogWriter]) diffs these against the new set. */
+    @Query("SELECT id FROM channel")
+    abstract suspend fun allIds(): List<Long>
+
     @Query("SELECT group_key, COUNT(*) AS count FROM channel GROUP BY group_key")
     abstract suspend fun countByGroupKey(): List<GroupCountRow>
 

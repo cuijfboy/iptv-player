@@ -6,6 +6,7 @@ import ilab.iptv.player.core.data.Fixtures
 import ilab.iptv.player.core.data.catalog.CatalogBootstrapper
 import ilab.iptv.player.core.data.catalog.CatalogLoadReport
 import ilab.iptv.player.core.data.catalog.ChannelCatalog
+import ilab.iptv.player.core.data.refresh.FakeClock
 import ilab.iptv.player.core.data.store.ChannelStore
 import ilab.iptv.player.core.model.ChannelFilter
 import ilab.iptv.player.core.model.ChannelGroup
@@ -22,7 +23,7 @@ import org.junit.Test
 class InMemoryRepositoryTest {
 
     private val store = ChannelStore()
-    private val catalog = ChannelCatalog(store)
+    private val catalog = ChannelCatalog(store, FakeClock())
     private val bootstrapper = FakeBootstrapper(catalog, Fixtures.text(Fixtures.BASELINE_PLAYLIST))
     private val channels = InMemoryChannelRepository(store, bootstrapper)
     private val streams = InMemoryStreamRepository(store)

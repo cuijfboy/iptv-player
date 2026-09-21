@@ -1,13 +1,12 @@
 package ilab.iptv.player.core.data.store
 
+import ilab.iptv.player.core.data.mapper.MappedCatalog
 import ilab.iptv.player.core.model.Channel
 import ilab.iptv.player.core.model.Stream
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * The process-wide channel/stream state the P1-2 repositories read and write (docs/02 §5.2's
@@ -17,15 +16,30 @@ import javax.inject.Singleton
  * Both flows hold immutable snapshots, so a reader never observes a half-applied change; every
  * mutation goes through `update {}` (compare-and-set), which is safe when two coroutines write at
  * once. Nothing here blocks, which is what docs/02 §4.5 C6 asks of a state holder.
+ *
+ * **TEST-ONLY in production (god's 2026-09-22 收口 ruling).** Since the write seam
+ * ([CatalogSink]) landed, the production catalog lives in Room and the production `ChannelRepository`
+ * / `StreamRepository` are the `Room*` implementations. This store, `InMemoryChannelRepository`,
+ * `InMemoryStreamRepository` and `ChannelCatalogLoader` are the in-memory path kept for the
+ * off-device tests: it is deliberately **not** Hilt-annotated any more so it can never be wired into
+ * the app by accident. See `docs/05-过程记录/23-持久化集成收口.md` for the choice and its rationale.
  */
-@Singleton
-class ChannelStore @Inject constructor() {
+class ChannelStore : CatalogSink {
 
     private val _channels = MutableStateFlow<List<Channel>>(emptyList())
     private val _streams = MutableStateFlow<List<Stream>>(emptyList())
 
     val channels: StateFlow<List<Channel>> = _channels.asStateFlow()
     val streams: StateFlow<List<Stream>> = _streams.asStateFlow()
+
+    /**
+     * [CatalogSink] over the snapshot: a whole-catalog replace, exactly like [replaceAll]. The
+     * timestamp is ignored — a `StateFlow` has no `updated_at` column to stamp.
+     */
+    override suspend fun write(catalog: MappedCatalog, nowMs: Long): Int {
+        replaceAll(catalog.channels, catalog.streams)
+        return catalog.channels.size + catalog.streams.size
+    }
 
     /** Replaces the whole catalog (one playlist load). Ids inside the two lists must be consistent. */
     fun replaceAll(channels: List<Channel>, streams: List<Stream>) {

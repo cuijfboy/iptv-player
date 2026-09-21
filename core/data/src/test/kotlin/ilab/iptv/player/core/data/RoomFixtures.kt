@@ -12,7 +12,6 @@ import ilab.iptv.player.core.data.catalog.ChannelCatalog
 import ilab.iptv.player.core.data.catalog.RoomCatalogSeeder
 import ilab.iptv.player.core.data.repository.RoomChannelRepository
 import ilab.iptv.player.core.data.repository.RoomStreamRepository
-import ilab.iptv.player.core.data.store.ChannelStore
 import ilab.iptv.player.core.data.store.RoomCatalogWriter
 import ilab.iptv.player.core.database.IptvDatabase
 import kotlinx.coroutines.runBlocking
@@ -86,16 +85,19 @@ internal object RoomFixtures {
 
     /** The whole P2-1 stack over one database: seeder, writer and both repositories. */
     class Rig(val database: IptvDatabase, val logger: RecordingLogger = RecordingLogger()) {
-        val catalog = ChannelCatalog(ChannelStore())
+        private val fixedClock = clock()
         val writer = RoomCatalogWriter(database, database.channelDao(), database.streamDao(), logger)
+        // Production wiring: the catalog publishes through the CatalogSink, and that sink is the Room
+        // writer — the same shape `PersistenceModule` binds, so the rig cannot pass while the app
+        // would fail.
+        val catalog = ChannelCatalog(writer, fixedClock)
         val seeder = RoomCatalogSeeder(
             bundled = AssetBundledPlaylist(context().assets),
             catalog = catalog,
-            writer = writer,
             channelDao = database.channelDao(),
             logger = logger,
         )
-        val channels = RoomChannelRepository(database.channelDao(), seeder, clock())
+        val channels = RoomChannelRepository(database.channelDao(), seeder, fixedClock)
         val streams = RoomStreamRepository(database, database.streamDao(), logger)
     }
 }

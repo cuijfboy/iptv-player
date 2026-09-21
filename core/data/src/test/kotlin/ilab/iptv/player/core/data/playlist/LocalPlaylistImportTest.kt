@@ -26,10 +26,10 @@ class LocalPlaylistImportTest {
     private val folders = ImportFolders(dropFolder = "/app/files/playlists", storeFolder = "/app/files/imports")
     private val files = FakePlaylistFileSystem()
     private val store = ChannelStore()
-    private val catalog = ChannelCatalog(store)
+    private val clock = FakeClock()
+    private val catalog = ChannelCatalog(store, clock)
     private val lastImport = LastImportStore(files, folders)
     private val logger = RecordingLogger()
-    private val clock = FakeClock()
 
     private val importer = LocalPlaylistImportRepository(
         files = files,

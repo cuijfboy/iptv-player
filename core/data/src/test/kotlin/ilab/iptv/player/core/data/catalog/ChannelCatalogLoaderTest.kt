@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import ilab.iptv.player.core.data.playlist.FakePlaylistFileSystem
 import ilab.iptv.player.core.data.playlist.ImportRecord
 import ilab.iptv.player.core.data.playlist.LastImportStore
+import ilab.iptv.player.core.data.refresh.FakeClock
 import ilab.iptv.player.core.data.refresh.RecordingLogger
 import ilab.iptv.player.core.data.store.ChannelStore
 import ilab.iptv.player.core.domain.playlist.ImportFolders
@@ -22,7 +23,7 @@ class ChannelCatalogLoaderTest {
     private val folders = ImportFolders(dropFolder = "/app/files/playlists", storeFolder = "/app/files/imports")
     private val files = FakePlaylistFileSystem()
     private val store = ChannelStore()
-    private val catalog = ChannelCatalog(store)
+    private val catalog = ChannelCatalog(store, FakeClock())
     private val logger = RecordingLogger()
     private val lastImport = LastImportStore(files, folders)
     private val bundled = FakeBundledPlaylist(BUNDLED_LIST)

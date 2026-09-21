@@ -2,9 +2,11 @@ package ilab.iptv.player.core.data.catalog
 
 import com.google.common.truth.Truth.assertThat
 import ilab.iptv.player.core.data.Fixtures
+import ilab.iptv.player.core.data.refresh.FakeClock
 import ilab.iptv.player.core.data.store.ChannelStore
 import ilab.iptv.player.core.model.ChannelGroup
 import ilab.iptv.player.core.source.parser.PlaylistFormat
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 
 /**
@@ -16,11 +18,11 @@ import org.junit.Test
 class ChannelCatalogTest {
 
     private val store = ChannelStore()
-    private val catalog = ChannelCatalog(store)
+    private val catalog = ChannelCatalog(store, FakeClock())
     private val fixture = Fixtures.text(Fixtures.BASELINE_PLAYLIST)
 
     @Test
-    fun `the bundled fixture loads to 658 channels over 670 rows`() {
+    fun `the bundled fixture loads to 658 channels over 670 rows`() = test {
         val report = catalog.load(fixture, sourceId = "p1-2-fixture")
 
         assertThat(report.format).isEqualTo(PlaylistFormat.M3U)
@@ -37,7 +39,7 @@ class ChannelCatalogTest {
     }
 
     @Test
-    fun `the group mix matches the real baseline shape`() {
+    fun `the group mix matches the real baseline shape`() = test {
         val report = catalog.load(fixture, sourceId = "p1-2-fixture")
 
         assertThat(report.groups[ChannelGroup.CCTV]).isEqualTo(80)
@@ -48,7 +50,7 @@ class ChannelCatalogTest {
     }
 
     @Test
-    fun `the store receives consistent channel and stream ids`() {
+    fun `the store receives consistent channel and stream ids`() = test {
         catalog.load(fixture, sourceId = "p1-2-fixture")
 
         val channels = store.channels.value
@@ -62,7 +64,7 @@ class ChannelCatalogTest {
     }
 
     @Test
-    fun `the D12 middle tier and the logo path survive the mapping`() {
+    fun `the D12 middle tier and the logo path survive the mapping`() = test {
         catalog.load(fixture, sourceId = "p1-2-fixture")
 
         val channels = store.channels.value
@@ -74,7 +76,7 @@ class ChannelCatalogTest {
     }
 
     @Test
-    fun `key derivation and classification come from the domain policy`() {
+    fun `key derivation and classification come from the domain policy`() = test {
         catalog.load(fixture, sourceId = "p1-2-fixture")
 
         val cctv1 = store.channels.value.first { it.name == "CCTV1" }
@@ -89,7 +91,7 @@ class ChannelCatalogTest {
     }
 
     @Test
-    fun `a second load replaces the catalog instead of appending to it`() {
+    fun `a second load replaces the catalog instead of appending to it`() = test {
         catalog.load(fixture, sourceId = "p1-2-fixture")
         catalog.load(fixture, sourceId = "p1-2-fixture")
 
@@ -98,11 +100,14 @@ class ChannelCatalogTest {
     }
 
     @Test
-    fun `an empty playlist loads to an empty catalog`() {
+    fun `an empty playlist loads to an empty catalog`() = test {
         val report = catalog.load("#EXTM3U\n", sourceId = "empty")
 
         assertThat(report.rawEntries).isEqualTo(0)
         assertThat(report.channels).isEqualTo(0)
         assertThat(store.channels.value).isEmpty()
     }
+
+    /** `load` now writes through the (suspending) `CatalogSink`, so the tests run in a coroutine. */
+    private fun test(block: suspend () -> Unit): Unit = runBlocking { block() }
 }

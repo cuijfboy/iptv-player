@@ -74,7 +74,8 @@ interface PlaylistImportPort {
 
     /**
      * Parses [candidate] through the shipped pipeline and, **only if it yields at least one
-     * channel**, replaces the in-memory catalog with it and remembers it for the next start.
+     * channel**, replaces the current catalog with it (the `CatalogSink` write seam — Room in
+     * production) and remembers it for the next start.
      * A rejected file leaves the current channel list untouched.
      */
     suspend fun import(candidate: ImportCandidate): ImportResult

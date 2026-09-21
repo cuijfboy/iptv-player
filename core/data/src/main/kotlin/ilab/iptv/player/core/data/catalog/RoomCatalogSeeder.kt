@@ -3,7 +3,6 @@ package ilab.iptv.player.core.data.catalog
 import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.common.LogCategory
 import ilab.iptv.player.core.common.Logger
-import ilab.iptv.player.core.data.store.RoomCatalogWriter
 import ilab.iptv.player.core.database.dao.ChannelDao
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -13,17 +12,20 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * "Cold start reads a catalog" — the P2-1 replacement for
- * [ChannelCatalogLoader]'s in-memory load.
+ * "Cold start reads a catalog" — the **production** first-fill for the Room path, and (since the
+ * CatalogSink 收口) the one startup path the app uses. The in-memory [ChannelCatalogLoader] is kept
+ * only for the off-device tests.
  *
  * It seeds the database from the same bundled fixture exactly **once per database lifetime**: if the
  * `channel` table already has rows, nothing is parsed and nothing is written. On a cold start after
- * the first run the channel list therefore comes from SQLite (no asset read, no parse), which is what
- * "把内存态换成持久化" means in practice.
+ * the first run — or after a local import — the channel table already has rows and this is a no-op:
+ * the list comes from SQLite with no asset read and no parse. That is what makes the import durable
+ * without a second "restore the remembered copy" step (the import wrote Room through the same sink).
  *
- * The parse itself is the same pipeline the in-memory loader uses ([ChannelCatalog.parse]), so the
- * two paths cannot drift; only the sink differs. Seeding happens on [Dispatchers.IO] and inside
- * [RoomCatalogWriter]'s transactions, so it never touches the main thread or the playback thread
+ * The parse and the write are the same pipeline and the same seam the in-memory loader and the local
+ * import use ([ChannelCatalog.commit] → `CatalogSink`), so no writer can drift from another. Seeding
+ * happens on [Dispatchers.IO] and inside the sink's transactions, so it never touches the main thread
+ * or the playback thread
  * (docs/02 §4.5 C4/C6). A failure is logged as `DB_FAIL` and swallowed: the app degrades to "no
  * catalog yet" rather than crashing, and the next start retries (docs/02 §11).
  */
@@ -31,7 +33,6 @@ import javax.inject.Singleton
 class RoomCatalogSeeder @Inject constructor(
     private val bundled: BundledPlaylist,
     private val catalog: ChannelCatalog,
-    private val writer: RoomCatalogWriter,
     private val channelDao: ChannelDao,
     private val logger: Logger,
 ) {
@@ -51,15 +52,15 @@ class RoomCatalogSeeder @Inject constructor(
                     seeded = true
                     return false
                 }
-                val nowMs = System.currentTimeMillis()
-                // TESTABLE-1 split ChannelCatalog.parse() into prepare()/commit(): the seeder only
-                // needs the mapped catalog, so it prepares and writes to Room itself (the in-memory
-                // store path stays untouched).
+                // parse on IO, then publish through the one write seam (ChannelCatalog.commit →
+                // the injected CatalogSink, which is RoomCatalogWriter in production). The seeder no
+                // longer touches RoomCatalogWriter directly: that was the second write end the 收口
+                // removed.
                 val prepared = withContext(Dispatchers.IO) {
                     val text = bundled.read().toString(Charsets.UTF_8)
                     catalog.prepare(text, bundled.sourceId)
                 }
-                writer.write(prepared.mapped, nowMs)
+                catalog.commit(prepared)
                 logger.i(
                     category = LogCategory.SOURCE,
                     code = EventCodes.SRC_PARSE_OK,

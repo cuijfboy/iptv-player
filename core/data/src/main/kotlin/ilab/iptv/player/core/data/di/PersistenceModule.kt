@@ -8,6 +8,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import ilab.iptv.player.core.data.repository.RoomChannelRepository
 import ilab.iptv.player.core.data.repository.RoomStreamRepository
+import ilab.iptv.player.core.data.store.CatalogSink
+import ilab.iptv.player.core.data.store.RoomCatalogWriter
 import ilab.iptv.player.core.database.IptvDatabase
 import ilab.iptv.player.core.database.dao.ChannelDao
 import ilab.iptv.player.core.database.dao.EpgSourceDao
@@ -61,16 +63,27 @@ object PersistenceModule {
     fun provideMetricDao(database: IptvDatabase): MetricDao = database.metricDao()
 
     /*
-     * god 集成裁决（2026-09-22）：P2-1 的 Room 仓储**暂不绑定**为生产实现。
+     * Production binding (god's 2026-09-22 收口 ruling). The earlier comment here explained why Room
+     * was *not* bound: P2-1 wrote through [RoomCatalogWriter] while the import wrote through
+     * `ChannelStore`, so binding Room would have made the list read one store and the import write the
+     * other. That gap is closed — every catalog write now funnels through [CatalogSink], whose only
+     * production implementation is [RoomCatalogWriter], so "read Room" and "write Room" are switched
+     * together. The in-memory implementations stay in the module (test-only, no Hilt annotation) and
+     * are constructed directly by `InMemoryRepositoryTest` / `RoomRepositoryTest`.
      *
-     * 原因：P2-1 与 TESTABLE-1 是并行工作——Room 这条路的写入端是 [RoomCatalogWriter]（由
-     * RoomCatalogSeeder 使用），而导入/加载这条路的写入端是 ChannelCatalog → ChannelStore（内存）。
-     * 若把 Room 绑成生产实现，列表会读 Room、导入却写内存，出现「导入后列表没变化」的错配
-     * （且 cold-start 语义与 imported catalog 不一致）。两条实现同时绑定还会触发 Dagger
-     * DuplicateBindings。
-     *
-     * 因此：生产先维持 P1-2 的内存实现（行为与 P1 一致），Room 相关代码与测试保留但不接线；
-     * 由后续集成任务引入统一的写入接缝（CatalogSink），再把 Room 切成生产实现并补
-     * 「导入 → 落 Room → 冷启动仍在」的集成测试。
+     * No DuplicateBindings: this is the *only* place `ChannelRepository`, `StreamRepository` and
+     * `CatalogSink` are bound (the `ChannelStore`/`InMemory*` path is no longer a Hilt binding).
      */
+
+    @Provides
+    @Singleton
+    fun provideCatalogSink(writer: RoomCatalogWriter): CatalogSink = writer
+
+    @Provides
+    @Singleton
+    fun provideChannelRepository(impl: RoomChannelRepository): ChannelRepository = impl
+
+    @Provides
+    @Singleton
+    fun provideStreamRepository(impl: RoomStreamRepository): StreamRepository = impl
 }

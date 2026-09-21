@@ -1,9 +1,10 @@
 package ilab.iptv.player.core.data.catalog
 
 import ilab.iptv.player.core.common.AppResult
+import ilab.iptv.player.core.common.Clock
 import ilab.iptv.player.core.data.mapper.MappedCatalog
 import ilab.iptv.player.core.data.mapper.ChannelMapper
-import ilab.iptv.player.core.data.store.ChannelStore
+import ilab.iptv.player.core.data.store.CatalogSink
 import ilab.iptv.player.core.model.ChannelGroup
 import ilab.iptv.player.core.source.normalize.DedupeReport
 import ilab.iptv.player.core.source.normalize.PlaylistNormalizer
@@ -20,19 +21,30 @@ import javax.inject.Singleton
  *
  * Text in, [CatalogLoadReport] out — no Android type anywhere in the signature, so the unit tests
  * drive the real pipeline with fixture text instead of an emulator.
+ *
+ * **One write end.** Everything this class publishes goes through the injected [CatalogSink]; it no
+ * longer knows about `ChannelStore` or Room. That is what lets the same pipeline feed the in-memory
+ * store in tests and SQLite in production without a second code path (P2-1 × P2-6 收口).
  */
 @Singleton
-class ChannelCatalog @Inject constructor(private val store: ChannelStore) {
+class ChannelCatalog @Inject constructor(
+    private val sink: CatalogSink,
+    private val clock: Clock,
+) {
 
     /**
      * Parse → normalize/dedupe → map → store. Kept as the one-call form for the bootstrapper and
      * the P1-2 tests; the two halves are separate below so an importer can look at the result
      * *before* it replaces what the user is currently watching (P2-6).
      */
-    fun load(text: String, sourceId: String): CatalogLoadReport = commit(prepare(text, sourceId))
+    suspend fun load(text: String, sourceId: String): CatalogLoadReport = commit(prepare(text, sourceId))
 
     /** Same pipeline from bytes, so charset fallback (docs/02 §6.1) is included. */
-    fun load(bytes: ByteArray, sourceId: String, charsetHint: String? = null): AppResult<CatalogLoadReport> =
+    suspend fun load(
+        bytes: ByteArray,
+        sourceId: String,
+        charsetHint: String? = null,
+    ): AppResult<CatalogLoadReport> =
         when (val prepared = prepare(bytes, sourceId, charsetHint)) {
             is AppResult.Err -> AppResult.Err(prepared.error)
             is AppResult.Ok -> AppResult.Ok(commit(prepared.value))
@@ -54,9 +66,15 @@ class ChannelCatalog @Inject constructor(private val store: ChannelStore) {
         }
     }
 
-    /** Publishes a prepared catalog: the only place the store is written. */
-    fun commit(prepared: PreparedCatalog): CatalogLoadReport {
-        store.replaceAll(prepared.mapped.channels, prepared.mapped.streams)
+    /**
+     * Publishes a prepared catalog: the only place the [CatalogSink] is written. [nowMs] defaults to
+     * the injected clock so callers cannot forget to stamp the rows; the in-memory sink ignores it.
+     */
+    suspend fun commit(
+        prepared: PreparedCatalog,
+        nowMs: Long = clock.nowMs(),
+    ): CatalogLoadReport {
+        sink.write(prepared.mapped, nowMs)
         return prepared.report
     }
 

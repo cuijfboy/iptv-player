@@ -15,7 +15,12 @@ import javax.inject.Singleton
 /**
  * Writes one parsed catalog into Room (docs/02 §6.1's last stage, now durable).
  *
- * Three rules it exists to enforce:
+ * It is the production [CatalogSink]: the fixture seed, the local import and (later) a P2-4 refresh
+ * all reach Room through `ChannelCatalog.commit()` → this class, so "the list reads Room" and "the
+ * write goes to Room" are one decision — that is the 收口 of the P2-1 × P2-6 integration conflict
+ * (god's 2026-09-22 ruling).
+ *
+ * Four rules it exists to enforce:
  * - **batch size 500 rows per transaction** (docs/02 §4.5 C4). A 5k-stream list is ten transactions,
  *   not five thousand, and never one giant transaction that holds a write lock while the list is
  *   being painted.
@@ -23,6 +28,10 @@ import javax.inject.Singleton
  *   and streams on `(channel_id, url_hash)`, so a refresh keeps the row ids — and therefore the
  *   favourites, sort order and `play_history` rows that point at them. The domain ids produced by
  *   `ChannelMapper` for one in-memory load are *not* used as database ids.
+ * - **replace, not merge** (the [CatalogSink] contract). After the upsert, the channels that are not
+ *   part of this catalog are deleted, so an import does not leave the previous playlist behind — the
+ *   same semantics the memory path's `replaceAll` has. `stream.channel_id -> channel.id ON DELETE
+ *   CASCADE` takes their streams with them.
  * - **no partial catalog.** The channel→id resolution and its streams are written per batch inside a
  *   transaction, so a failure leaves the previously stored catalog intact (docs/02 §11: a failed write
  *   must not destroy existing data).
@@ -33,10 +42,10 @@ class RoomCatalogWriter @Inject constructor(
     private val channelDao: ChannelDao,
     private val streamDao: StreamDao,
     private val logger: Logger,
-) {
+) : CatalogSink {
 
-    /** Writes [catalog] and returns how many rows (channels + streams) were touched. */
-    suspend fun write(catalog: MappedCatalog, nowMs: Long): Int {
+    /** Writes [catalog] (replace semantics) and returns how many rows (channels + streams) were touched. */
+    override suspend fun write(catalog: MappedCatalog, nowMs: Long): Int {
         val databaseId = HashMap<Long, Long>(catalog.channels.size)
         var channelsWritten = 0
 
@@ -62,6 +71,12 @@ class RoomCatalogWriter @Inject constructor(
             streamsWritten += database.withTransaction { streamDao.upsertAll(batch) }
         }
 
+        // Replace semantics (the [CatalogSink] contract): everything not in this catalog is gone.
+        // Without this, an import would merge with the 658-channel fixture instead of replacing it —
+        // exactly the "the list shows channels that are not in my playlist" surprise the P2-6 record
+        // (docs/05-过程记录/19 §2) chose "导入即替换" to avoid. The cascade removes their streams.
+        val removed = pruneChannelsNotIn(databaseId.values.toHashSet())
+
         logger.i(
             category = LogCategory.SOURCE,
             code = EventCodes.DB_UPSERT,
@@ -69,6 +84,7 @@ class RoomCatalogWriter @Inject constructor(
             fields = mapOf(
                 "channels" to channelsWritten,
                 "streams" to streamsWritten,
+                "removed" to removed,
                 "dropped" to (catalog.streams.size - mapped.size),
                 "batch" to BATCH_SIZE,
             ),
@@ -76,8 +92,24 @@ class RoomCatalogWriter @Inject constructor(
         return channelsWritten + streamsWritten
     }
 
+    /** Deletes every stored channel whose id is not in [kept]; returns how many channels were removed. */
+    private suspend fun pruneChannelsNotIn(kept: Set<Long>): Int {
+        val stale = channelDao.allIds().filterNot { it in kept }
+        if (stale.isEmpty()) return 0
+        var removed = 0
+        // SQLite caps a statement at 999 bound parameters, so the `IN (...)` list is chunked (the
+        // programme pruning does the same, docs/02 §5.1). One chunk = one transaction.
+        stale.chunked(DELETE_BATCH_SIZE).forEach { chunk ->
+            removed += database.withTransaction { channelDao.deleteByIds(chunk) }
+        }
+        return removed
+    }
+
     companion object {
         /** docs/02 §4.5 C4: `PipelineLimits.batchSize = 500` rows per transaction. */
         const val BATCH_SIZE = 500
+
+        /** Below SQLite's 999-parameter ceiling for `DELETE ... WHERE id IN (...)`. */
+        const val DELETE_BATCH_SIZE = 400
     }
 }

@@ -5,19 +5,19 @@ import ilab.iptv.player.core.domain.repository.StreamRepository
 import ilab.iptv.player.core.model.Stream
 import ilab.iptv.player.core.model.StreamHealth
 import ilab.iptv.player.core.model.StreamOutcome
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * docs/02 §4.3 `StreamRepository` over the same in-memory [ChannelStore].
+ *
+ * **TEST-ONLY in production** (god's 2026-09-22 收口 ruling): the production binding is
+ * `RoomStreamRepository`. Not Hilt-annotated on purpose, so it cannot be wired by accident.
  *
  * P1-2 needs the read side (`candidates`) to order a channel's streams and the write side
  * (`upsertAll`) to prove the `UNIQUE(channel_id, url_hash)` upsert shape works before Room exists.
  * Health lives in a small in-process map here and moves into the `play_history` / health columns in
  * P2; nothing in this class pretends to be durable.
  */
-@Singleton
-class InMemoryStreamRepository @Inject constructor(
+class InMemoryStreamRepository(
     private val store: ChannelStore,
 ) : StreamRepository {
 

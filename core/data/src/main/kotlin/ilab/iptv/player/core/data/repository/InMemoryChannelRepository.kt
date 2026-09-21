@@ -15,11 +15,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * docs/02 §4.3 `ChannelRepository` over the in-memory [ChannelStore] (P1-2: no Room).
+ *
+ * **TEST-ONLY in production** (god's 2026-09-22 收口 ruling): the production binding is
+ * `RoomChannelRepository`. This class is deliberately not Hilt-annotated so it cannot be wired by
+ * accident; the off-device tests construct it directly.
  *
  * Two deliberate behaviours:
  * - **ordering is the domain's job.** `observe` returns channels in [ChannelSorter] order and each
@@ -28,8 +30,7 @@ import javax.inject.Singleton
  * - **loading is lazy but eager-ish.** `observe` calls `ensureLoaded()` before it emits, so the first
  *   subscriber triggers the parse and every later one just reads state.
  */
-@Singleton
-class InMemoryChannelRepository @Inject constructor(
+class InMemoryChannelRepository(
     private val store: ChannelStore,
     private val loader: CatalogBootstrapper,
 ) : ChannelRepository {
