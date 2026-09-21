@@ -1,17 +1,24 @@
 # 签名密钥说明
 
 - `release.jks`：本项目的 Release 签名密钥，**随仓库保存**（便于多机/CI 统一签名、支持 `adb install -r` 覆盖升级）。
-- **口令不入库**：请在仓库根目录或本目录创建 `local.properties`（已在 `.gitignore` 中）：
+- **口令不入库**：请在**仓库根目录**创建 `local.properties`（已在 `.gitignore` 中）。
+  构建只读根目录这一份文件；`keystore/local.properties` **不会被读取**（CR-07 修的一次坑：照旧版
+  README 把口令放进 `keystore/` 会静默产出**未签名**的 `app-release.apk`）。也可以改用同名环境变量
+  （`RELEASE_STORE_PASSWORD` / `RELEASE_KEY_ALIAS` / `RELEASE_KEY_PASSWORD`），CI 走 Secrets。
 
 ```properties
-# keystore/local.properties
+# <仓库根目录>/local.properties
 RELEASE_STORE_FILE=keystore/release.jks
 RELEASE_STORE_PASSWORD=******
 RELEASE_KEY_ALIAS=iptv
 RELEASE_KEY_PASSWORD=******
 ```
 
-- CI 场景：把上述四项配置为 GitHub Actions Secrets。
+- **release 构建必须签名（CR-07）**：缺少上面任一项时，`assembleRelease` / `bundleRelease` 等
+  release 打包任务会**直接失败**并列出缺哪一项，不再静默出未签名包。debug 构建不受影响（自动用
+  debug 签名）。
+- CI 场景：把 `RELEASE_STORE_PASSWORD` / `RELEASE_KEY_ALIAS` / `RELEASE_KEY_PASSWORD` 配置为
+  GitHub Actions Secrets（`RELEASE_STORE_FILE` 直接用仓库内的 `keystore/release.jks`）。
 - 轮换密钥：更换 `release.jks` 会导致已安装设备无法覆盖升级，需先卸载（会清除应用数据）。
 
 ## 当前密钥档案（2026-09-21 生成）

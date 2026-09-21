@@ -71,12 +71,35 @@ data class AppError(
         fun parse(code: String, cause: Throwable? = null): AppError =
             AppError(code, FailureClass.PARSE, retryable = false, cause = cause)
 
+        /** TLS handshake failure (docs/02 §4.6): switching source is the only move, retrying is not. */
+        fun tls(code: String, cause: Throwable? = null): AppError =
+            AppError(code, FailureClass.TLS, retryable = false, cause = cause)
+
         fun decode(code: String, unsupported: Boolean, cause: Throwable? = null): AppError = AppError(
             code = code,
             failure = if (unsupported) FailureClass.DECODE_UNSUPPORTED else FailureClass.DECODE_CORRUPT,
             retryable = !unsupported,
             cause = cause,
         )
+
+        /** The stream answered but carried no media at all — an empty manifest / no segments (docs/02 §4.6). */
+        fun emptyMedia(code: String, detail: String? = null, cause: Throwable? = null): AppError =
+            AppError(code, FailureClass.EMPTY_MEDIA, retryable = false, detail = detail, cause = cause)
+
+        /**
+         * Every candidate of one channel is dead (docs/02 §4.6). The failover policy answers with
+         * `ResolveFresh` (re-probe that single channel), not with a source switch.
+         */
+        fun playlistGone(code: String, detail: String? = null, cause: Throwable? = null): AppError =
+            AppError(code, FailureClass.PLAYLIST_GONE, retryable = false, detail = detail, cause = cause)
+
+        /**
+         * Coroutine cancellation (docs/02 §4.6): not a failure. Callers must not emit
+         * `PLAY_FAILOVER` for it; it is carried as [FailureClass.CANCELLED] only so it can travel
+         * as an [AppResult.Err] where a `CancellationException` may not be thrown.
+         */
+        fun cancelled(code: String, cause: Throwable? = null): AppError =
+            AppError(code, FailureClass.CANCELLED, retryable = false, cause = cause)
 
         fun storage(code: String, cause: Throwable? = null): AppError =
             AppError(code, FailureClass.STORAGE, retryable = true, cause = cause)

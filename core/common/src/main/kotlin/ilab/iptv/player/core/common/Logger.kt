@@ -5,7 +5,7 @@ import kotlinx.coroutines.CoroutineScope
 
 /**
  * Event model + logging facade (docs/02 §4.1). docs/03 §3–§4 is the single source of truth for
- * these types; the `EventCodes` constants land with the logger skeleton (P0-2).
+ * these types; the `EventCodes` constants land with the logger skeleton (P0-6).
  */
 enum class LogLevel { VERBOSE, DEBUG, INFO, WARN, ERROR, FATAL }
 
@@ -26,33 +26,49 @@ data class LogEvent(
     val sessionId: String,            // correlates one refresh / one playback
 )
 
+/**
+ * Logging facade (docs/02 §4.1; the event model itself is docs/03 §4).
+ *
+ * **Envelope contract (CR-05).** The five level shortcuts (`v`/`d`/`i`/`w`/`e`) carry no envelope
+ * fields on purpose: `seq`, `ts`, `elapsedMs`, `thread` and `sessionId` must be stamped by the
+ * implementation from the real `Clock`, `SessionIdFactory` and current thread. An implementation
+ * that cannot produce a real value must not log the event at all — a shortcut whose implementation
+ * silently logged `seq = 0 / ts = 0 / thread = "" / sessionId = ""` would poison the whole
+ * diagnostic pipeline (`sessionId` fold, `seq` ordering, `elapsedMs` stall detection, docs/03 §4).
+ * This is why the shortcuts have **no default bodies** here: the interface cannot know those
+ * values, and a wrong event is worse than no event.
+ *
+ * The implementation lands in `:core:log` with the logger skeleton (P0-6).
+ */
 interface Logger {
     fun log(event: LogEvent)
 
-    fun v(category: LogCategory, code: String, message: String, fields: Map<String, Any?> = emptyMap()) =
-        log(LogEvent(0, 0, 0, LogLevel.VERBOSE, category, code, message, fields, null, "", null, ""))
+    /** Log with a real envelope (see the interface KDoc); `code` must come from `EventCodes` (docs/03 §3.3). */
+    fun v(category: LogCategory, code: String, message: String, fields: Map<String, Any?> = emptyMap())
 
-    fun d(category: LogCategory, code: String, message: String, fields: Map<String, Any?> = emptyMap()) =
-        log(LogEvent(0, 0, 0, LogLevel.DEBUG, category, code, message, fields, null, "", null, ""))
+    /** Log with a real envelope (see the interface KDoc). */
+    fun d(category: LogCategory, code: String, message: String, fields: Map<String, Any?> = emptyMap())
 
-    fun i(category: LogCategory, code: String, message: String, fields: Map<String, Any?> = emptyMap()) =
-        log(LogEvent(0, 0, 0, LogLevel.INFO, category, code, message, fields, null, "", null, ""))
+    /** Log with a real envelope (see the interface KDoc). */
+    fun i(category: LogCategory, code: String, message: String, fields: Map<String, Any?> = emptyMap())
 
+    /** Log with a real envelope (see the interface KDoc). */
     fun w(
         category: LogCategory,
         code: String,
         message: String,
         fields: Map<String, Any?> = emptyMap(),
         error: Throwable? = null,
-    ) = log(LogEvent(0, 0, 0, LogLevel.WARN, category, code, message, fields, error, "", null, ""))
+    )
 
+    /** Log with a real envelope (see the interface KDoc). */
     fun e(
         category: LogCategory,
         code: String,
         message: String,
         fields: Map<String, Any?> = emptyMap(),
         error: Throwable? = null,
-    ) = log(LogEvent(0, 0, 0, LogLevel.ERROR, category, code, message, fields, error, "", null, ""))
+    )
 
     fun flush(timeoutMs: Long = 500)
 }

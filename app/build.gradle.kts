@@ -11,7 +11,8 @@ plugins {
 }
 
 // Release signing config (docs/01 ADR-003): the keystore FILE is committed, the PASSWORDS are not.
-// Passwords come from local.properties (git-ignored) or the environment — never from the repo.
+// Passwords come from <repo-root>/local.properties (git-ignored) or the environment — never from
+// the repo. This is the ONLY file read; `keystore/local.properties` is not consulted (CR-07).
 val localProps = Properties().apply {
     val f = rootProject.file("local.properties")
     if (f.exists()) f.inputStream().use { load(it) }
@@ -19,6 +20,21 @@ val localProps = Properties().apply {
 
 fun credential(key: String): String? =
     localProps.getProperty(key)?.takeIf { it.isNotBlank() } ?: System.getenv(key)?.takeIf { it.isNotBlank() }
+
+val releaseStoreFileValue = credential("RELEASE_STORE_FILE")
+val releaseStorePasswordValue = credential("RELEASE_STORE_PASSWORD")
+val releaseKeyAliasValue = credential("RELEASE_KEY_ALIAS")
+val releaseKeyPasswordValue = credential("RELEASE_KEY_PASSWORD")
+val releaseKeystore: java.io.File? = releaseStoreFileValue?.let { rootProject.file(it) }?.takeIf { it.isFile }
+
+// CR-07: a release build must be signed or fail. The old behaviour — silently emitting an UNSIGNED
+// app-release.apk while the build reports SUCCESS — is the one thing worse than a red build, because
+// the artifact looks shippable. Debug keeps its automatic debug signing.
+val releaseSigningReady: Boolean =
+    releaseKeystore != null &&
+        releaseStorePasswordValue != null &&
+        releaseKeyAliasValue != null &&
+        releaseKeyPasswordValue != null
 
 android {
     namespace = "ilab.iptv.player"
@@ -36,10 +52,10 @@ android {
 
     signingConfigs {
         create("release") {
-            credential("RELEASE_STORE_FILE")?.let { storeFile = rootProject.file(it) }
-            storePassword = credential("RELEASE_STORE_PASSWORD")
-            keyAlias = credential("RELEASE_KEY_ALIAS")
-            keyPassword = credential("RELEASE_KEY_PASSWORD")
+            storeFile = releaseKeystore
+            storePassword = releaseStorePasswordValue
+            keyAlias = releaseKeyAliasValue
+            keyPassword = releaseKeyPasswordValue
         }
     }
 
@@ -50,9 +66,7 @@ android {
         getByName("release") {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Only sign when the keystore file is actually present, so a machine without
-            // local.properties still gets an (unsigned) release APK instead of a hard failure.
-            if (signingConfigs.getByName("release").storeFile != null) {
+            if (releaseSigningReady) {
                 signingConfig = signingConfigs.getByName("release")
             }
         }
@@ -67,6 +81,45 @@ android {
         abortOnError = true
     }
 }
+
+// Gate every release packaging/assembly task on real credentials (CR-07). The failure names what is
+// missing and where to put it instead of producing an unsigned APK.
+tasks.register("requireReleaseSigning") {
+    group = "verification"
+    description = "Fails a release build when the release signing credentials are missing (CR-07)."
+    doLast {
+        if (releaseSigningReady) return@doLast
+        val missing = buildList {
+            when {
+                releaseStoreFileValue == null -> add("RELEASE_STORE_FILE")
+                releaseKeystore == null -> add("RELEASE_STORE_FILE (${releaseStoreFileValue} not found)")
+            }
+            if (releaseStorePasswordValue == null) add("RELEASE_STORE_PASSWORD")
+            if (releaseKeyAliasValue == null) add("RELEASE_KEY_ALIAS")
+            if (releaseKeyPasswordValue == null) add("RELEASE_KEY_PASSWORD")
+        }
+        throw GradleException(
+            "Release signing is not configured, refusing to build an unsigned release APK (CR-07).\n" +
+                "  missing: ${missing.joinToString(", ")}\n" +
+                "  put them in ${rootProject.file("local.properties")} (git-ignored) or export them " +
+                "as environment variables — see keystore/README.md.\n" +
+                "  debug builds are unaffected.",
+        )
+    }
+}
+
+// Only the tasks that actually produce a shippable release artifact (and the signing steps inside
+// them). Deliberately NOT a `*Release*` wildcard: it would also catch lint/unit-test helpers such as
+// `packageReleaseResources` and break `./gradlew check` on a machine without credentials.
+val releaseArtifactTasks = setOf(
+    "assembleRelease",
+    "bundleRelease",
+    "packageRelease",
+    "packageReleaseBundle",
+    "packageReleaseUniversalApk",
+    "signReleaseBundle",
+)
+tasks.matching { it.name in releaseArtifactTasks }.configureEach { dependsOn("requireReleaseSigning") }
 
 kotlin {
     compilerOptions {

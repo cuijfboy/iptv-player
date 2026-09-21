@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: assembleDebug + testDebugUnitTest + lint
+    name: check + assembleDebug + assembleRelease
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,31 +24,35 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      # Build-time guard (docs/02 §3.2 rule 1). Runs before Gradle so a leak fails fast and
-      # cheaply; the same rule is also enforced inside Gradle by `verifyPureKotlin` (task `check`).
-      - name: Guard — pure-Kotlin modules must not import Android
+      # CR-13: install the SDK components this build actually uses instead of relying on AGP's
+      # auto-install (which depends on runner licences and auto-download being allowed).
+      # compileSdk 36 (docs/02 §14) + the build-tools AGP 8.11.1 defaults to.
+      - name: Install Android SDK components
         run: |
           set -euo pipefail
-          fail=0
-          for module in core/common core/model core/domain; do
-            while IFS= read -r file; do
-              if grep -nE '^[[:space:]]*import[[:space:]]+(android|androidx)\.' "$file"; then
-                echo "::error file=$file::pure-Kotlin module '$module' imports an Android API"
-                fail=1
-              fi
-            done < <(find "$module" -type f \( -name '*.kt' -o -name '*.java' \) -not -path '*/build/*')
-          done
-          exit "$fail"
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;35.0.0" "platform-tools"
 
       # gradle.properties pins org.gradle.java.home to the macOS JBR; override it on Linux CI.
+      # `check` is the local definition of green (CodeReview CR-13): it runs the unit tests, lint,
+      # `verifyPureKotlin` (docs/02 §3.2 rule 1) and `verifyModuleDependencies` (rules 2–5, CR-01).
+      # The shell `grep` guard that used to live here is gone: it only covered rule 1, only matched
+      # `import` lines (BUG-005), and duplicated the Gradle task now running in `check`.
+      - name: check + lint
+        run: ./gradlew --no-daemon -Dorg.gradle.java.home="$JAVA_HOME" check lint
+
       - name: assembleDebug
         run: ./gradlew --no-daemon -Dorg.gradle.java.home="$JAVA_HOME" assembleDebug
 
-      - name: testDebugUnitTest
-        run: ./gradlew --no-daemon -Dorg.gradle.java.home="$JAVA_HOME" testDebugUnitTest
-
-      - name: lint
-        run: ./gradlew --no-daemon -Dorg.gradle.java.home="$JAVA_HOME" lint
+      # CR-13: the release artifact is part of the P0 exit condition, so CI must build it. CR-07
+      # makes an unsigned release build fail, so the signing credentials have to come from Secrets.
+      - name: assembleRelease
+        env:
+          RELEASE_STORE_FILE: keystore/release.jks
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: ./gradlew --no-daemon -Dorg.gradle.java.home="$JAVA_HOME" assembleRelease
 
       - name: Upload APKs
         if: always()
