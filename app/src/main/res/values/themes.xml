@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Framework theme only: P0 has no design-system dependency yet (that is :core:design, P1). -->
+    <style name="Theme.Iptv" parent="android:Theme.Material.NoActionBar.Fullscreen" />
+</resources>

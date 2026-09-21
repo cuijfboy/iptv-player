@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "agent/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: assembleDebug + testDebugUnitTest + lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      # Build-time guard (docs/02 §3.2 rule 1). Runs before Gradle so a leak fails fast and
+      # cheaply; the same rule is also enforced inside Gradle by `verifyPureKotlin` (task `check`).
+      - name: Guard — pure-Kotlin modules must not import Android
+        run: |
+          set -euo pipefail
+          fail=0
+          for module in core/common core/model core/domain; do
+            while IFS= read -r file; do
+              if grep -nE '^[[:space:]]*import[[:space:]]+(android|androidx)\.' "$file"; then
+                echo "::error file=$file::pure-Kotlin module '$module' imports an Android API"
+                fail=1
+              fi
+            done < <(find "$module" -type f \( -name '*.kt' -o -name '*.java' \) -not -path '*/build/*')
+          done
+          exit "$fail"
+
+      # gradle.properties pins org.gradle.java.home to the macOS JBR; override it on Linux CI.
+      - name: assembleDebug
+        run: ./gradlew --no-daemon -Dorg.gradle.java.home="$JAVA_HOME" assembleDebug
+
+      - name: testDebugUnitTest
+        run: ./gradlew --no-daemon -Dorg.gradle.java.home="$JAVA_HOME" testDebugUnitTest
+
+      - name: lint
+        run: ./gradlew --no-daemon -Dorg.gradle.java.home="$JAVA_HOME" lint
+
+      - name: Upload APKs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apks
+          path: "**/build/outputs/apk/**/*.apk"
+          if-no-files-found: ignore
