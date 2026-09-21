@@ -1,6 +1,7 @@
 package ilab.iptv.player.core.data.catalog
 
 import ilab.iptv.player.core.data.mapper.ChannelMapper
+import ilab.iptv.player.core.data.mapper.MappedCatalog
 import ilab.iptv.player.core.data.store.ChannelStore
 import ilab.iptv.player.core.model.ChannelGroup
 import ilab.iptv.player.core.source.normalize.DedupeReport
@@ -22,31 +23,49 @@ import javax.inject.Singleton
 @Singleton
 class ChannelCatalog @Inject constructor(private val store: ChannelStore) {
 
-    fun load(text: String, sourceId: String): CatalogLoadReport {
+    /**
+     * Parse → normalize/dedupe → map, with no sink attached. P2-1's Room seeder uses this so the
+     * durable path and the in-memory path run *the same* pipeline (`ChannelCatalog.load` is the
+     * in-memory sink on top of it); without the split the two would drift the first time the parser
+     * changed.
+     */
+    fun parse(text: String, sourceId: String): ParsedCatalog {
         val startedAt = System.nanoTime()
         val outcome: ParseOutcome = PlaylistParsers.parse(text, sourceId)
         val playlist = PlaylistNormalizer.normalize(outcome.entries)
         val mapped = ChannelMapper.toDomain(playlist)
-        store.replaceAll(mapped.channels, mapped.streams)
 
         val groups = LinkedHashMap<ChannelGroup, Int>()
         for (channel in mapped.channels) groups[channel.group] = (groups[channel.group] ?: 0) + 1
 
-        return CatalogLoadReport(
-            sourceId = sourceId,
-            format = outcome.format,
-            lines = outcome.lines,
-            rawEntries = outcome.entries.size,
-            skipped = outcome.skipped,
-            streams = mapped.streams.size,
-            channels = mapped.channels.size,
-            streamDedupe = playlist.streamDedupe,
-            channelMerge = playlist.channelDedupe,
-            groups = groups,
-            elapsedMs = (System.nanoTime() - startedAt) / 1_000_000,
+        return ParsedCatalog(
+            catalog = mapped,
+            report = CatalogLoadReport(
+                sourceId = sourceId,
+                format = outcome.format,
+                lines = outcome.lines,
+                rawEntries = outcome.entries.size,
+                skipped = outcome.skipped,
+                streams = mapped.streams.size,
+                channels = mapped.channels.size,
+                streamDedupe = playlist.streamDedupe,
+                channelMerge = playlist.channelDedupe,
+                groups = groups,
+                elapsedMs = (System.nanoTime() - startedAt) / 1_000_000,
+            ),
         )
     }
+
+    /** [parse] plus the in-memory sink: the P1-2 behaviour, unchanged. */
+    fun load(text: String, sourceId: String): CatalogLoadReport {
+        val parsed = parse(text, sourceId)
+        store.replaceAll(parsed.catalog.channels, parsed.catalog.streams)
+        return parsed.report
+    }
 }
+
+/** One parse's output: the mapped catalog and the numbers `SRC_PARSE_OK` / `SRC_DEDUPE` report. */
+data class ParsedCatalog(val catalog: MappedCatalog, val report: CatalogLoadReport)
 
 /**
  * What one load produced — the numbers the `SRC_PARSE_OK` / `SRC_DEDUPE` events carry (docs/03 §3.3)
