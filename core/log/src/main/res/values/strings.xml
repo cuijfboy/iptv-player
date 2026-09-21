@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="log_console_title">日志与设备信息</string>
+    <string name="log_console_level">级别：%1$s（点击切换）</string>
+    <string name="log_console_clear">清空内存环</string>
+    <string name="log_console_empty">内存环为空：没有事件达到当前级别。</string>
+</resources>

@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">IPTV Player</string>
+    <string name="open_log_console">日志与设备信息</string>
 </resources>

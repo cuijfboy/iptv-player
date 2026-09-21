@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      P0-6 device page (docs/04 §2.1 "日志骨架……设备页可看"). Exported so QA can open it directly
+      on the TV with `adb shell am start -n ilab.iptv.player/ilab.iptv.player.core.log.ui
+      .LogConsoleActivity` without walking the launcher; it takes no input and reads no data.
+      The full diagnostics panel is P2-8 (docs/03 §7) and is NOT implemented here.
+    -->
+    <application>
+        <activity
+            android:name="ilab.iptv.player.core.log.ui.LogConsoleActivity"
+            android:exported="true"
+            android:label="@string/log_console_title"
+            android:screenOrientation="landscape" />
+    </application>
+
+</manifest>
