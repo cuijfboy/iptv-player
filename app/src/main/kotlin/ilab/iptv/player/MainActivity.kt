@@ -44,4 +44,11 @@ class MainActivity : ComponentActivity() {
             fields = mapOf("screen" to "Main"),
         )
     }
+
+    override fun onStop() {
+        super.onStop()
+        // docs/03 §5 flush contract: going to the background forces the on-disk log's tail out
+        // (`FileSink.flush` → fsync), so an exit or a power cut cannot cost the last events.
+        logger.flush()
+    }
 }

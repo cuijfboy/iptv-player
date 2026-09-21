@@ -38,6 +38,36 @@
             android:text="@string/log_console_clear" />
     </LinearLayout>
 
+    <!-- P1-8 on-disk log controls (docs/03 §6/§14): file switch, force-to-disk, manual cleanup. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/file_toggle_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:focusable="true" />
+
+        <Button
+            android:id="@+id/flush_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:focusable="true"
+            android:text="@string/log_console_flush" />
+
+        <Button
+            android:id="@+id/cleanup_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:focusable="true"
+            android:text="@string/log_console_cleanup" />
+    </LinearLayout>
+
     <ScrollView
         android:id="@+id/log_scroll"
         android:layout_width="match_parent"
