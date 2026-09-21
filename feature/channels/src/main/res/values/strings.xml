@@ -5,4 +5,12 @@
     <string name="browse_frames">帧率：%1$d 帧 / p50 %2$.1fms / p95 %3$.1fms / max %4$.1fms / %5$.1f fps / 超预算 %6$d 帧</string>
     <string name="browse_summary">频道 %1$d / 分组 %2$d / 流 %3$d\n%4$s</string>
     <string name="browse_focus">焦点：%1$d %2$s</string>
+    <string name="browse_import_action">导入播放列表</string>
+    <string name="browse_import_title">选择要导入的播放列表</string>
+    <string name="browse_import_hint">当前：%1$s\n文件放在：%2$s\n（也可用 adb push 放进该目录）</string>
+    <string name="browse_import_none">内置示例表（无法出画面）</string>
+    <string name="browse_import_empty">没有找到可用文件。\n\n把 .m3u / .m3u8 / .txt 播放列表放到：\n%1$s\n\n例如：\n adb push list.m3u /sdcard/Android/data/ilab.iptv.player/files/playlists/</string>
+    <string name="browse_import_done">已导入 %1$s：%2$d 个频道 / %3$d 条流（%4$s）</string>
+    <string name="browse_import_close">知道了</string>
+    <string name="browse_import_cancel">取消</string>
 </resources>

@@ -1,7 +1,10 @@
 package ilab.iptv.player.feature.channels
 
 import android.os.Bundle
+import android.app.AlertDialog
+import android.widget.Button
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.viewModels
@@ -12,6 +15,9 @@ import dagger.hilt.android.AndroidEntryPoint
 import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.common.LogCategory
 import ilab.iptv.player.core.common.Logger
+import ilab.iptv.player.core.domain.playlist.ImportCandidate
+import ilab.iptv.player.core.domain.playlist.ImportResult
+import ilab.iptv.player.core.domain.playlist.PlaylistImportPort
 import ilab.iptv.player.core.ui.player.PlayerContract
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -34,10 +40,19 @@ class BrowseActivity : ComponentActivity() {
     @Inject
     lateinit var logger: Logger
 
+    /**
+     * P2-6 slice: import a local playlist so the device shows real channels instead of the synthetic
+     * `demo.invalid` fixture (`docs/05-过程记录/16-P1-4播放界面验证.md` §7.2 asked for exactly this
+     * entrance). The port, not the implementation, so this module never sees `:core:data`.
+     */
+    @Inject
+    lateinit var importPort: PlaylistImportPort
+
     private val viewModel: ChannelListViewModel by viewModels()
 
     private lateinit var list: RecyclerView
     private lateinit var header: TextView
+    private lateinit var importButton: Button
     private lateinit var adapter: ChannelListAdapter
 
     private var lastState: ChannelListUiState = ChannelListUiState.Loading
@@ -86,6 +101,8 @@ class BrowseActivity : ComponentActivity() {
 
         header = findViewById(R.id.browse_header)
         list = findViewById(R.id.channel_list)
+        importButton = findViewById(R.id.import_playlist)
+        importButton.setOnClickListener { openImportPicker() }
         adapter = ChannelListAdapter(
             onChannelFocused = { item -> onChannelFocused(item) },
             onChannelSelected = { item -> openPlayer(item) },
@@ -136,6 +153,54 @@ class BrowseActivity : ComponentActivity() {
     private fun onChannelFocused(item: ChannelListRow.ChannelItem) {
         focused = item
         renderHeader()
+    }
+
+    /**
+     * Lists the playlist files in the app's import folder and imports the one the user picks. Every
+     * path here is a user-visible outcome: an empty folder explains where to put a file (with the
+     * `adb push` target spelled out, which is the QA path), a successful import reports what it
+     * turned into, and a rejected file says why — the list itself refreshes on its own, because the
+     * store is a `StateFlow`.
+     */
+    private fun openImportPicker() {
+        lifecycleScope.launch {
+            val candidates = importPort.candidates()
+            val folders = importPort.folders()
+            val current = importPort.lastImported()?.name ?: getString(R.string.browse_import_none)
+            val builder = AlertDialog.Builder(this@BrowseActivity)
+                .setTitle(R.string.browse_import_title)
+            if (candidates.isEmpty()) {
+                builder
+                    .setMessage(getString(R.string.browse_import_empty, folders.dropFolder))
+                    .setPositiveButton(R.string.browse_import_close, null)
+                    .show()
+                return@launch
+            }
+            val labels = candidates.map { ImportCandidateLabel.describe(it) }.toTypedArray()
+            builder
+                .setMessage(getString(R.string.browse_import_hint, current, folders.dropFolder))
+                .setItems(labels) { _, which -> runImport(candidates[which]) }
+                .setNegativeButton(R.string.browse_import_cancel, null)
+                .show()
+        }
+    }
+
+    /** Runs one import and reports the outcome; the dialog is already dismissed by the time it ends. */
+    private fun runImport(candidate: ImportCandidate) {
+        lifecycleScope.launch {
+            val message = when (val result = importPort.import(candidate)) {
+                is ImportResult.Done -> getString(
+                    R.string.browse_import_done,
+                    result.report.name,
+                    result.report.channels,
+                    result.report.streams,
+                    result.report.formatLabel,
+                )
+
+                is ImportResult.Failed -> result.message
+            }
+            Toast.makeText(this@BrowseActivity, message, Toast.LENGTH_LONG).show()
+        }
     }
 
     /** OK/Enter on a row (P1-4 item 1: "列表项 OK/Enter 打开播放"). */

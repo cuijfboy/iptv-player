@@ -17,6 +17,16 @@
         android:textColor="#FFB9B9C6"
         android:textSize="16sp" />
 
+    <!-- P2-6 slice: the regular way to get real channels onto the device (see 19-本地导入验证.md).
+         DPAD_UP from the first row reaches it, so the remote-only path stays intact. -->
+    <Button
+        android:id="@+id/import_playlist"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="24dp"
+        android:layout_marginTop="8dp"
+        android:text="@string/browse_import_action" />
+
     <!-- clipChildren=false: a focused row scales up and must not be clipped at the list edges. -->
     <FrameLayout
         android:layout_width="match_parent"
