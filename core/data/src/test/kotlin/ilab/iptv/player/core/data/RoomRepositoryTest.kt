@@ -68,8 +68,9 @@ class RoomRepositoryTest {
 
     @Test
     fun `the seeded row count matches the parse report`() = test {
-        val parsed = rig.catalog.parse(Fixtures.text(Fixtures.BASELINE_PLAYLIST), "p1-2-fixture")
-        rig.writer.write(parsed.catalog, nowMs = 1L)
+        // TESTABLE-1 split parse() into prepare()/commit(); the test needs the mapped half only.
+        val parsed = rig.catalog.prepare(Fixtures.text(Fixtures.BASELINE_PLAYLIST), "p1-2-fixture")
+        rig.writer.write(parsed.mapped, nowMs = 1L)
 
         assertThat(database.channelDao().count()).isEqualTo(parsed.report.channels)
         assertThat(database.streamDao().countByChannel().sumOf { it.count }).isEqualTo(parsed.report.streams)
@@ -81,10 +82,10 @@ class RoomRepositoryTest {
 
     @Test
     fun `writing the same catalog twice does not duplicate rows`() = test {
-        val parsed = rig.catalog.parse(Fixtures.text(Fixtures.BASELINE_PLAYLIST), "p1-2-fixture")
+        val parsed = rig.catalog.prepare(Fixtures.text(Fixtures.BASELINE_PLAYLIST), "p1-2-fixture")
 
-        rig.writer.write(parsed.catalog, nowMs = 1L)
-        rig.writer.write(parsed.catalog, nowMs = 2L)
+        rig.writer.write(parsed.mapped, nowMs = 1L)
+        rig.writer.write(parsed.mapped, nowMs = 2L)
 
         assertThat(database.channelDao().count()).isEqualTo(parsed.report.channels)
         assertThat(database.streamDao().countByChannel().sumOf { it.count }).isEqualTo(parsed.report.streams)

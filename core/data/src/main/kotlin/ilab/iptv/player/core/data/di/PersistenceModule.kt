@@ -60,12 +60,17 @@ object PersistenceModule {
     @Provides
     fun provideMetricDao(database: IptvDatabase): MetricDao = database.metricDao()
 
-    /** P2-1's replacement of the P1-2 in-memory port bindings. */
-    @Provides
-    @Singleton
-    fun provideChannelRepository(impl: RoomChannelRepository): ChannelRepository = impl
-
-    @Provides
-    @Singleton
-    fun provideStreamRepository(impl: RoomStreamRepository): StreamRepository = impl
+    /*
+     * god 集成裁决（2026-09-22）：P2-1 的 Room 仓储**暂不绑定**为生产实现。
+     *
+     * 原因：P2-1 与 TESTABLE-1 是并行工作——Room 这条路的写入端是 [RoomCatalogWriter]（由
+     * RoomCatalogSeeder 使用），而导入/加载这条路的写入端是 ChannelCatalog → ChannelStore（内存）。
+     * 若把 Room 绑成生产实现，列表会读 Room、导入却写内存，出现「导入后列表没变化」的错配
+     * （且 cold-start 语义与 imported catalog 不一致）。两条实现同时绑定还会触发 Dagger
+     * DuplicateBindings。
+     *
+     * 因此：生产先维持 P1-2 的内存实现（行为与 P1 一致），Room 相关代码与测试保留但不接线；
+     * 由后续集成任务引入统一的写入接缝（CatalogSink），再把 Room 切成生产实现并补
+     * 「导入 → 落 Room → 冷启动仍在」的集成测试。
+     */
 }

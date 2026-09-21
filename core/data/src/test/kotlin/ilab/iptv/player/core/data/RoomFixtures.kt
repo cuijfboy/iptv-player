@@ -7,6 +7,7 @@ import ilab.iptv.player.core.common.Clock
 import ilab.iptv.player.core.common.LogCategory
 import ilab.iptv.player.core.common.LogEvent
 import ilab.iptv.player.core.common.Logger
+import ilab.iptv.player.core.data.catalog.AssetBundledPlaylist
 import ilab.iptv.player.core.data.catalog.ChannelCatalog
 import ilab.iptv.player.core.data.catalog.RoomCatalogSeeder
 import ilab.iptv.player.core.data.repository.RoomChannelRepository
@@ -88,7 +89,7 @@ internal object RoomFixtures {
         val catalog = ChannelCatalog(ChannelStore())
         val writer = RoomCatalogWriter(database, database.channelDao(), database.streamDao(), logger)
         val seeder = RoomCatalogSeeder(
-            assets = context().assets,
+            bundled = AssetBundledPlaylist(context().assets),
             catalog = catalog,
             writer = writer,
             channelDao = database.channelDao(),

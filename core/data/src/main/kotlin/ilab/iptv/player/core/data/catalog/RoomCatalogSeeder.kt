@@ -1,6 +1,5 @@
 package ilab.iptv.player.core.data.catalog
 
-import android.content.res.AssetManager
 import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.common.LogCategory
 import ilab.iptv.player.core.common.Logger
@@ -30,7 +29,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class RoomCatalogSeeder @Inject constructor(
-    private val assets: AssetManager,
+    private val bundled: BundledPlaylist,
     private val catalog: ChannelCatalog,
     private val writer: RoomCatalogWriter,
     private val channelDao: ChannelDao,
@@ -53,22 +52,25 @@ class RoomCatalogSeeder @Inject constructor(
                     return false
                 }
                 val nowMs = System.currentTimeMillis()
-                val parsed = withContext(Dispatchers.IO) {
-                    val text = assets.open(FIXTURE_ASSET).use { it.readBytes().toString(Charsets.UTF_8) }
-                    catalog.parse(text, FIXTURE_SOURCE_ID)
+                // TESTABLE-1 split ChannelCatalog.parse() into prepare()/commit(): the seeder only
+                // needs the mapped catalog, so it prepares and writes to Room itself (the in-memory
+                // store path stays untouched).
+                val prepared = withContext(Dispatchers.IO) {
+                    val text = bundled.read().toString(Charsets.UTF_8)
+                    catalog.prepare(text, bundled.sourceId)
                 }
-                writer.write(parsed.catalog, nowMs)
+                writer.write(prepared.mapped, nowMs)
                 logger.i(
                     category = LogCategory.SOURCE,
                     code = EventCodes.SRC_PARSE_OK,
                     message = "fixture seeded into Room",
                     fields = mapOf(
-                        "provider" to parsed.report.sourceId,
-                        "format" to parsed.report.format.label,
-                        "entries" to parsed.report.rawEntries,
-                        "channels" to parsed.report.channels,
-                        "streams" to parsed.report.streams,
-                        "ms" to parsed.report.elapsedMs,
+                        "provider" to prepared.report.sourceId,
+                        "format" to prepared.report.format.label,
+                        "entries" to prepared.report.rawEntries,
+                        "channels" to prepared.report.channels,
+                        "streams" to prepared.report.streams,
+                        "ms" to prepared.report.elapsedMs,
                     ),
                 )
                 seeded = true
@@ -78,7 +80,7 @@ class RoomCatalogSeeder @Inject constructor(
                     category = LogCategory.SOURCE,
                     code = EventCodes.DB_FAIL,
                     message = "catalog seed failed",
-                    fields = mapOf("asset" to FIXTURE_ASSET, "err" to e.message),
+                    fields = mapOf("asset" to bundled.sourceId, "err" to e.message),
                     error = e,
                 )
                 false
