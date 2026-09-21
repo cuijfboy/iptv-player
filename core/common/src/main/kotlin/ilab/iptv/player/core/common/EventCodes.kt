@@ -26,6 +26,12 @@ object EventCodes {
     const val SRC_FETCH_OK = "SRC_FETCH_OK"
     const val SRC_FETCH_FAIL = "SRC_FETCH_FAIL"
     const val SRC_PARSE_OK = "SRC_PARSE_OK"
+    /**
+     * The fetch worked but the playlist could not be parsed (docs/03 §3.3 note, 2026-09-22).
+     * [SRC_FETCH_FAIL] covers retrieval only, so "the source is unreachable" and "the source
+     * changed its format" stay separable in the troubleshooting manual (docs/03 §12).
+     */
+    const val SRC_PARSE_FAIL = "SRC_PARSE_FAIL"
     const val SRC_DEDUPE = "SRC_DEDUPE"
     const val SRC_REFRESH_START = "SRC_REFRESH_START"
     const val SRC_REFRESH_DONE = "SRC_REFRESH_DONE"
@@ -77,7 +83,7 @@ object EventCodes {
     val ALL: Set<String> = setOf(
         APP_START, APP_STOP, UI_SCREEN_OPEN, UI_FRAME_JANK,
         NET_REQ_OK, NET_REQ_FAIL, NET_CHARSET_FALLBACK,
-        SRC_FETCH_OK, SRC_FETCH_FAIL, SRC_PARSE_OK, SRC_DEDUPE,
+        SRC_FETCH_OK, SRC_FETCH_FAIL, SRC_PARSE_OK, SRC_PARSE_FAIL, SRC_DEDUPE,
         SRC_REFRESH_START, SRC_REFRESH_DONE, SRC_REFRESH_SKIP,
         VAL_SHALLOW_OK, VAL_SHALLOW_FAIL, VAL_DEEP_OK, VAL_DEEP_FAIL,
         SRC_SCORE, SRC_SELECT,

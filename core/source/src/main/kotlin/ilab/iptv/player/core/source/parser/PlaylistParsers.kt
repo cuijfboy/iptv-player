@@ -15,8 +15,13 @@ import kotlin.coroutines.cancellation.CancellationException
  */
 object PlaylistParsers {
 
-    /** True when a failure code is one of the registered event codes (guards against literals). */
-    private val parseFailureCode = EventCodes.SRC_FETCH_FAIL
+    /**
+     * The code a parse failure travels with (docs/03 §3.3, 2026-09-22): the bytes were retrieved,
+     * so the failure is a parse one — [EventCodes.SRC_PARSE_FAIL], never [EventCodes.SRC_FETCH_FAIL]
+     * (that code is reserved for retrieval failures). The `err` field is rendered from the
+     * [AppError] the caller logs. Taken from `EventCodes` so no literal string is written here.
+     */
+    private val parseFailureCode = EventCodes.SRC_PARSE_FAIL
 
     fun parse(
         bytes: ByteArray,
