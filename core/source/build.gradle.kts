@@ -1,5 +1,6 @@
 plugins {
     id("iptv.android.library")
+    id("iptv.hilt")
 }
 
 dependencies {

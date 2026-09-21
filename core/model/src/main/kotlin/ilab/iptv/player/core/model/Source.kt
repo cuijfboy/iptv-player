@@ -26,3 +26,18 @@ data class RawEntry(
     val referrer: String? = null,
     val sourceId: String,
 )
+
+/**
+ * One configured source (docs/02 §4.2, frozen shape). P2-4a only *produces* these from the built-in
+ * catalogue; P2-6 (subscription management UI) is what lets the user add, edit and disable them, and
+ * the `SourceRepository` port (§4.3) is what stores them.
+ */
+data class SourceConfig(
+    val id: String,
+    val providerId: String,
+    val label: String,
+    val url: String,
+    val kind: SourceKind,
+    val enabled: Boolean,
+    val builtIn: Boolean,
+)
