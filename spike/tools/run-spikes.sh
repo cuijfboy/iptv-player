@@ -58,17 +58,35 @@ play_run() { # tag mode extra...
 
 cold_start() { # n
   local n="$1"
+  # Every number the S6 table prints must come from a saved file, so each run writes
+  # its own $EV/colds6/run-$n.txt (am start -W output + the fixture's COLD_* logcat lines).
+  local outfile="$EV/colds6/run-$n.txt"
+  mkdir -p "$EV/colds6"
   "$ADB" shell am force-stop "$PKG"
   sleep 3
   "$ADB" logcat -c
+  # tag stays "s6-$n": the fixture prefixes it with "cold", so the artefact lands as s1_colds6-$n.json.
   local out; out="$("$ADB" shell am start -W -n "$HOME_ACT" -e autoplayIdx 2 -e tag "s6-$n" | tr -d '\r')"
+  {
+    echo "== S6 cold start #$n at $(date -u +%FT%TZ) =="
+    echo "-- am start -W --"
+    echo "$out" | grep -E "TotalTime|WaitTime|Status"
+  } > "$outfile"
   echo "$out" | grep -E "TotalTime|WaitTime|Status" | tr '\n' ' '
   local deadline=$(( $(date +%s) + 60 ))
   while [ "$(date +%s)" -lt "$deadline" ]; do
-    local line; line="$("$ADB" logcat -d -s SPIKE:I | grep -E "COLD_HOME_FIRST_FRAME|COLD_VIDEO_FIRST_FRAME" | tr '\n' ' ')"
-    if echo "$line" | grep -q "COLD_VIDEO_FIRST_FRAME"; then echo "$line"; return 0; fi
+    local line; line="$("$ADB" logcat -d -s SPIKE:I | grep -E "COLD_HOME_FIRST_FRAME|COLD_FULLY_DRAWN|COLD_VIDEO_FIRST_FRAME")"
+    if echo "$line" | grep -q "COLD_VIDEO_FIRST_FRAME"; then
+      {
+        echo "-- fixture logcat (SPIKE:I) --"
+        echo "$line"
+      } >> "$outfile"
+      echo "$line" | tr '\n' ' '
+      return 0
+    fi
     sleep 1
   done
+  echo "-- TIMEOUT waiting for COLD_VIDEO_FIRST_FRAME --" >> "$outfile"
   log "TIMEOUT waiting for cold start $n"
 }
 
