@@ -106,9 +106,9 @@ object HlsManifestParser {
         return out
     }
 
-    private fun putAttribute(out: MutableMap<String, String>, token: String) {
-        val key = token.substringBefore('=', "").trim()
-        val value = token.substringAfter('=', "").trim().trim('"')
+    private fun putAttribute(out: MutableMap<String, String>, attribute: String) {
+        val key = attribute.substringBefore('=', "").trim()
+        val value = attribute.substringAfter('=', "").trim().trim('"')
         if (key.isNotEmpty() && value.isNotEmpty()) out[key.uppercase()] = value
     }
 
