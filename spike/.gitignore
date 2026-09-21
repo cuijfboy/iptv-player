@@ -1,0 +1,5 @@
+app/src/main/assets/spike/channels.json
+.gradle/
+build/
+app/build/
+local.properties
