@@ -1,0 +1,3 @@
+央视频道,#genre#
+央视一套,http://gb.example/cctv1/index.m3u8
+湖南卫视,http://gb.example/hunan/index.m3u8,卫视

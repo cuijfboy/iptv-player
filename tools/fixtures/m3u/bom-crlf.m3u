@@ -1,0 +1,5 @@
+﻿#EXTM3U
+#EXTINF:-1 tvg-id="B1" group-title="央视",BOM Channel 1
+http://bom.example/one/index.m3u8
+#EXTINF:-1,BOM Channel 2
+http://bom.example/two/index.m3u8

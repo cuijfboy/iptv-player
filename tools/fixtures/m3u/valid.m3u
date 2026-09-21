@@ -1,0 +1,12 @@
+#EXTM3U
+#EXTINF:-1 tvg-id="CCTV1" tvg-name="CCTV-1" tvg-chno="1" tvg-logo="http://logo.example/cctv1.png" group-title="央视",CCTV-1
+http://a.example/cctv1/index.m3u8
+#EXTINF:-1 group-title="卫视" tvg-chno="31",湖南卫视
+http://b.example/hunan/index.m3u8
+#EXTGRP:港澳台
+#EXTINF:-1 tvg-name="凤凰中文",凤凰中文
+http://c.example/phoenix/index.m3u8
+#EXTINF:0 tvg-id='CCTV2' group-title="央视",CCTV-2
+#EXTVLCOPT:http-user-agent=FixtureUA/1.0
+#EXTVLCOPT:http-referrer=http://ref.example/
+http://d.example/cctv2/index.m3u8

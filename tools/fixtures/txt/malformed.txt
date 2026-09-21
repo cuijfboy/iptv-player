@@ -1,0 +1,6 @@
+OnlyOneField
+,http://a.example/noname/index.m3u8
+CCTV-1,not-a-url
+CCTV-2,http://a.example/cctv2/index.m3u8
+# a comment
+CCTV-3,http://a.example/cctv3/index.m3u8,新闻,财经

@@ -1,0 +1,15 @@
+#EXTM3U
+#EXTINF:-1 tvg-id="A1",Alpha
+
+# a comment line
+#EXTINF:-1 tvg-id="A2",Beta
+#EXTINF:-1 tvg-id="A3",Gamma
+http://j.example/gamma/index.m3u8
+http://k.example/orphan/index.m3u8
+#EXTINF:-1 tvg-id="A4",Delta
+not-a-url
+#EXTINF:-1 tvg-id="A5",
+http://l.example/blank-name/index.m3u8
+#EXTINF:-1 tvg-id="A6",Epsilon
+http://m.example/epsilon/index.m3u8
+#EXTINF:-1,Trailing

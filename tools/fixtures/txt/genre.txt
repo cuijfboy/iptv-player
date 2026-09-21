@@ -1,0 +1,8 @@
+央视频道,#genre#
+CCTV-1,http://a.example/cctv1/index.m3u8
+CCTV-2,http://a.example/cctv2/index.m3u8
+卫视频道,#genre#
+湖南卫视,http://b.example/hunan/index.m3u8
+东方卫视,http://b.example/dragon/index.m3u8,上海
+#genre#
+CCTV-1,http://a.example/cctv1-other/index.m3u8
