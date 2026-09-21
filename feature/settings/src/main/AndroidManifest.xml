@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="MissingLeanbackLauncher">
+
+    <!--
+      Same reason as `:feature:channels`: lint reads a library manifest on its own, so the TV
+      hardware story and the missing launcher icon have to be repeated here.
+    -->
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+
+    <application>
+
+        <!--
+          P2-6 正篇 item 4: the source-management screen (docs/02 §8.1's `SettingsActivity` level).
+
+          Reached through `SettingsContract.ACTION_SOURCE_MANAGEMENT` (an explicit action + setPackage
+          from the browse screen) so `:feature:channels` never needs this class. The filter has to be
+          declared for that implicit action to resolve, which is also why `exported="true"` is
+          required — the same trade-off the browse screen already documents for its adb-driven proof.
+        -->
+        <activity
+            android:name=".SourceManagementActivity"
+            android:exported="true"
+            android:screenOrientation="landscape">
+            <intent-filter>
+                <action android:name="ilab.iptv.player.action.SOURCE_MANAGEMENT" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+</manifest>

@@ -2,6 +2,7 @@ package ilab.iptv.player.feature.channels
 
 import android.os.Bundle
 import android.app.AlertDialog
+import android.content.ActivityNotFoundException
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
@@ -15,10 +16,10 @@ import dagger.hilt.android.AndroidEntryPoint
 import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.common.LogCategory
 import ilab.iptv.player.core.common.Logger
-import ilab.iptv.player.core.domain.playlist.ImportCandidate
 import ilab.iptv.player.core.domain.playlist.ImportResult
 import ilab.iptv.player.core.domain.playlist.PlaylistImportPort
 import ilab.iptv.player.core.ui.player.PlayerContract
+import ilab.iptv.player.core.ui.settings.SettingsContract
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -53,7 +54,22 @@ class BrowseActivity : ComponentActivity() {
     private lateinit var list: RecyclerView
     private lateinit var header: TextView
     private lateinit var importButton: Button
+    private lateinit var sourcesButton: Button
     private lateinit var adapter: ChannelListAdapter
+
+    /**
+     * The SAF half of the local import (P2-6 item 3). Same any-MIME reasoning as the settings screen:
+     * `.m3u`/`.txt` have no dependable MIME type on a TV, and the importer validates the bytes anyway.
+     */
+    private val documentPicker = registerForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri == null) {
+            Toast.makeText(this, R.string.browse_import_cancelled, Toast.LENGTH_SHORT).show()
+            return@registerForActivityResult
+        }
+        lifecycleScope.launch { runImport { importPort.importUri(uri.toString()) } }
+    }
 
     private var lastState: ChannelListUiState = ChannelListUiState.Loading
     private var lastStats: FrameRateMonitor.Stats? = null
@@ -103,6 +119,12 @@ class BrowseActivity : ComponentActivity() {
         list = findViewById(R.id.channel_list)
         importButton = findViewById(R.id.import_playlist)
         importButton.setOnClickListener { openImportPicker() }
+        sourcesButton = findViewById(R.id.open_sources)
+        sourcesButton.setOnClickListener {
+            // The settings module owns the screen; the action + setPackage keeps the feature→feature
+            // dependency out (docs/02 §3.2), same trick as PlayerContract.
+            startActivity(SettingsContract.sourceManagementIntent(this))
+        }
         adapter = ChannelListAdapter(
             onChannelFocused = { item -> onChannelFocused(item) },
             onChannelSelected = { item -> openPlayer(item) },
@@ -156,39 +178,66 @@ class BrowseActivity : ComponentActivity() {
     }
 
     /**
-     * Lists the playlist files in the app's import folder and imports the one the user picks. Every
-     * path here is a user-visible outcome: an empty folder explains where to put a file (with the
-     * `adb push` target spelled out, which is the QA path), a successful import reports what it
-     * turned into, and a rejected file says why — the list itself refreshes on its own, because the
-     * store is a `StateFlow`.
+     * P2-6: the import entrance now offers both paths — the system file picker (SAF) and the drop
+     * folder. Every path here is a user-visible outcome: an empty folder explains where to put a file
+     * (with the `adb push` target spelled out, which is the QA path), a successful import reports what
+     * it turned into, and a rejected file says why — the list itself refreshes on its own, because the
+     * catalog is a `StateFlow`.
      */
     private fun openImportPicker() {
         lifecycleScope.launch {
+            val current = importPort.lastImported()?.name ?: getString(R.string.browse_import_none)
+            val folders = importPort.folders()
+            AlertDialog.Builder(this@BrowseActivity)
+                .setTitle(R.string.browse_import_title)
+                .setMessage(getString(R.string.browse_import_hint, current, folders.dropFolder))
+                .setItems(
+                    arrayOf(
+                        getString(R.string.browse_import_pick_saf),
+                        getString(R.string.browse_import_pick_drop),
+                    ),
+                ) { _, which ->
+                    if (which == 0) openDocumentPicker() else showDropPicker()
+                }
+                .setNegativeButton(R.string.browse_import_cancel, null)
+                .show()
+        }
+    }
+
+    /** The two paths must both stay available (P2-6 item 3): a TV may ship no file picker at all. */
+    private fun openDocumentPicker() {
+        try {
+            documentPicker.launch(arrayOf("*/*"))
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(this, R.string.browse_import_saf_unavailable, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun showDropPicker() {
+        lifecycleScope.launch {
             val candidates = importPort.candidates()
             val folders = importPort.folders()
-            val current = importPort.lastImported()?.name ?: getString(R.string.browse_import_none)
-            val builder = AlertDialog.Builder(this@BrowseActivity)
-                .setTitle(R.string.browse_import_title)
             if (candidates.isEmpty()) {
-                builder
+                AlertDialog.Builder(this@BrowseActivity)
+                    .setTitle(R.string.browse_import_title)
                     .setMessage(getString(R.string.browse_import_empty, folders.dropFolder))
                     .setPositiveButton(R.string.browse_import_close, null)
                     .show()
                 return@launch
             }
             val labels = candidates.map { ImportCandidateLabel.describe(it) }.toTypedArray()
-            builder
-                .setMessage(getString(R.string.browse_import_hint, current, folders.dropFolder))
-                .setItems(labels) { _, which -> runImport(candidates[which]) }
+            AlertDialog.Builder(this@BrowseActivity)
+                .setTitle(R.string.browse_import_title)
+                .setItems(labels) { _, which -> runImport { importPort.import(candidates[which]) } }
                 .setNegativeButton(R.string.browse_import_cancel, null)
                 .show()
         }
     }
 
     /** Runs one import and reports the outcome; the dialog is already dismissed by the time it ends. */
-    private fun runImport(candidate: ImportCandidate) {
+    private fun runImport(block: suspend () -> ImportResult) {
         lifecycleScope.launch {
-            val message = when (val result = importPort.import(candidate)) {
+            val message = when (val result = block()) {
                 is ImportResult.Done -> getString(
                     R.string.browse_import_done,
                     result.report.name,

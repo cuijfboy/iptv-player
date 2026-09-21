@@ -8,7 +8,9 @@ import ilab.iptv.player.core.data.catalog.BundledPlaylist
 import ilab.iptv.player.core.data.catalog.CatalogLoadReport
 import ilab.iptv.player.core.data.catalog.ChannelCatalog
 import ilab.iptv.player.core.data.catalog.ChannelCatalogLoader
+import ilab.iptv.player.core.data.playlist.FakeDocumentReader
 import ilab.iptv.player.core.data.playlist.FakePlaylistFileSystem
+import ilab.iptv.player.core.data.playlist.FakeUriPermissionStore
 import ilab.iptv.player.core.data.playlist.LastImportStore
 import ilab.iptv.player.core.data.playlist.LocalPlaylistImportRepository
 import ilab.iptv.player.core.data.playlist.RememberedPlaylist
@@ -160,6 +162,8 @@ class InjectedDispatchersTest {
             limits = PipelineLimits(),
             // Everything a TestDispatcher: no production dispatcher is needed to finish.
             dispatchers = TestDispatcherProvider(),
+            documents = FakeDocumentReader(),
+            permissions = FakeUriPermissionStore(),
         )
 
         val result = importer.import(ImportCandidate("${folders.dropFolder}/list.m3u", "list.m3u", list.length.toLong(), 0L))

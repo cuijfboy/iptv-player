@@ -4,12 +4,15 @@ import ilab.iptv.player.core.database.dao.ChannelWithStreamRows
 import ilab.iptv.player.core.database.entity.ChannelEntity
 import ilab.iptv.player.core.database.entity.PlayHistoryEntity
 import ilab.iptv.player.core.database.entity.ProgrammeEntity
+import ilab.iptv.player.core.database.entity.SourceEntity
 import ilab.iptv.player.core.database.entity.StreamEntity
 import ilab.iptv.player.core.domain.channel.ChannelGrouping
 import ilab.iptv.player.core.model.Channel
 import ilab.iptv.player.core.model.EpgMatchType
 import ilab.iptv.player.core.model.Programme
 import ilab.iptv.player.core.model.Quality
+import ilab.iptv.player.core.model.SourceConfig
+import ilab.iptv.player.core.model.SourceKind
 import ilab.iptv.player.core.model.Stream
 import ilab.iptv.player.core.model.StreamOutcome
 import ilab.iptv.player.core.source.normalize.Keys
@@ -173,8 +176,64 @@ object PersistenceMapper {
         category = programme.category,
     )
 
-    // `source` / `epg_source` / `metric` have no domain type yet (docs/02 §4.3 lists `SourceConfig` and
-    // `Metric`, but nothing in `:core:model` implements them — that is P2-6 / P2-8). Their entities and
-    // DAOs exist so those cards have a table to write to; this mapper stays silent about them rather
-    // than inventing a domain shape the frozen port has not defined.
+    // ---- source (docs/02 §5.1, P2-6 正篇) ----
+
+    /**
+     * `source` row -> the frozen §4.2 [SourceConfig]. `enabled` is a nullable `INTEGER` column, so
+     * "null" means "no value was ever written" and is read as enabled — the user has just added it
+     * and the refresh should fetch it.
+     */
+    fun toDomain(entity: SourceEntity): SourceConfig = SourceConfig(
+        id = entity.id,
+        providerId = entity.providerId ?: entity.id,
+        label = entity.label ?: entity.id,
+        url = entity.url.orEmpty(),
+        kind = sourceKind(entity.kind),
+        enabled = entity.enabled != 0,
+        builtIn = false,
+    )
+
+    /** [SourceConfig] -> `source` row. Status columns are written separately ([sourceStatus]). */
+    fun toEntity(config: SourceConfig): SourceEntity = SourceEntity(
+        id = config.id,
+        providerId = config.providerId,
+        label = config.label,
+        url = config.url,
+        kind = config.kind.name,
+        enabled = if (config.enabled) 1 else 0,
+        lastFetchAt = null,
+        lastResult = null,
+        entryCount = null,
+    )
+
+    /** The three status columns the refresh records for one row. */
+    fun sourceStatus(
+        entity: SourceEntity,
+        lastFetchAtMs: Long,
+        ok: Boolean,
+        entryCount: Int,
+        detail: String?,
+    ): SourceEntity = entity.copy(
+        lastFetchAt = lastFetchAtMs,
+        lastResult = if (ok) SOURCE_RESULT_OK else (detail ?: "FAILED").take(MAX_RESULT_LENGTH),
+        entryCount = entryCount,
+    )
+
+    /**
+     * Reads a `source.kind` value back. An unknown or missing text (a hand-edited row, a value from a
+     * newer version) reads as [SourceKind.M3U] rather than throwing — the parser auto-detects the real
+     * dialect from the body anyway, so the stored `kind` is a label and never a gate.
+     */
+    private fun sourceKind(value: String?): SourceKind =
+        SourceKind.entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: SourceKind.M3U
+
+    /** `last_result` value for a successful fetch; a failure stores its reason. */
+    const val SOURCE_RESULT_OK = "OK"
+
+    private const val MAX_RESULT_LENGTH = 120
+
+    // `epg_source` / `metric` have no domain type yet (docs/02 §4.3 lists `Metric`, but nothing in
+    // `:core:model` implements it — that is P2-8). Their entities and DAOs exist so those cards have a
+    // table to write to; this mapper stays silent about them rather than inventing a domain shape the
+    // frozen port has not defined.
 }

@@ -6,6 +6,11 @@
     <string name="browse_summary">频道 %1$d / 分组 %2$d / 流 %3$d\n%4$s</string>
     <string name="browse_focus">焦点：%1$d %2$s</string>
     <string name="browse_import_action">导入播放列表</string>
+    <string name="browse_sources_action">源管理</string>
+    <string name="browse_import_pick_saf">从文件选择（系统选择器）</string>
+    <string name="browse_import_pick_drop">从投放目录选择</string>
+    <string name="browse_import_saf_unavailable">这台设备没有可用的文件选择器，请改用投放目录</string>
+    <string name="browse_import_cancelled">没有选择文件</string>
     <string name="browse_import_title">选择要导入的播放列表</string>
     <string name="browse_import_hint">当前：%1$s\n文件放在：%2$s\n（也可用 adb push 放进该目录）</string>
     <string name="browse_import_none">内置示例表（无法出画面）</string>

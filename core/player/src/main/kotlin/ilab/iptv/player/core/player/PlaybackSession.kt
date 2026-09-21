@@ -24,6 +24,7 @@ import ilab.iptv.player.core.model.DeviceProfile
 import ilab.iptv.player.core.model.EngineCapability
 import ilab.iptv.player.core.model.EngineState
 import ilab.iptv.player.core.model.InfoBarState
+import ilab.iptv.player.core.model.NowNext
 import ilab.iptv.player.core.model.PlaybackEvent
 import ilab.iptv.player.core.model.PlaybackRequest
 import ilab.iptv.player.core.model.PlaybackUiState
@@ -192,8 +193,9 @@ class PlaybackSession(
                     channelName = channel.name,
                     logoUrl = channel.logoUrl,
                     qualityLabel = streamQualityLabel(stream),
-                    // docs/04: EPG now/next is P2-7. The placeholder is carried on purpose, so the
-                    // bar's layout is proven with the field it will actually show.
+                    // P2-7: the channel starts with no programme line and gains it when the EPG lookup
+                    // answers (`onNowNext`). Resolving it here would put a database round trip inside
+                    // `watch`, which is the path that must reach the first frame as fast as possible.
                     nowNext = null,
                 ),
             )
@@ -249,6 +251,16 @@ class PlaybackSession(
     /** No candidate left: the channel stays unavailable and the screen shows the policy's message. */
     fun onFailoverExhausted(error: AppError?, message: String) {
         machine.onFailoverExhausted(error, message)
+    }
+
+    /**
+     * P2-7 item 4: the info bar's now/next line. Called by the player screen once the EPG lookup for
+     * the current channel answers (and again after a channel switch). The session is still the only
+     * writer of `PlaybackUiState` (§4.5 C1) — the ViewModel does not touch the bar itself, it hands the
+     * data to the one machine that does.
+     */
+    fun onNowNext(nowNext: NowNext?) {
+        machine.onNowNext(nowNext)
     }
 
     /** Retry entry point of the failure overlay: same channel, same stream, one attempt later. */

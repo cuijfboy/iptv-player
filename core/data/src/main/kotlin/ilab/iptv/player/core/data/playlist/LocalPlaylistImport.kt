@@ -61,6 +61,13 @@ class LocalPlaylistImportRepository @Inject constructor(
      */
     private val limits: PipelineLimits,
     private val dispatchers: DispatcherProvider,
+    /**
+     * SAF read seam (P2-6 item 3). Only [importUri] uses it; the drop-folder path stays on
+     * [PlaylistFileSystem] so a TV without a DocumentsUI still has a working import.
+     */
+    private val documents: DocumentReader,
+    /** Holds the persisted read grant for a picked document (review R-27). */
+    private val permissions: UriPermissionStore,
 ) : PlaylistImportPort {
 
     override fun folders(): ImportFolders = folders
@@ -73,14 +80,11 @@ class LocalPlaylistImportRepository @Inject constructor(
     }
 
     override suspend fun import(candidate: ImportCandidate): ImportResult = withContext(dispatchers.io) {
-        val startedAt = clock.nowMs()
         val session = sessionIds.newId("import")
-        val sourceId = sourceIdFor(candidate.name)
-
         val bytes = try {
             files.read(candidate.path)
         } catch (e: Exception) {
-            return@withContext fail(
+            return@withContext failed(
                 code = EventCodes.DB_FAIL,
                 name = candidate.name,
                 message = "读不到这个文件：${candidate.name}",
@@ -90,21 +94,77 @@ class LocalPlaylistImportRepository @Inject constructor(
                 error = e,
             )
         }
+        publish(name = candidate.name, bytes = bytes, sourceUri = null, session = session)
+    }
+
+    /**
+     * The SAF path: a document the user picked in the system picker. Same pipeline, same
+     * all-or-nothing rule — the only differences are where the bytes come from and that the
+     * persisted read grant is taken first, so the row keeps pointing at the document it came from.
+     */
+    override suspend fun importUri(uri: String): ImportResult = withContext(dispatchers.io) {
+        val session = sessionIds.newId("import")
+        try {
+            permissions.take(uri)
+        } catch (e: SecurityException) {
+            return@withContext failed(
+                code = EventCodes.DB_FAIL,
+                name = uri,
+                message = "没有拿到这个文件的长期读取权限，请重新选择：${displayNameOf(uri)}",
+                reason = "uri permission refused",
+                session = session,
+                failure = AppError.storage(EventCodes.DB_FAIL, e),
+                error = e,
+            )
+        }
+
+        val bytes = try {
+            documents.read(uri)
+        } catch (e: Exception) {
+            permissions.release(uri)
+            return@withContext failed(
+                code = EventCodes.DB_FAIL,
+                name = uri,
+                message = "读不到这个文件：${displayNameOf(uri)}",
+                reason = "uri read failed",
+                session = session,
+                failure = AppError.storage(EventCodes.DB_FAIL, e),
+                error = e,
+            )
+        }
+        publish(name = displayNameOf(uri), bytes = bytes, sourceUri = uri, session = session)
+    }
+
+    /**
+     * The shared import: bytes in, catalog replaced and remembered. Every failure mode here is one
+     * the QA flow would otherwise have to reproduce by hand, and the ordering is the point —
+     * **copy first, record second, publish third**, so a crash never leaves a record pointing at a
+     * file that does not exist, and a rejected file never wipes the list the user is watching.
+     */
+    private suspend fun publish(
+        name: String,
+        bytes: ByteArray,
+        sourceUri: String?,
+        session: String,
+    ): ImportResult {
+        val startedAt = clock.nowMs()
+        val sourceId = sourceIdFor(name)
+
         if (bytes.isEmpty()) {
-            return@withContext fail(
+            return failed(
                 code = EventCodes.SRC_PARSE_FAIL,
-                name = candidate.name,
-                message = "文件是空的：${candidate.name}",
+                name = name,
+                message = "文件是空的：$name",
                 reason = "empty file",
                 session = session,
                 failure = AppError.parse(EventCodes.SRC_PARSE_FAIL),
             )
         }
         if (bytes.size > limits.maxBytes) {
-            return@withContext fail(
+            return failed(
                 code = EventCodes.SRC_PARSE_FAIL,
-                name = candidate.name,
-                message = "文件过大（${bytes.size / MEGABYTE} MB），不像是播放列表：${candidate.name}",
+                name = name,
+                message = "文件过大（${bytes.size / MEGABYTE} MB），不像是播放列表：$name",
                 reason = "file too large",
                 session = session,
                 failure = AppError.parse(EventCodes.SRC_PARSE_FAIL),
@@ -113,10 +173,10 @@ class LocalPlaylistImportRepository @Inject constructor(
 
         val prepared = when (val result = catalog.prepare(bytes, sourceId, charsetHint = null)) {
             is AppResult.Err -> {
-                return@withContext fail(
+                return failed(
                     code = EventCodes.SRC_PARSE_FAIL,
-                    name = candidate.name,
-                    message = "解析失败，不是可识别的 M3U/TXT：${candidate.name}",
+                    name = name,
+                    message = "解析失败，不是可识别的 M3U/TXT：$name",
                     reason = "parse failed",
                     session = session,
                     failure = result.error,
@@ -132,10 +192,10 @@ class LocalPlaylistImportRepository @Inject constructor(
             // Parsed fine, but nothing usable came out of it. Log the parse numbers first: "0 rows"
             // and "500 rows, 500 skipped" are different problems and the reader must be able to tell
             // them apart.
-            logParsed(candidate.name, report, session, startedAt)
-            return@withContext fail(
+            logParsed(name, report, session, startedAt)
+            return failed(
                 code = EventCodes.SRC_PARSE_FAIL,
-                name = candidate.name,
+                name = name,
                 message = "清单里没有可用频道（共 ${report.lines} 行，解析出 ${report.rawEntries} 条，跳过 ${report.skipped} 行）",
                 reason = "no usable channels",
                 session = session,
@@ -146,21 +206,22 @@ class LocalPlaylistImportRepository @Inject constructor(
 
         val record = try {
             val written = ImportRecord(
-                name = candidate.name,
+                name = name,
                 sourceId = sourceId,
-                copiedPath = lastImport.copyPathFor(candidate.name),
+                copiedPath = lastImport.copyPathFor(name),
                 sizeBytes = bytes.size.toLong(),
                 importedAtMs = clock.nowMs(),
                 formatLabel = report.format.label,
                 channels = report.channels,
                 streams = report.streams,
+                sourceUri = sourceUri,
             )
             lastImport.write(written, bytes)
         } catch (e: Exception) {
-            return@withContext fail(
+            return failed(
                 code = EventCodes.DB_FAIL,
-                name = candidate.name,
-                message = "无法保存导入的文件（存储空间或权限问题）：${candidate.name}",
+                name = name,
+                message = "无法保存导入的文件（存储空间或权限问题）：$name",
                 reason = "copy failed",
                 session = session,
                 failure = AppError.storage(EventCodes.DB_FAIL, e),
@@ -170,7 +231,7 @@ class LocalPlaylistImportRepository @Inject constructor(
 
         // Only now does the screen change: the list the user is looking at is replaced by the import.
         catalog.commit(prepared)
-        logParsed(candidate.name, report, session, startedAt)
+        logParsed(name, report, session, startedAt)
         logger.i(
             LogCategory.SOURCE,
             EventCodes.SRC_DEDUPE,
@@ -182,13 +243,14 @@ class LocalPlaylistImportRepository @Inject constructor(
                 "channels" to report.channels,
                 "streams" to report.streams,
                 "copied" to record.copiedPath,
+                "sourceUri" to sourceUri,
                 "session" to session,
             ),
         )
 
-        ImportResult.Done(
+        return ImportResult.Done(
             ImportReport(
-                name = candidate.name,
+                name = name,
                 sourceId = sourceId,
                 formatLabel = report.format.label,
                 rawEntries = report.rawEntries,
@@ -209,6 +271,7 @@ class LocalPlaylistImportRepository @Inject constructor(
                 copiedPath = it.copiedPath,
                 sizeBytes = it.sizeBytes,
                 importedAtMs = it.importedAtMs,
+                sourceUri = it.sourceUri,
             )
         }
     }
@@ -237,12 +300,23 @@ class LocalPlaylistImportRepository @Inject constructor(
         )
     }
 
-    private fun fail(
+    /** The picker's name for [uri], or the uri's last segment when it does not expose one. */
+    private fun displayNameOf(uri: String): String {
+        val fromPicker = runCatching { documents.displayName(uri) }.getOrNull()
+        val candidate = fromPicker?.trim().orEmpty()
+        if (candidate.isNotEmpty()) return candidate
+        // Some pickers hand back the whole path encoded in the last segment, so un-escape before
+        // taking the file name; a uri that carries no name at all gets a readable placeholder.
+        val decoded = uri.replace("%2F", "/").replace("%2f", "/")
+        return decoded.substringAfterLast('/').ifBlank { FALLBACK_URI_NAME }
+    }
+
+    private fun failed(
         code: String,
         name: String,
         message: String,
         reason: String,
-        session: String,
+        session: String = "",
         failure: AppError,
         error: Throwable? = null,
         alreadyLoggedParse: Boolean = false,
@@ -277,5 +351,7 @@ class LocalPlaylistImportRepository @Inject constructor(
         /** Only list files that can plausibly be a playlist; anything else is noise in the picker. */
         val PLAYLIST_SUFFIXES = listOf(".m3u", ".m3u8", ".txt")
         const val MEGABYTE = 1024 * 1024
+        /** Used only when a picked document exposes neither a display name nor a path segment. */
+        const val FALLBACK_URI_NAME = "picked-playlist.m3u"
     }
 }

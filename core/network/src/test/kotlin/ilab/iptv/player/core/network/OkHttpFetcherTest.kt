@@ -48,6 +48,57 @@ class OkHttpFetcherTest {
         OkHttpFetcher(client, logger, HttpRetryPolicy(initialBackoffMs = 0), sleep = { _ -> }).fetch(request)
     }
 
+    // ---------------------------------------------------------------- streaming (P2-7)
+
+    private fun open(
+        client: OkHttpClient,
+        request: HttpRequest = HttpRequest(url = url),
+        attempts: Int = 2,
+    ) = runBlocking {
+        OkHttpFetcher(
+            client,
+            logger,
+            HttpRetryPolicy(maxAttempts = attempts, initialBackoffMs = 0),
+            sleep = { _ -> },
+        ).open(request)
+    }
+
+    @Test
+    fun `open hands back a live body instead of a byte array`() {
+        val result = open(client { response(body = "<tv><programme/></tv>") })
+
+        assertThat(result).isInstanceOf(AppResult.Ok::class.java)
+        val body = (result as AppResult.Ok).value
+        assertThat(body.status).isEqualTo(200)
+        assertThat(body.stream.reader().readText()).isEqualTo("<tv><programme/></tv>")
+        body.stream.close()
+        assertThat(logger.count(EventCodes.NET_REQ_OK)).isEqualTo(1)
+    }
+
+    @Test
+    fun `open retries only the open, and stops early on a non-retryable status`() {
+        var attempts = 0
+        val result = open(
+            client {
+                attempts++
+                response(code = 404)
+            },
+            // A 404 is not retryable, so the second attempt must never happen.
+            attempts = 3,
+        )
+
+        assertThat((result as AppResult.Err).error.httpStatus).isEqualTo(404)
+        assertThat(attempts).isEqualTo(1)
+        assertThat(logger.count(EventCodes.NET_REQ_FAIL)).isEqualTo(1)
+    }
+
+    @Test
+    fun `open maps an unusable scheme to an error without touching the transport`() {
+        val result = open(client { response() }, request = HttpRequest(url = "udp://239.0.0.1:1234"))
+        assertThat(result).isInstanceOf(AppResult.Err::class.java)
+        assertThat(logger.count(EventCodes.NET_REQ_FAIL)).isEqualTo(1)
+    }
+
     @Test
     fun `success returns the body and logs NET_REQ_OK`() {
         val result = fetch(client { response() })

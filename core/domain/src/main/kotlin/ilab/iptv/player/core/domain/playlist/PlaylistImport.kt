@@ -28,6 +28,12 @@ data class ImportedPlaylist(
     val copiedPath: String,
     val sizeBytes: Long,
     val importedAtMs: Long,
+    /**
+     * The document the user picked through the system picker (`content://…`), or null when the file
+     * came from the drop folder (P2-6 item 3). Kept so the screen can say where the list came from
+     * and so the granted access is traceable after a restart (review R-27).
+     */
+    val sourceUri: String? = null,
 )
 
 /** What one successful import produced — the numbers the result dialog and the log carry. */
@@ -79,6 +85,16 @@ interface PlaylistImportPort {
      * A rejected file leaves the current channel list untouched.
      */
     suspend fun import(candidate: ImportCandidate): ImportResult
+
+    /**
+     * Same import from a document the user picked in the system file picker (SAF,
+     * `ACTION_OPEN_DOCUMENT`). [uri] is the opaque `content://…` string — the port stays Android-free,
+     * and the implementation owns both the read and the persisted read permission.
+     *
+     * Two paths must stay available (P2-6 item 3): this one, because a U 盘 / USB stick has no
+     * drop folder, and [candidates]/[import], because a TV may not ship a file picker at all.
+     */
+    suspend fun importUri(uri: String): ImportResult
 
     /** The remembered import, or null when the app is still on the bundled fixture. */
     suspend fun lastImported(): ImportedPlaylist?

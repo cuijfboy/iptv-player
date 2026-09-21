@@ -32,6 +32,9 @@ data class GroupCountRow(
 /** One `(channel, sort_order)` pair of a reorder batch. */
 data class ChannelOrder(val channelId: Long, val sortOrder: Int)
 
+/** One `channel` ← EPG match decision: what the matcher resolved and by which tier (docs/02 §6.3). */
+data class EpgBinding(val channelId: Long, val epgChannelId: String?, val epgMatch: String)
+
 /**
  * `channel` — docs/02 §5.1.
  *
@@ -99,8 +102,32 @@ abstract class ChannelDao {
     @Query("SELECT group_key, COUNT(*) AS count FROM channel GROUP BY group_key")
     abstract suspend fun countByGroupKey(): List<GroupCountRow>
 
+    @Query("SELECT COUNT(*) FROM channel WHERE epg_channel_id IS NOT NULL")
+    abstract suspend fun countWithEpg(): Int
+
+    /** Matched channels per group — the `EpgCoverage.byGroup` breakdown (docs/02 §6.3). */
+    @Query(
+        """
+        SELECT group_key, COUNT(*) AS count FROM channel
+        WHERE epg_channel_id IS NOT NULL
+        GROUP BY group_key
+        """,
+    )
+    abstract suspend fun countWithEpgByGroupKey(): List<GroupCountRow>
+
     @Query("SELECT id FROM channel WHERE name_key = :nameKey AND group_key = :groupKey LIMIT 1")
     abstract suspend fun findIdByKey(nameKey: String, groupKey: String): Long?
+
+    /** The match pass reads every channel's identity columns once; the binding write uses the ids. */
+    @Query("SELECT * FROM channel ORDER BY id ASC")
+    abstract suspend fun all(): List<ChannelEntity>
+
+    @Query("SELECT epg_channel_id FROM channel WHERE id = :channelId")
+    abstract suspend fun epgChannelIdFor(channelId: Long): String?
+
+    /** Does the row exist at all? Distinct from "it exists but has no EPG binding" (`epg_channel_id` null). */
+    @Query("SELECT id FROM channel WHERE id = :channelId")
+    abstract suspend fun findIdOrNull(channelId: Long): Long?
 
     @Query("SELECT * FROM channel WHERE name_key = :nameKey AND group_key = :groupKey LIMIT 1")
     abstract suspend fun findByKey(nameKey: String, groupKey: String): ChannelEntity?
@@ -184,6 +211,19 @@ abstract class ChannelDao {
         epgMatch: String,
         updatedAt: Long,
     ): Int
+
+    /**
+     * One EPG match pass = one transaction. A refresh that fails halfway must not leave a channel
+     * pointing at a guide id the programme table has rows for only partly, and a per-row commit loop
+     * over 1k channels is 1k transactions (docs/02 §4.5 C4). [setEpgBinding] stays for P3-4's
+     * single-channel manual binding.
+     */
+    @Transaction
+    open suspend fun setEpgBindings(bindings: List<EpgBinding>, updatedAt: Long) {
+        for (binding in bindings) {
+            setEpgBinding(binding.channelId, binding.epgChannelId, binding.epgMatch, updatedAt)
+        }
+    }
 
     @Query("UPDATE channel SET sort_order = :sortOrder, updated_at = :updatedAt WHERE id = :channelId")
     abstract suspend fun setSortOrder(channelId: Long, sortOrder: Int, updatedAt: Long): Int

@@ -6,6 +6,7 @@ import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.common.LogCategory
 import ilab.iptv.player.core.common.Logger
 import java.io.IOException
+import java.io.InputStream
 import java.io.InterruptedIOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
@@ -42,7 +43,7 @@ class OkHttpFetcher(
     private val retryPolicy: HttpRetryPolicy = HttpRetryPolicy(),
     /** Injected so tests run the retry loop with no real waiting. */
     private val sleep: suspend (Long) -> Unit = { delay(it) },
-) : HttpFetcher {
+) : HttpFetcher, StreamingHttpFetcher {
 
     override suspend fun fetch(request: HttpRequest): AppResult<HttpResponse> {
         // OkHttp only speaks http/https; a udp/rtsp/rtmp target is not a transport failure but a
@@ -106,6 +107,122 @@ class OkHttpFetcher(
                             if (cont.isActive) cont.resumeWithException(e)
                         } catch (e: Throwable) {
                             if (cont.isActive) cont.cancel(e)
+                        }
+                    }
+                },
+            )
+        }
+
+    // ---------------------------------------------------------------- streaming (P2-7)
+
+    /**
+     * Opens the body without buffering it (docs/02 §6.3). Retries only the *open* — a failure that
+     * happens after the caller started reading cannot be replayed, because the caller has already
+     * consumed part of the previous body.
+     *
+     * The response is deliberately **not** closed here: closing it closes the body, and the caller is
+     * the one who reads it. Ownership transfers with [HttpBody.stream].
+     */
+    override suspend fun open(request: HttpRequest): AppResult<HttpBody> {
+        if (!isHttpUrl(request.url)) {
+            val error = AppError.unknown(
+                EventCodes.NET_REQ_FAIL,
+                IllegalArgumentException("unsupported scheme: ${request.url.substringBefore("://")}"),
+            )
+            logFailure(request, attempt = 1, error = error)
+            return AppResult.Err(error)
+        }
+        var lastError: AppError? = null
+        var attempt = 0
+        while (attempt < retryPolicy.maxAttempts) {
+            attempt++
+            val outcome = try {
+                openOnce(request)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: IOException) {
+                AppResult.Err(mapIoFailure(e))
+            }
+            when (outcome) {
+                is AppResult.Ok -> {
+                    logger.d(
+                        LogCategory.NET,
+                        EventCodes.NET_REQ_OK,
+                        "http open",
+                        mapOf(
+                            "url" to request.url,
+                            "status" to outcome.value.status,
+                            "bytes" to outcome.value.contentLength,
+                            "attempt" to attempt,
+                        ),
+                    )
+                    return outcome
+                }
+                is AppResult.Err -> {
+                    lastError = outcome.error
+                    logFailure(request, attempt, outcome.error)
+                    if (!outcome.error.retryable) return outcome
+                }
+            }
+            val backoff = retryPolicy.backoffMs(attempt)
+            if (backoff > 0) sleep(backoff)
+        }
+        return AppResult.Err(lastError ?: AppError.unknown(EventCodes.NET_REQ_FAIL))
+    }
+
+    private suspend fun openOnce(request: HttpRequest): AppResult<HttpBody> =
+        suspendCancellableCoroutine { cont ->
+            val call = client.newBuilder()
+                .callTimeout(request.timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+                .build()
+                // `firstBytesOnly` is a byte *cap* for the buffered path; a streaming caller wants the
+                // whole body (it applies its own window filter), so the Range header is not sent.
+                .newCall(buildRequest(request.copy(firstBytesOnly = null)))
+            cont.invokeOnCancellation { call.cancel() }
+            call.enqueue(
+                object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        if (!cont.isActive) return
+                        cont.resumeWithException(e)
+                    }
+
+                    override fun onResponse(call: Call, response: Response) {
+                        // Any non-2xx answer is a normal error: close it and map it, never hand a body
+                        // to the caller that it would have to notice was an error page.
+                        if (response.code !in 200..299) {
+                            val error = AppError.http(response.code, EventCodes.NET_REQ_FAIL)
+                            response.close()
+                            if (cont.isActive) cont.resume(AppResult.Err(error))
+                            return
+                        }
+                        val body: ResponseBody? = response.body
+                        if (body == null) {
+                            response.close()
+                            if (cont.isActive) {
+                                cont.resume(
+                                    AppResult.Err(
+                                        AppError.emptyMedia(EventCodes.NET_REQ_FAIL, "empty body"),
+                                    ),
+                                )
+                            }
+                            return
+                        }
+                        val stream: InputStream = body.byteStream()
+                        if (cont.isActive) {
+                            cont.resume(
+                                AppResult.Ok(
+                                    HttpBody(
+                                        status = response.code,
+                                        contentType = body.contentType()?.toString(),
+                                        contentLength = body.contentLength().takeIf { it >= 0 },
+                                        stream = stream,
+                                    ),
+                                ),
+                            )
+                        } else {
+                            // Cancelled between the answer and the handover: nothing owns the stream.
+                            runCatching { stream.close() }
+                            response.close()
                         }
                     }
                 },

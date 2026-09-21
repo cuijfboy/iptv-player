@@ -19,6 +19,12 @@ data class ImportRecord(
     val formatLabel: String,
     val channels: Int,
     val streams: Int,
+    /**
+     * The `content://…` document this import came from, when it came from the system picker rather
+     * than the drop folder (P2-6 item 3). Optional: a record written before SAF existed has no such
+     * field, and [decode] answers null for it instead of refusing the whole record.
+     */
+    val sourceUri: String? = null,
 ) {
     fun encode(): String = buildString {
         append('{')
@@ -31,6 +37,8 @@ data class ImportRecord(
         appendField("formatLabel", formatLabel)
         appendField("channels", channels.toString())
         appendField("streams", streams.toString())
+        // Written only when set, so an existing version-1 record stays byte-identical.
+        if (sourceUri != null) appendField("sourceUri", sourceUri)
         append('}')
     }
 
@@ -62,6 +70,8 @@ data class ImportRecord(
                 formatLabel = fields["formatLabel"] ?: "unknown",
                 channels = fields["channels"]?.toIntOrNull() ?: 0,
                 streams = fields["streams"]?.toIntOrNull() ?: 0,
+                // Absent in records written before SAF support, so null is the valid answer.
+                sourceUri = fields["sourceUri"]?.takeIf { it.isNotBlank() },
             )
         }
 

@@ -11,6 +11,7 @@ import ilab.iptv.player.core.domain.playback.DefaultFailoverPolicy
 import ilab.iptv.player.core.domain.playback.FailoverLimits
 import ilab.iptv.player.core.domain.playback.PlaybackWatchdog
 import ilab.iptv.player.core.domain.repository.ChannelRepository
+import ilab.iptv.player.core.domain.repository.EpgRepository
 import ilab.iptv.player.core.model.AspectRatioMode
 import ilab.iptv.player.core.model.Channel
 import ilab.iptv.player.core.model.ChannelFilter
@@ -22,6 +23,7 @@ import ilab.iptv.player.core.ui.player.PlayerContract
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -55,6 +57,12 @@ class PlayerViewModel @Inject constructor(
     private val clock: Clock,
     private val logger: Logger,
     private val network: NetworkAvailability,
+    /**
+     * P2-7 item 4: the info bar's now/next. It is the *domain port*, not `:core:epg` — the guard's
+     * rule 2 keeps a feature away from `:core:database` and `:core:epg`, so the only EPG a screen can
+     * see is this interface (docs/02 §3.2).
+     */
+    private val epg: EpgRepository,
 ) : ViewModel() {
 
     /** The session's state is the UI's state (docs/02 §4.5 C1) — no second copy lives here. */
@@ -80,16 +88,14 @@ class PlayerViewModel @Inject constructor(
 
     private var request: PlayerContract.Input? = null
 
-    /** The key-path event emitter of P1-7 (§3.3.1): the network retry is reported through here. */
-    private val events = PlaybackSystemEvents(logger)
+    /** The in-flight EPG lookup; a channel switch cancels it so no stale programme line can land. */
+    private var nowNextJob: Job? = null
 
     /** P1-7 item 5: one retry per observed outage, and only while the screen shows a failure. */
     private val networkRetry = NetworkRetryWire(
         availability = network,
         inFailureState = ::inFailureState,
         retry = ::retry,
-        events = events,
-        channelId = { playback.value.channelId },
     )
 
     init {
@@ -121,6 +127,10 @@ class PlayerViewModel @Inject constructor(
                 _fault.value = "「${item.channel.name}」没有可用的流"
                 return@launch
             }
+            // Started next to the playback request, not after it: the lookup is a database read and the
+            // info bar should gain its programme line as soon as that answers, while `open` is still
+            // waiting for the first frame.
+            loadNowNext(item.channel.id)
             coordinator.open(item.channel, stream)
             if (!input.autoplay) {
                 coordinator.setPaused(true)
@@ -170,6 +180,7 @@ class PlayerViewModel @Inject constructor(
             val fromChannelId = playback.value.channelId
             _fault.value = null
             request = PlayerContract.Input(channelId = target.id, streamId = stream.id, autoplay = true)
+            loadNowNext(target.id)
             coordinator.open(item.channel, stream, switchedFromChannelId = fromChannelId)
         }
     }
@@ -197,6 +208,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        nowNextJob?.cancel()
         networkRetry.detach()
         coordinator.stop(reason = "view-model-cleared")
         super.onCleared()
@@ -205,4 +217,22 @@ class PlayerViewModel @Inject constructor(
     /** docs/02 §8.2: an explicit起始流 wins, otherwise the repository's first candidate. */
     private fun selectStream(streams: List<Stream>, streamId: Long?): Stream? =
         streamId?.let { id -> streams.firstOrNull { it.id == id } } ?: streams.firstOrNull()
+
+    /**
+     * Resolves the channel's now/next and hands it to the session's info bar.
+     *
+     * Failure is silent on purpose: a channel without EPG, or a lookup that fails, is a normal state
+     * (docs/02 §6.3 降级 "UI 只显示频道名"). It must never surface a player error — losing the
+     * programme line is not losing playback, and a screen-level fault for it would be a lie.
+     *
+     * The result is applied only if the request still targets [channelId], so a switch that happens
+     * while the query is in flight cannot put the previous channel's programme on screen.
+     */
+    private fun loadNowNext(channelId: Long) {
+        nowNextJob?.cancel()
+        nowNextJob = viewModelScope.launch {
+            val nowNext = runCatching { epg.nowNext(channelId, clock.nowMs()) }.getOrNull()
+            if (request?.channelId == channelId) session.onNowNext(nowNext)
+        }
+    }
 }

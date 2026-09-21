@@ -4,13 +4,14 @@ import com.google.common.truth.Truth.assertThat
 import ilab.iptv.player.core.common.AppError
 import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.common.FailureClass
-import ilab.iptv.player.core.common.PlaybackActivity
 import ilab.iptv.player.core.model.AspectRatioMode
 import ilab.iptv.player.core.model.AudioTrackInfo
 import ilab.iptv.player.core.model.EngineState
 import ilab.iptv.player.core.model.InfoBarState
+import ilab.iptv.player.core.model.NowNext
 import ilab.iptv.player.core.model.PlaybackPhase
 import ilab.iptv.player.core.model.PreparedMedia
+import ilab.iptv.player.core.model.Programme
 import org.junit.Test
 
 /**
@@ -179,42 +180,61 @@ class PlaybackUiStateMachineTest {
         assertThat(state.infoBar?.failoverHint).isNull()
     }
 
-    /**
-     * P2-5's R7 seam: the state machine is the ONE writer of `PlaybackUiState` (§4.5 C1), so it is
-     * also the one writer of the process-wide flag the refresh path reads. The band is the same one
-     * the playback foreground service treats as foreground.
-     */
-    @Test
-    fun `the playback activity flag follows the active phase band`() {
-        val machine = PlaybackUiStateMachine()
-        try {
-            PlaybackActivity.setActive(false)
-            assertThat(PlaybackActivity.isActive()).isFalse()
-
-            machine.onEngineState(EngineState.PREPARING)
-            assertThat(PlaybackActivity.isActive()).isTrue()
-
-            machine.onFirstFrame(1_200)
-            assertThat(PlaybackActivity.isActive()).isTrue()
-
-            machine.onEngineState(EngineState.IDLE)
-            assertThat(PlaybackActivity.isActive()).isFalse()
-
-            machine.onEngineState(EngineState.PLAYING)
-            assertThat(PlaybackActivity.isActive()).isTrue()
-
-            machine.onError(error(FailureClass.TIMEOUT, retryable = true))
-            assertThat(PlaybackActivity.isActive()).isFalse()
-        } finally {
-            PlaybackActivity.setActive(false)
-        }
-    }
-
     private fun infoBar(quality: String? = null) = InfoBarState(
         channelName = "CCTV1",
         logoUrl = null,
         qualityLabel = quality,
         nowNext = null,
+    )
+
+    // ---------------------------------------------------------------- EPG now/next (P2-7)
+
+    @Test
+    fun `the epg line lands on the open info bar without disturbing the rest of it`() {
+        val machine = PlaybackUiStateMachine()
+        machine.onWatchStarted(1, 10, infoBar(quality = "1080p"))
+        machine.onFailoverRunning("正在切换备用源…")
+
+        val nowNext = NowNext(
+            now = programme("新闻联播"),
+            next = programme("焦点访谈"),
+        )
+        val state = machine.onNowNext(nowNext)
+
+        assertThat(state.infoBar?.nowNext?.now?.title).isEqualTo("新闻联播")
+        // The rest of the bar is untouched: the EPG arrives late and must not clear the fail-over line.
+        assertThat(state.infoBar?.qualityLabel).isEqualTo("1080p")
+        assertThat(state.infoBar?.failoverHint).isEqualTo("正在切换备用源…")
+    }
+
+    @Test
+    fun `a channel without epg clears the line and leaves the bar standing`() {
+        val machine = PlaybackUiStateMachine()
+        machine.onWatchStarted(1, 10, infoBar(quality = "720p"))
+        machine.onNowNext(NowNext(now = programme("X"), next = null))
+
+        val state = machine.onNowNext(null)
+
+        assertThat(state.infoBar?.nowNext).isNull()
+        assertThat(state.infoBar?.channelName).isEqualTo("CCTV1")
+        assertThat(state.infoBar?.qualityLabel).isEqualTo("720p")
+    }
+
+    @Test
+    fun `an epg answer that arrives before the bar exists is dropped, not invented`() {
+        val machine = PlaybackUiStateMachine()
+        val state = machine.onNowNext(NowNext(now = programme("X"), next = null))
+        assertThat(state.infoBar).isNull()
+    }
+
+    private fun programme(title: String) = Programme(
+        id = 0,
+        epgChannelId = "c1",
+        startMs = 0,
+        stopMs = 1,
+        title = title,
+        desc = null,
+        category = null,
     )
 
     private fun error(failure: FailureClass, retryable: Boolean, status: Int? = null) = AppError(

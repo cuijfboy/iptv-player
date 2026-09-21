@@ -31,6 +31,8 @@ class LocalPlaylistImportTest {
     private val lastImport = LastImportStore(files, folders)
     private val logger = RecordingLogger()
     private val clock = FakeClock()
+    private val documents = FakeDocumentReader()
+    private val permissions = FakeUriPermissionStore()
 
     private val importer = LocalPlaylistImportRepository(
         files = files,
@@ -42,6 +44,8 @@ class LocalPlaylistImportTest {
         sessionIds = FakeSessionIds(),
         limits = PipelineLimits(),
         dispatchers = TestDispatcherProvider(),
+        documents = documents,
+        permissions = permissions,
     )
 
     @Test
@@ -166,7 +170,7 @@ class LocalPlaylistImportTest {
         files.put("${folders.dropFolder}/big.m3u", big)
         val capped = LocalPlaylistImportRepository(
             files, folders, lastImport, catalog, logger, clock, FakeSessionIds(), PipelineLimits(maxBytes = 512),
-            TestDispatcherProvider(),
+            TestDispatcherProvider(), documents, permissions,
         )
 
         val result = capped.import(candidate("big.m3u", big))

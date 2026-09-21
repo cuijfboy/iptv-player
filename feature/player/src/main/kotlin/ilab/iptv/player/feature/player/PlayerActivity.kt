@@ -329,8 +329,26 @@ class PlayerActivity : ComponentActivity(), SurfaceHolder.Callback {
         infoName.text = info?.channelName ?: getString(R.string.player_channel_unknown)
         infoLogo.text = info?.channelName?.trim()?.take(1)?.ifEmpty { "?" } ?: "?"
         infoQuality.text = info?.qualityLabel ?: getString(R.string.player_quality_pending)
-        // EPG now&next is P2-7; the slot is on screen from P1-4 so the layout is already proven.
-        infoNowNext.text = info?.nowNext?.now?.title ?: getString(R.string.player_now_next_placeholder)
+        // P2-7: the real now/next replaces the P1-4 placeholder. When the channel has no EPG at all the
+        // line is taken down instead of printing a stand-in — a channel without a guide is normal
+        // (docs/02 §6.3), and a "待接入" label on screen is scaffolding, not information.
+        val line = NowNextLabel.of(info?.nowNext)
+        when (line.kind) {
+            NowNextLabel.Kind.NOW -> {
+                infoNowNext.visibility = View.VISIBLE
+                infoNowNext.text = getString(R.string.player_now_next_now, line.title.orEmpty())
+            }
+
+            NowNextLabel.Kind.NEXT -> {
+                infoNowNext.visibility = View.VISIBLE
+                infoNowNext.text = getString(R.string.player_now_next_next, line.title.orEmpty())
+            }
+
+            NowNextLabel.Kind.NONE -> {
+                infoNowNext.text = ""
+                infoNowNext.visibility = View.GONE
+            }
+        }
         renderStatus()
     }
 

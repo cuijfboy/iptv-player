@@ -4,7 +4,9 @@ import ilab.iptv.player.core.data.dispatchers.TestDispatcherProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import ilab.iptv.player.core.common.EventCodes
+import ilab.iptv.player.core.data.playlist.FakeDocumentReader
 import ilab.iptv.player.core.data.playlist.FakePlaylistFileSystem
+import ilab.iptv.player.core.data.playlist.FakeUriPermissionStore
 import ilab.iptv.player.core.data.playlist.LastImportStore
 import ilab.iptv.player.core.data.playlist.LocalPlaylistImportRepository
 import ilab.iptv.player.core.data.refresh.FakeSessionIds
@@ -123,6 +125,8 @@ class PersistenceIntegrationTest {
             clock = RoomFixtures.clock(),
             sessionIds = FakeSessionIds(),
             limits = limits,
+            documents = FakeDocumentReader(),
+            permissions = FakeUriPermissionStore(),
         )
 
     private fun candidate(name: String, text: String) = ImportCandidate(

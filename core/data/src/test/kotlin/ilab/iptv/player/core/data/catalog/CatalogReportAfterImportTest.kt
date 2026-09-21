@@ -2,7 +2,9 @@ package ilab.iptv.player.core.data.catalog
 
 import com.google.common.truth.Truth.assertThat
 import ilab.iptv.player.core.data.dispatchers.TestDispatcherProvider
+import ilab.iptv.player.core.data.playlist.FakeDocumentReader
 import ilab.iptv.player.core.data.playlist.FakePlaylistFileSystem
+import ilab.iptv.player.core.data.playlist.FakeUriPermissionStore
 import ilab.iptv.player.core.data.playlist.LastImportStore
 import ilab.iptv.player.core.data.playlist.LocalPlaylistImportRepository
 import ilab.iptv.player.core.data.refresh.FakeClock
@@ -50,6 +52,8 @@ class CatalogReportAfterImportTest {
         sessionIds = FakeSessionIds(),
         limits = PipelineLimits(),
         dispatchers = TestDispatcherProvider(),
+        documents = FakeDocumentReader(),
+        permissions = FakeUriPermissionStore(),
     )
 
     @Test

@@ -9,10 +9,14 @@ import dagger.hilt.components.SingletonComponent
 import ilab.iptv.player.core.data.catalog.AssetBundledPlaylist
 import ilab.iptv.player.core.data.catalog.BundledPlaylist
 import ilab.iptv.player.core.data.playlist.AndroidPlaylistFileSystem
+import ilab.iptv.player.core.data.playlist.AndroidUriPermissionStore
+import ilab.iptv.player.core.data.playlist.ContentResolverDocumentReader
+import ilab.iptv.player.core.data.playlist.DocumentReader
 import ilab.iptv.player.core.data.playlist.LastImportStore
 import ilab.iptv.player.core.data.playlist.LocalPlaylistImportRepository
 import ilab.iptv.player.core.data.playlist.PlaylistFileSystem
 import ilab.iptv.player.core.data.playlist.RememberedPlaylistSource
+import ilab.iptv.player.core.data.playlist.UriPermissionStore
 import ilab.iptv.player.core.domain.playlist.ImportFolders
 import ilab.iptv.player.core.domain.playlist.PlaylistImportPort
 import javax.inject.Singleton
@@ -63,4 +67,19 @@ object DataModule {
     @Provides
     @Singleton
     fun providePlaylistImportPort(importer: LocalPlaylistImportRepository): PlaylistImportPort = importer
+
+    /**
+     * SAF (P2-6 item 3): reading a document the user picked, and holding the persisted read grant
+     * for it. Both are thin `ContentResolver` adapters; the importer takes them as seams so every
+     * failure branch (permission refused, document gone between pick and read) is a unit test.
+     */
+    @Provides
+    @Singleton
+    fun provideDocumentReader(@ApplicationContext context: Context): DocumentReader =
+        ContentResolverDocumentReader(context.contentResolver)
+
+    @Provides
+    @Singleton
+    fun provideUriPermissionStore(@ApplicationContext context: Context): UriPermissionStore =
+        AndroidUriPermissionStore(context.contentResolver)
 }

@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  P2-6 正篇 item 4: the source-management page (docs/02 §8.1 settings level).
+
+  One vertical focus path, same shape as the browse screen: header → 添加订阅 → 导入本地文件 → rows.
+  The header carries the last action's outcome so a screenshot shows what happened (the QA path is
+  adb-driven, where a toast has already faded).
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FF101014"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/source_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#FF17171E"
+        android:paddingHorizontal="24dp"
+        android:paddingVertical="12dp"
+        android:text="@string/source_loading"
+        android:textColor="#FFB9B9C6"
+        android:textSize="16sp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingHorizontal="24dp"
+        android:paddingTop="8dp">
+
+        <Button
+            android:id="@+id/source_add"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:nextFocusDown="@id/source_list"
+            android:text="@string/source_add" />
+
+        <Button
+            android:id="@+id/source_import"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:nextFocusDown="@id/source_list"
+            android:text="@string/source_import" />
+
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/source_empty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="24dp"
+        android:paddingVertical="12dp"
+        android:text="@string/source_empty"
+        android:textColor="#FF9A9AA5"
+        android:textSize="16sp"
+        android:visibility="gone" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipChildren="false"
+        android:clipToPadding="false">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/source_list"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingVertical="12dp"
+            android:scrollbars="none" />
+
+    </FrameLayout>
+
+</LinearLayout>

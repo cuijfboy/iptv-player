@@ -7,6 +7,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import ilab.iptv.player.core.data.repository.RoomChannelRepository
+import ilab.iptv.player.core.data.repository.RoomSourceRepository
 import ilab.iptv.player.core.data.repository.RoomStreamRepository
 import ilab.iptv.player.core.data.store.CatalogSink
 import ilab.iptv.player.core.data.store.RoomCatalogWriter
@@ -19,7 +20,9 @@ import ilab.iptv.player.core.database.dao.ProgrammeDao
 import ilab.iptv.player.core.database.dao.SourceDao
 import ilab.iptv.player.core.database.dao.StreamDao
 import ilab.iptv.player.core.domain.repository.ChannelRepository
+import ilab.iptv.player.core.domain.repository.SourceRepository
 import ilab.iptv.player.core.domain.repository.StreamRepository
+import ilab.iptv.player.core.domain.source.SourceManagementPort
 import javax.inject.Singleton
 
 /**
@@ -86,4 +89,17 @@ object PersistenceModule {
     @Provides
     @Singleton
     fun provideStreamRepository(impl: RoomStreamRepository): StreamRepository = impl
+
+    /**
+     * P2-6 正篇: the `source` table gets its two faces from one class. Both bindings point at the
+     * *same* instance (Hilt reuses the `@Inject`-constructed singleton), so the management screen
+     * and the refresh pipeline cannot end up writing through two different objects.
+     */
+    @Provides
+    @Singleton
+    fun provideSourceRepository(impl: RoomSourceRepository): SourceRepository = impl
+
+    @Provides
+    @Singleton
+    fun provideSourceManagementPort(impl: RoomSourceRepository): SourceManagementPort = impl
 }

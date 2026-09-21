@@ -31,10 +31,23 @@ dependencies {
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
 
+    // Test-only: the opt-in real-network EPG sample (P2-7) drives the production OkHttp transport
+    // through `OkHttpFetcher`, which `:core:network` keeps `implementation`-hidden from this module's
+    // main compile classpath. Nothing in `src/main` sees okhttp (docs/02 §3.2 rule 5 is about project
+    // dependencies; the guard only checks `project(":…")` declarations). Same shape as
+    // `:core:source`'s deep-probe sample.
+    testImplementation(libs.okhttp)
+
     // P2-1 test path: the Room repositories and the seeder are driven through an in-memory database
     // on the JVM (Robolectric), so `./gradlew check` covers them without a device (docs/02 §13).
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.androidx.test.ext.junit)
     testImplementation(libs.robolectric)
     testImplementation(libs.kotlinx.coroutines.test)
+}
+
+// The real-network EPG sample is gated so `check` and CI stay hermetic:
+// `./gradlew :core:data:testDebugUnitTest -Piptv.epgSample=1`.
+tasks.withType<Test>().configureEach {
+    systemProperty("iptv.epgSample", providers.gradleProperty("iptv.epgSample").getOrElse(""))
 }

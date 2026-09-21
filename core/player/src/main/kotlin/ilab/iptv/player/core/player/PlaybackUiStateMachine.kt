@@ -1,11 +1,11 @@
 package ilab.iptv.player.core.player
 
 import ilab.iptv.player.core.common.AppError
-import ilab.iptv.player.core.common.PlaybackActivity
 import ilab.iptv.player.core.model.AspectRatioMode
 import ilab.iptv.player.core.model.AudioTrackInfo
 import ilab.iptv.player.core.model.EngineState
 import ilab.iptv.player.core.model.InfoBarState
+import ilab.iptv.player.core.model.NowNext
 import ilab.iptv.player.core.model.PlaybackPhase
 import ilab.iptv.player.core.model.PlaybackUiState
 import ilab.iptv.player.core.model.PreparedMedia
@@ -159,26 +159,20 @@ class PlaybackUiStateMachine(initial: PlaybackUiState = PlaybackUiState.EMPTY) {
     /** Info bar text refresh (channel metadata arrives from the repository after the intent). */
     fun onInfoBar(infoBar: InfoBarState?): PlaybackUiState = publish(_state.value.copy(infoBar = infoBar))
 
+    /**
+     * P2-7: the EPG now/next line of the info bar. It arrives after the channel is already playing,
+     * because a database read is a round trip and the bar must not wait for it — the row is rendered
+     * with the channel name first and gains the programme line when the lookup answers.
+     *
+     * A null [nowNext] means "no data for this channel" and clears the line; it is not an error, and it
+     * must not disturb the rest of the bar (name, quality, fail-over hint).
+     */
+    fun onNowNext(nowNext: NowNext?): PlaybackUiState = publish(
+        _state.value.copy(infoBar = _state.value.infoBar?.copy(nowNext = nowNext)),
+    )
+
     private fun publish(next: PlaybackUiState): PlaybackUiState {
         _state.value = next
-        // R7 playback avoidance (docs/02 §4.5 C3): mirror the phase into the process-wide flag the
-        // refresh pipeline and the WorkManager layer read. Same phase band as the foreground service
-        // ([ilab.iptv.player.feature.player.PlaybackServiceLifecycle]): a paused session is not busy.
-        PlaybackActivity.setActive(
-            when (next.phase) {
-                PlaybackPhase.PREPARING,
-                PlaybackPhase.BUFFERING,
-                PlaybackPhase.PLAYING,
-                PlaybackPhase.FAILOVER,
-                -> true
-
-                PlaybackPhase.IDLE,
-                PlaybackPhase.STOPPED,
-                PlaybackPhase.ERROR,
-                PlaybackPhase.RELEASED,
-                -> false
-            },
-        )
         return next
     }
 

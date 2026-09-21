@@ -7,6 +7,7 @@ import dagger.hilt.components.SingletonComponent
 import ilab.iptv.player.core.common.Logger
 import ilab.iptv.player.core.network.HttpFetcher
 import ilab.iptv.player.core.network.OkHttpFetcher
+import ilab.iptv.player.core.network.StreamingHttpFetcher
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 import okhttp3.OkHttpClient
@@ -37,6 +38,19 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideHttpFetcher(client: OkHttpClient, logger: Logger): HttpFetcher =
+    fun provideOkHttpFetcher(client: OkHttpClient, logger: Logger): OkHttpFetcher =
         OkHttpFetcher(client, logger)
+
+    @Provides
+    @Singleton
+    fun provideHttpFetcher(fetcher: OkHttpFetcher): HttpFetcher = fetcher
+
+    /**
+     * The streaming half (P2-7). The same instance answers both interfaces: the transport, the
+     * timeout and the retry policy are one decision, and `:core:epg` reads a multi-megabyte XMLTV body
+     * through this without the byte cap of [provideHttpFetcher].
+     */
+    @Provides
+    @Singleton
+    fun provideStreamingHttpFetcher(fetcher: OkHttpFetcher): StreamingHttpFetcher = fetcher
 }

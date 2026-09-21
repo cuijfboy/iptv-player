@@ -1,0 +1,62 @@
+package ilab.iptv.player.core.model
+
+/**
+ * The EPG types of docs/02 §4.2 that are pure data (the streaming handle itself lives in
+ * `:core:epg`, next to the provider that produces it — see `XmltvStream` there).
+ *
+ * `Programme`, `NowNext` and `EpgMatchType` already live in `Channel.kt`; this file adds the
+ * reporting shapes the §4.3 ports and the diagnostics panel need.
+ */
+
+/**
+ * docs/02 §6.3: "覆盖率可观测". `matched` counts channels that carry an `epg_channel_id` after a
+ * match, `total` every channel considered, and `byGroup` breaks the matched count down by the
+ * coarse five-value group the diagnostics panel shows.
+ */
+data class EpgCoverage(
+    val matched: Int,
+    val total: Int,
+    val byGroup: Map<ChannelGroup, Int>,
+) {
+    /** Share of channels with a programme table, 0..1; 0 when there is nothing to cover. */
+    val ratio: Double get() = if (total <= 0) 0.0 else matched.toDouble() / total
+}
+
+/**
+ * docs/02 §4.3 / §8.3: the grid's window read. `limit` defaults to the frozen 64 channels of a grid
+ * page — the cap exists so one query can never ask the database for 1k channels × 7 days.
+ */
+data class EpgWindowQuery(
+    val fromMs: Long,
+    val toMs: Long,
+    val channelIds: List<Long>,
+    val limit: Int = 64,
+)
+
+/**
+ * What one EPG refresh did (docs/02 §4.2). `skipped` counts `<programme>` entries the parser dropped
+ * (malformed dates, no title, outside the retention window) — a number worth reporting, because a
+ * source that suddenly skips half its rows is broken, not "empty".
+ */
+data class EpgLoadReport(
+    val providers: Int,
+    val channels: Int,
+    val programmes: Int,
+    val skipped: Int,
+    val coverage: EpgCoverage,
+    val elapsedMs: Long,
+)
+
+/**
+ * docs/02 §4.4 E5: the lookup a [ilab.iptv.player.core.model.Channel] is matched against.
+ *
+ * `byId` is keyed on the *source's* channel attribute (`tvg-id`), `byNameKey` on the normalized
+ * display name of an XMLTV `<channel>` — exactly the two keys the first two match tiers need. Both
+ * map to the XMLTV channel id, which is what `programme.epg_channel_id` stores.
+ */
+data class EpgChannelIndex(
+    val byId: Map<String, String> = emptyMap(),
+    val byNameKey: Map<String, String> = emptyMap(),
+) {
+    val size: Int get() = byId.size + byNameKey.size
+}

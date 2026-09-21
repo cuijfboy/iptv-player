@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Add / edit form (P2-6 item 1): 名称 · URL · 格式提示 · 启用开关.
+
+  The format row is a Spinner, not a free text field: docs/02 §4.2 freezes `SourceKind` to five values
+  and the user's real choice is only ever "I know it is M3U", "I know it is TXT" or "look at the body"
+  (`PlaylistHint.AUTO`), so a closed list is exactly the domain.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingHorizontal="24dp"
+    android:paddingVertical="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/source_field_label"
+        android:textColor="#FF9A9AA5"
+        android:textSize="14sp" />
+
+    <EditText
+        android:id="@+id/source_edit_label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/source_field_label_hint"
+        android:importantForAutofill="no"
+        android:inputType="text"
+        android:maxLines="1"
+        android:minHeight="48dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/source_field_url"
+        android:textColor="#FF9A9AA5"
+        android:textSize="14sp" />
+
+    <EditText
+        android:id="@+id/source_edit_url"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/source_field_url_hint"
+        android:importantForAutofill="no"
+        android:inputType="textUri"
+        android:maxLines="1"
+        android:minHeight="48dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/source_field_format"
+        android:textColor="#FF9A9AA5"
+        android:textSize="14sp" />
+
+    <Spinner
+        android:id="@+id/source_edit_hint"
+        android:layout_width="match_parent"
+        android:layout_height="48dp" />
+
+    <CheckBox
+        android:id="@+id/source_edit_enabled"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/source_field_enabled" />
+
+    <TextView
+        android:id="@+id/source_edit_error"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:textColor="#FFFF9A4D"
+        android:textSize="14sp"
+        android:visibility="gone" />
+
+</LinearLayout>

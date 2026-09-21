@@ -6,7 +6,9 @@
     <string name="player_retry">重试</string>
     <string name="player_channel_unknown">未知频道</string>
     <string name="player_quality_pending">清晰度待确认</string>
-    <string name="player_now_next_placeholder">节目单（now-next）待接入 · P2-7</string>
+    <!-- P2-7: the info bar's programme line. 1 = the programme title. -->
+    <string name="player_now_next_now">正在播出：%1$s</string>
+    <string name="player_now_next_next">接下来：%1$s</string>
     <string name="player_aspect_default">画幅：适应</string>
     <!-- 1 = the mode label from AspectRatioCycle. -->
     <string name="player_aspect_format">画幅：%1$s</string>
