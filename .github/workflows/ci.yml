@@ -34,6 +34,13 @@ jobs:
           # And prove the guard still fires: a scanner that silently stops matching is worse than none.
           bash tools/ci/sensitive-info-guard.test.sh
 
+      # 焦点自测 (P3-7 item 4, docs/05-过程记录/45-P3-7焦点与返回键打磨.md): the account's exit
+      # criteria include "任何页面不得出现无焦点状态", and the television is not available to this
+      # round, so the static half runs here — every screen layout must be able to take the remote's
+      # focus, and each prints which BACK mechanism it uses. Like the guard above it needs no JDK.
+      - name: TV 焦点静态自测 (tv focus audit)
+        run: bash tools/ci/tv-focus-audit.sh
+
       # AGP 8.11.1 checks `JavaVersion.current().isCompatibleWith(VERSION_17)`, so 17 is its floor —
       # but the whole local verification pass (dev-A rounds 2–3, 5 commands green) ran on Android
       # Studio's JBR 21.0.10, so CI uses 21 to match the toolchain that was actually verified.

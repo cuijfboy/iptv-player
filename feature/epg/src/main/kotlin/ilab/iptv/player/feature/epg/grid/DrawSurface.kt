@@ -1,5 +1,7 @@
 package ilab.iptv.player.feature.epg.grid
 
+import ilab.iptv.player.core.design.TvFocus
+
 /**
  * The drawing verbs the grid renderer needs — deliberately the smallest set, so the renderer is pure
  * Kotlin and can be driven by a recording fake in unit tests and in the offline benchmark.
@@ -23,15 +25,16 @@ interface DrawSurface {
 
 /**
  * Colours as plain ARGB ints (no `android.graphics.Color`), so the renderer and its palette stay
- * JVM-testable. These are the grid's own dark-theme values: `:core:design` has no design tokens yet, so
- * this module keeps its palette beside its only view, the way `:feature:channels` keeps its drawables.
+ * JVM-testable. The grid's own dark-theme values live here, **except the two focus colours**, which
+ * come from `:core:design` [TvFocus] (P3-7 item 2): the focused row's fill and the selected block's
+ * stroke are the same accent as every View-drawn row, so the grid is not a fourth focus language.
  */
 data class GridPalette(
     val background: Int = 0xFF101014.toInt(),
     val rowEven: Int = 0xFF161B22.toInt(),
     val rowOdd: Int = 0xFF12161C.toInt(),
     val rowLine: Int = 0xFF232A33.toInt(),
-    val focusedRowFill: Int = 0xFF1E2833.toInt(),
+    val focusedRowFill: Int = TvFocus.FILL,
     val headerBackground: Int = 0xFF0B0E12.toInt(),
     val channelColumnBackground: Int = 0xFF0D1015.toInt(),
     val tickLine: Int = 0xFF2A313B.toInt(),
@@ -40,7 +43,7 @@ data class GridPalette(
     val blockFillAlt: Int = 0xFF3B6B4A.toInt(),
     val blockStroke: Int = 0xFF3C5A80.toInt(),
     val blockSelectedFill: Int = 0xFF3F6FA8.toInt(),
-    val blockSelectedStroke: Int = 0xFFFFD166.toInt(),
+    val blockSelectedStroke: Int = TvFocus.STROKE,
     val placeholderFill: Int = 0xFF1A1F26.toInt(),
     val placeholderStroke: Int = 0xFF262D36.toInt(),
     val nowLine: Int = 0xFFD64545.toInt(),

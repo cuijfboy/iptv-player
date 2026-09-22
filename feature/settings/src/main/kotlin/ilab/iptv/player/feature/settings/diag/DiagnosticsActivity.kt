@@ -130,6 +130,12 @@ class DiagnosticsActivity : ComponentActivity() {
         lifecycleScope.launch { viewModel.refresh() }
         render()
         handler.postDelayed(refresh, REFRESH_INTERVAL_MS)
+        // P3-7 item 4: every control on this panel is a framework Button/EditText, so the window's own
+        // first-focus assignment normally has somewhere to land. The case worth guarding is the return
+        // trip from the log console (or from the export dialog) when the view that held focus is gone —
+        // then the remote has nothing under it. Re-arm only in that case, so a returning user is not
+        // moved off the control they were on.
+        if (window.decorView.findFocus() == null) levelButton.requestFocus()
     }
 
     override fun onPause() {

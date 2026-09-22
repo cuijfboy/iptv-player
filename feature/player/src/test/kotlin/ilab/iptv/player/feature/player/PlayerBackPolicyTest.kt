@@ -49,4 +49,17 @@ class PlayerBackPolicyTest {
         assertThat(policy.onBack()).isEqualTo(BackAction.ExitPlayer)
         assertThat(policy.onBack()).isEqualTo(BackAction.ExitPlayer)
     }
+
+    @Test
+    fun `the failure card is not a back level so the second press leaves playback`() {
+        // P3-7 item 1's audit correction. docs/02 §8.2 freezes the two levels as "信息条可见 → 先收起
+        // 信息条；再按 → 回浏览页", and the failure card is a status the screen is in (with 重试 on it),
+        // not a dismissible layer — so it must not swallow a BACK press. This used to be contradicted by
+        // the policy's own comment; the comment now says the same thing this asserts.
+        policy.onOverlayShown() // the bar came up together with the card
+
+        assertThat(policy.onBack()).isEqualTo(BackAction.HideOverlay)
+        // Bar down, card still up: the next BACK exits.
+        assertThat(policy.onBack()).isEqualTo(BackAction.ExitPlayer)
+    }
 }

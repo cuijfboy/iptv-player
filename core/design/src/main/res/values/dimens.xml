@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- docs/02 §8.2: the focused element must be readable at 10 feet. One stroke width, everywhere. -->
+<resources>
+    <dimen name="focus_stroke_width">2dp</dimen>
+</resources>

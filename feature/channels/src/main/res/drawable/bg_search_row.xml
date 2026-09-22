@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- One result row of the P3-2 search screen: a focused state the remote can see at 10 feet. -->
+<!--
+  One result row of the P3-2 search screen (P3-7 item 2: the shared focus tokens, so a result row and
+  the keypad that produced it read as the same kind of focus).
+-->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_focused="true">
         <shape>
-            <solid android:color="#FF2A2A38" />
+            <solid android:color="@color/focus_fill" />
             <stroke
-                android:width="2dp"
-                android:color="#FFFFB84D" />
+                android:width="@dimen/focus_stroke_width"
+                android:color="@color/focus_stroke" />
             <corners android:radius="6dp" />
         </shape>
     </item>

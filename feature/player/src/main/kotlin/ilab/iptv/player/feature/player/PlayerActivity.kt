@@ -562,9 +562,27 @@ class PlayerActivity : ComponentActivity(), SurfaceHolder.Callback {
                 // retry entry point stays reachable without an up/down key that switches channels.
                 root.nextFocusLeftId = retryButton.id
                 root.nextFocusRightId = retryButton.id
-                // The retry entry point takes focus so one OK press is enough (§8.2: 失败要有重试入口).
-                retryButton.post { retryButton.requestFocus() }
             }
+        }
+        // P3-7 items 2/4: the card takes focus so one OK press is enough (§8.2: 失败要有重试入口), and
+        // when the card goes away focus comes back instead of being left on a GONE view.
+        applyFocus(PlayerFocusTarget.afterOverlayChange(overlay, currentSlot()))
+    }
+
+    /** The slot the remote is on right now, so [PlayerFocusTarget] can decide whether to move it. */
+    private fun currentSlot(): PlayerFocusSlot = when {
+        retryButton.hasFocus() -> PlayerFocusSlot.RETRY
+        infoBar.hasFocus() -> PlayerFocusSlot.INFO_BAR
+        root.hasFocus() -> PlayerFocusSlot.ROOT
+        else -> PlayerFocusSlot.NONE
+    }
+
+    /** Only the two moves the policy asks for; `NONE` means "leave the remote alone". */
+    private fun applyFocus(slot: PlayerFocusSlot) {
+        when (slot) {
+            PlayerFocusSlot.RETRY -> retryButton.post { retryButton.requestFocus() }
+            PlayerFocusSlot.ROOT -> root.post { root.requestFocus() }
+            PlayerFocusSlot.INFO_BAR, PlayerFocusSlot.NONE -> Unit
         }
     }
 
@@ -601,7 +619,7 @@ class PlayerActivity : ComponentActivity(), SurfaceHolder.Callback {
         // A one-shot hint belongs to the bar it was shown in: the next time the bar comes up it is
         // either a new message or nothing, never a stale "当前流没有字幕轨" over a different channel.
         transientHint = null
-        if (infoBar.hasFocus()) root.requestFocus()
+        applyFocus(PlayerFocusTarget.afterInfoBarHidden(currentSlot()))
         infoBar.animate().cancel()
         infoBar.animate()
             .alpha(0f)

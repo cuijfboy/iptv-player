@@ -2,15 +2,19 @@
 <!--
   Focus feedback for the player's controls. The docs/02 §8.2 default highlight is switched off on the
   view, so the focused state has to be ours: brighter fill + a visible stroke.
+
+  P3-7 item 2: the stroke is the shared accent (these controls used to stroke white while every list
+  stroked blue), and the fill is the shared "over video" token — a warm fill is what stays visible on
+  top of live picture, and `:core:design` is where that exception is written down instead of here.
 -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_focused="true">
         <shape android:shape="rectangle">
-            <solid android:color="#FFF0C674" />
+            <solid android:color="@color/focus_fill_over_video" />
             <corners android:radius="8dp" />
             <stroke
-                android:width="3dp"
-                android:color="#FFFFFFFF" />
+                android:width="@dimen/focus_stroke_width"
+                android:color="@color/focus_stroke" />
         </shape>
     </item>
     <item>

@@ -104,6 +104,9 @@ class LogConsoleActivity : ComponentActivity() {
         )
         handler.postDelayed(refresh, REFRESH_INTERVAL_MS)
         render()
+        // P3-7 item 4 (same guard as the diagnostics panel): never come back to a window with no
+        // focused view — the buttons are the only focusables here, so one of them takes the remote.
+        if (window.decorView.findFocus() == null) levelButton.requestFocus()
     }
 
     override fun onPause() {

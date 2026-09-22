@@ -8,17 +8,17 @@
 
     <item android:state_focused="true">
         <shape>
-            <solid android:color="#FF2B2B3C" />
+            <solid android:color="@color/focus_fill" />
             <stroke
-                android:width="2dp"
-                android:color="#FF7AC7FF" />
+                android:width="@dimen/focus_stroke_width"
+                android:color="@color/focus_stroke" />
             <corners android:radius="6dp" />
         </shape>
     </item>
 
     <item android:state_pressed="true">
         <shape>
-            <solid android:color="#FF35354A" />
+            <solid android:color="@color/focus_fill_pressed" />
             <corners android:radius="6dp" />
         </shape>
     </item>

@@ -1,12 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- One on-screen key of the P3-2 search keypad; the focused state is drawn here, not by the system. -->
+<!--
+  One on-screen key of the P3-2 search keypad; the focused state is drawn here, not by the system.
+  P3-7 item 2: same accent as every other focused row — the keypad used to be the one amber screen.
+-->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_focused="true">
         <shape>
-            <solid android:color="#FF2A2A38" />
+            <solid android:color="@color/focus_fill" />
             <stroke
-                android:width="2dp"
-                android:color="#FFFFB84D" />
+                android:width="@dimen/focus_stroke_width"
+                android:color="@color/focus_stroke" />
             <corners android:radius="8dp" />
         </shape>
     </item>

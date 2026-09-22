@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The one focus palette every screen draws from (docs/02 §8.2 "焦点可见性": 缩放 + 描边 + 高亮, and
+  P3-7 item 2 "统一焦点视觉"). Before this file each screen picked its own accent — the browse row
+  stroked #FF6FC3FF, the search keypad/rows #FFFFB84D, the settings rows #FF7AC7FF — so "focused"
+  looked like three different states depending on the page.
+
+  These values and `TvFocus` (same package, `core/design/.../TvFocus.kt`) are two halves of one
+  contract: screens that draw with a View read the colors here, the EPG grid — whose renderer is pure
+  Kotlin and cannot read resources — reads `TvFocus`. `TvFocusTokenTest` fails if the two drift.
+-->
+<resources>
+
+    <!-- Focus stroke: the single accent. 2 dp so it survives a 1080p TV at 10 feet. -->
+    <color name="focus_stroke">#FF7AC7FF</color>
+
+    <!-- Focus fill for rows/keys/tiles: a lighter tone than the resting #FF17171E–#FF1E1E28 family. -->
+    <color name="focus_fill">#FF2B2B3C</color>
+
+    <!-- Pressed (non-focused) feedback, one step lighter still. -->
+    <color name="focus_fill_pressed">#FF35354A</color>
+
+    <!--
+      The player's over-video controls keep a warm fill: they sit on top of live picture, where a
+      blue fill on blue-ish frames disappears. The *stroke* is still the shared accent, so the
+      focus language stays one: same outline everywhere, fill tuned to the background behind it.
+    -->
+    <color name="focus_fill_over_video">#FFF0C674</color>
+
+</resources>

@@ -1,6 +1,8 @@
 package ilab.iptv.player.feature.settings
 
 import androidx.annotation.StringRes
+import ilab.iptv.player.core.ui.back.BackHierarchy
+import ilab.iptv.player.core.ui.back.TvScreen
 
 /**
  * The settings skeleton of docs/04 P2-8 item 1: groups 源 / 播放 / 刷新 / 诊断 / 关于, every row
@@ -66,16 +68,32 @@ data class SettingsFacts(
  *
  * Kept as a pure map (instead of relying only on the activity stack) so the contract is asserted by a
  * test and can be shown as the on-screen hint a tester reads in a screenshot.
+ *
+ * P3-7 item 1: the map is now a **view onto** `:core:ui`'s [BackHierarchy] rather than a second copy of
+ * the same three rows. The settings page keeps its own narrow enum (it only ever talks about its own
+ * three screens), while the app-wide table has one owner, so `docs/02 §8.1` cannot be right in one
+ * place and wrong in the other.
  */
 enum class SettingsScreen { BROWSE, SETTINGS, DIAGNOSTICS }
 
 object SettingsHierarchy {
 
     /** The screen BACK goes to, or `null` for the top of our stack (the browse screen). */
-    fun parentOf(screen: SettingsScreen): SettingsScreen? = when (screen) {
-        SettingsScreen.DIAGNOSTICS -> SettingsScreen.SETTINGS
-        SettingsScreen.SETTINGS -> SettingsScreen.BROWSE
-        SettingsScreen.BROWSE -> null
+    fun parentOf(screen: SettingsScreen): SettingsScreen? =
+        BackHierarchy.parentOf(screen.toTvScreen())?.toSettingsScreen()
+
+    private fun SettingsScreen.toTvScreen(): TvScreen = when (this) {
+        SettingsScreen.BROWSE -> TvScreen.BROWSE
+        SettingsScreen.SETTINGS -> TvScreen.SETTINGS
+        SettingsScreen.DIAGNOSTICS -> TvScreen.DIAGNOSTICS
+    }
+
+    /** `null` for a parent outside the settings stack; no such screen exists today, so it cannot lie. */
+    private fun TvScreen.toSettingsScreen(): SettingsScreen? = when (this) {
+        TvScreen.BROWSE -> SettingsScreen.BROWSE
+        TvScreen.SETTINGS -> SettingsScreen.SETTINGS
+        TvScreen.DIAGNOSTICS -> SettingsScreen.DIAGNOSTICS
+        else -> null
     }
 }
 

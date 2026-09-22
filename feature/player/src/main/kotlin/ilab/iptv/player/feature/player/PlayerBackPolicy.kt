@@ -13,10 +13,18 @@ sealed interface BackAction {
 /**
  * The two-level back state machine of P1-4 item 4 ("信息条显示时返回=收起信息条，再返回=退出播放").
  *
- * It is a state machine and not a one-liner over `infoBar.visible`, because the rule is about what
- * the user has already dismissed: a failure overlay is equally a "level", and after the first BACK
- * the screen is immersive even if the bar blinks back on. Keeping the state here means the two
- * screens of BACK cannot drift apart, and the sequence is unit-tested end to end.
+ * It is a state machine and not a one-liner over `infoBar.visible`, because the rule is about what the
+ * user has already dismissed: after the first BACK the screen is immersive even if the bar blinks back
+ * on. Keeping the state here means the two halves of BACK cannot drift apart, and the sequence is
+ * unit-tested end to end.
+ *
+ * P3-7 item 1 (audit correction): the level is **the info bar**, and only the info bar. This class
+ * used to claim in a comment that the failure overlay was "equally a level", while nothing in
+ * `PlayerActivity` ever armed one — the code and its own documentation disagreed. `docs/02 §8.2`
+ * freezes the rule as "信息条可见 → 先收起信息条；再按 → 回浏览页", and the failure card is not
+ * dismissible at all (it is a status the screen is in, with 重试 on it), so a BACK that lands while
+ * the card is up and the bar is down **leaves the player** — the honest reading of the frozen rule,
+ * pinned by `PlayerBackPolicyTest`.
  */
 class PlayerBackPolicy {
 

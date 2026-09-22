@@ -95,11 +95,18 @@ class SearchActivity : ComponentActivity() {
         when (keyCode) {
             KeyEvent.KEYCODE_BACK -> {
                 // First BACK clears what was typed (the common "oops"), the second leaves the screen.
-                if (input.isEmpty) return super.onKeyDown(keyCode, event)
-                input.clear()
-                zone = Zone.KEYPAD
-                apply()
-                return true
+                // P3-7 item 1: the rule lives in SearchBackPolicy so the audit table and the code are
+                // the same statement, and a test pins both halves.
+                when (SearchBackPolicy.decide(input.text)) {
+                    SearchBackAction.CLEAR_QUERY -> {
+                        input.clear()
+                        zone = Zone.KEYPAD
+                        apply()
+                        return true
+                    }
+
+                    SearchBackAction.LEAVE_SCREEN -> return super.onKeyDown(keyCode, event)
+                }
             }
 
             KeyEvent.KEYCODE_DPAD_UP -> return moveCursor(KeypadMove.UP)

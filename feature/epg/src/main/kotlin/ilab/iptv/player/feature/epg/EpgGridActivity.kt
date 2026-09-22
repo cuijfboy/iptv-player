@@ -5,6 +5,7 @@ import android.content.pm.ApplicationInfo
 import android.os.Bundle
 import android.widget.TextView
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
@@ -43,6 +44,13 @@ class EpgGridActivity : ComponentActivity() {
     private var lastState: EpgGridUiState? = null
     private var requestedChannelId: Long? = null
     private var focusedChannelId: Long? = null
+
+    /**
+     * The detail layer is a dialog window, so Android closes it before this Activity sees BACK. The
+     * reference is kept anyway (P3-7 items 1/4): the callback below is the fallback for the window
+     * ordering the dialog cannot guarantee, and closing it must put focus back on the grid.
+     */
+    private var detailDialog: AlertDialog? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -90,6 +98,24 @@ class EpgGridActivity : ComponentActivity() {
                 grid.requestFocus()
             }
         }
+
+        // P3-7 item 1: the grid's only in-page level is the detail layer; the rule is stated in
+        // EpgBackPolicy and unit-tested, and this callback is what makes it true even if the dialog
+        // window did not consume the press.
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    when (EpgBackPolicy.decide(detailDialog?.isShowing == true)) {
+                        EpgBackAction.CLOSE_DETAIL -> detailDialog?.dismiss()
+                        EpgBackAction.LEAVE_SCREEN -> {
+                            isEnabled = false
+                            onBackPressedDispatcher.onBackPressed()
+                        }
+                    }
+                }
+            },
+        )
     }
 
     override fun onResume() {
@@ -134,13 +160,19 @@ class EpgGridActivity : ComponentActivity() {
                 append(it)
             }
         }
-        AlertDialog.Builder(this)
+        detailDialog = AlertDialog.Builder(this)
             .setTitle(detail.title)
             .setMessage(body)
             .setPositiveButton(R.string.epg_detail_watch) { _, _ ->
                 startActivity(PlayerContract.intent(this, channelId))
             }
             .setNegativeButton(R.string.epg_detail_close, null)
+            // P3-7 item 2: leaving the detail layer must leave the remote where it was — on the grid,
+            // on the same row and programme.
+            .setOnDismissListener {
+                detailDialog = null
+                grid.requestFocus()
+            }
             .show()
     }
 

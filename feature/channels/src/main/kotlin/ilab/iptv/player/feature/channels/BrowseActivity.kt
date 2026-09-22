@@ -13,6 +13,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
+import androidx.core.view.doOnLayout
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -174,11 +175,12 @@ class BrowseActivity : ComponentActivity() {
             this,
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
-                    if (lastState.manageActive) {
-                        viewModel.toggleManage()
-                    } else {
-                        isEnabled = false
-                        onBackPressedDispatcher.onBackPressed()
+                    when (BrowseBackPolicy.decide(lastState.manageActive)) {
+                        BrowseBackAction.EXIT_MANAGE_MODE -> viewModel.toggleManage()
+                        BrowseBackAction.LEAVE_SCREEN -> {
+                            isEnabled = false
+                            onBackPressedDispatcher.onBackPressed()
+                        }
                     }
                 }
             },
@@ -244,6 +246,14 @@ class BrowseActivity : ComponentActivity() {
         )
         frameRate.reset()
         frameRate.start()
+        // P3-7 item 4: this screen is the app's hub — the player, the EPG grid, search and settings all
+        // come back here — so it is the one screen where "focus was lost in the background" would strand
+        // the remote. The catalog can also re-emit while the screen is stopped, which re-submits the
+        // adapter's list. Re-arm only when nothing on this Activity holds focus, so a returning user is
+        // not yanked away from a row they had already chosen.
+        if (window.decorView.findFocus() == null) {
+            list.post { restoreFocusOrFirstRow(focused?.channelId) }
+        }
     }
 
     override fun onPause() {
@@ -549,17 +559,13 @@ class BrowseActivity : ComponentActivity() {
      */
     private fun restoreFocusOrFirstRow(channelId: Long?) {
         val rows = adapter.currentList
-        val position = when {
-            channelId != null -> rows.indexOfFirst {
-                it is ChannelListRow.ChannelItem && it.channelId == channelId
-            }
-
-            else -> -1
-        }
-        val target = if (position >= 0) position else rows.indexOfFirst { it is ChannelListRow.ChannelItem }
-        if (target < 0) return
+        val target = ChannelFocusTarget.positionOf(rows, channelId)
+        if (target == ChannelFocusTarget.NO_ROW) return
         list.scrollToPosition(target)
-        list.post { list.findViewHolderForAdapterPosition(target)?.itemView?.requestFocus() }
+        // P3-7 item 4: `doOnLayout` instead of `post`, because the row only exists after the layout
+        // pass that `scrollToPosition` just requested. With a bare `post` a recreated window could
+        // still find no holder, leave focus nowhere, and strand the remote on a screen with no cursor.
+        list.doOnLayout { list.findViewHolderForAdapterPosition(target)?.itemView?.requestFocus() }
     }
 
     /**
