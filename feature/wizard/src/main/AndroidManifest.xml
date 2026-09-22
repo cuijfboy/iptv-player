@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="MissingLeanbackLauncher">
+
+    <!--
+      Same reason as the other feature modules: lint reads a library manifest on its own, so the TV
+      hardware story has to be repeated here even though `:app` already declares it.
+    -->
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+
+    <application>
+
+        <!--
+          P2-9: the first-run wizard (docs/02 §8.1's `WizardActivity（仅首次）`).
+
+          Opened by `:app`'s launcher through `WizardContract.ACTION_WIZARD` (action + setPackage), so
+          MainActivity never needs this class on its compile path. The filter has to be declared for
+          the implicit action to resolve, which is also why `exported="true"` is required — the same
+          trade-off the browse and settings screens already document, and the one QA can use to drive
+          this screen from adb.
+        -->
+        <activity
+            android:name=".WizardActivity"
+            android:exported="true"
+            android:screenOrientation="landscape">
+            <intent-filter>
+                <action android:name="ilab.iptv.player.action.WIZARD" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+</manifest>

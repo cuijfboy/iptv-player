@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.Data
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -92,6 +93,10 @@ class RefreshWorker(
             // The notification is the progress display: one update per pipeline phase (deep/score/select
             // emit their own), which is also how "阶段" reaches the user (docs/04 P2-5 item 2).
             postForeground(RefreshNotificationContent.of(progress))
+            // P2-9: the same frame, published to WorkManager so a screen can render the run instead
+            // of only the notification (the wizard's 更新 step observes it). Purely additive: it
+            // writes progress data and changes neither the run nor what this worker answers.
+            publishProgress(progress)
         }
 
         if (result is RefreshRunResult.Completed) {
@@ -104,6 +109,29 @@ class RefreshWorker(
             runAttempt = runAttemptCount,
             maxAttempts = RefreshWorkSpec.MAX_ATTEMPTS,
         )
+    }
+
+    /**
+     * Publish one progress frame as `WorkInfo.progress`.
+     *
+     * A failure here is not a reason to lose the run: `setProgress` throws only when the worker or
+     * its WorkManager is gone, and the refresh (and its notification) is the thing that matters.
+     * Swallowing a `CancellationException` would be a bug, so that one is rethrown.
+     */
+    private suspend fun publishProgress(progress: ilab.iptv.player.core.model.RefreshProgress) {
+        try {
+            setProgress(
+                workDataOf(
+                    RefreshWorkOutcome.KEY_PHASE to progress.phase.name,
+                    RefreshWorkOutcome.KEY_DONE to progress.done,
+                    RefreshWorkOutcome.KEY_TOTAL to progress.total,
+                ),
+            )
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            android.util.Log.w(TAG, "refresh progress could not be published", e)
+        }
     }
 
     /**

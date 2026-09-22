@@ -5,6 +5,11 @@
     <string name="browse_frames">帧率：%1$d 帧 / p50 %2$.1fms / p95 %3$.1fms / max %4$.1fms / %5$.1f fps / 超预算 %6$d 帧</string>
     <string name="browse_summary">频道 %1$d / 分组 %2$d / 流 %3$d\n%4$s</string>
     <string name="browse_focus">焦点：%1$d %2$s</string>
+    <!-- P2-9: the empty state (a wizard run that skipped 更新, or a refresh whose sources all failed)
+         says what to do instead of only showing three zeroes. -->
+    <string name="browse_empty">频道表是空的：请用上面的「导入播放列表」导入本地清单，或到设置 → 源管理里加订阅后刷新</string>
+    <!-- P2-9 开看: the one-shot hint the wizard's hand-over shows. -->
+    <string name="browse_first_play_hint">按 OK 播放</string>
     <string name="browse_import_action">导入播放列表</string>
     <string name="browse_sources_action">源管理</string>
     <string name="browse_settings_action">设置</string>

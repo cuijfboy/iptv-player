@@ -31,7 +31,19 @@
         <activity
             android:name=".BrowseActivity"
             android:exported="true"
-            android:screenOrientation="landscape" />
+            android:screenOrientation="landscape">
+            <!--
+              P2-9: the launcher and the first-run wizard both open this screen through
+              `BrowseContract.ACTION_BROWSE` (action + setPackage) instead of referencing the class,
+              so `:app` keeps the "no feature class on my compile path" property and the wizard's 开看
+              step can carry a hint with the intent.
+            -->
+            <intent-filter>
+                <action android:name="ilab.iptv.player.action.BROWSE" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
 
         <!--
           P3-2 search screen. Same reasoning as BrowseActivity for `exported="true"`: QA drives the

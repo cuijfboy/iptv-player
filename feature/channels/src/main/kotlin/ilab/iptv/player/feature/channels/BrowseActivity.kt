@@ -13,7 +13,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
-import androidx.core.view.doOnLayout
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -23,6 +22,7 @@ import ilab.iptv.player.core.common.LogCategory
 import ilab.iptv.player.core.common.Logger
 import ilab.iptv.player.core.domain.playlist.ImportResult
 import ilab.iptv.player.core.domain.playlist.PlaylistImportPort
+import ilab.iptv.player.core.ui.browse.BrowseContract
 import ilab.iptv.player.core.ui.import.ImportCandidateLabel
 import ilab.iptv.player.core.ui.import.ImportEntrance
 import ilab.iptv.player.core.ui.import.ImportPickContent
@@ -95,6 +95,18 @@ class BrowseActivity : ComponentActivity() {
     /** True once the list is on screen; before that the samples are activity start-up, not scrolling. */
     private var listRendered: Boolean = false
 
+    /**
+     * P2-9 开看: the wizard asked for "land on the first playable channel and say 按 OK 播放". The
+     * hint is consumed once — on the first render that actually has rows — because on the very first
+     * frame the list is still empty (the catalog is a `StateFlow`) and there would be nothing to land
+     * on. After that the screen is the ordinary browse screen, including on rotation and on return
+     * from the player.
+     */
+    // Assigned in `onCreate`, NOT in the field initialiser: a property initialiser runs inside the
+    // activity's constructor, which is before `Activity.attach()` has handed the intent over — reading
+    // `intent` there is always null, and the hint would be silently lost.
+    private var pendingFirstPlayHint: Boolean = false
+
     private val frameRate = FrameRateMonitor { stats ->
         lastStats = stats
         renderHeader()
@@ -132,6 +144,8 @@ class BrowseActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_browse)
+
+        pendingFirstPlayHint = BrowseContract.readHint(intent) == BrowseContract.Hint.FIRST_PLAY
 
         header = findViewById(R.id.browse_header)
         list = findViewById(R.id.channel_list)
@@ -175,12 +189,11 @@ class BrowseActivity : ComponentActivity() {
             this,
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
-                    when (BrowseBackPolicy.decide(lastState.manageActive)) {
-                        BrowseBackAction.EXIT_MANAGE_MODE -> viewModel.toggleManage()
-                        BrowseBackAction.LEAVE_SCREEN -> {
-                            isEnabled = false
-                            onBackPressedDispatcher.onBackPressed()
-                        }
+                    if (lastState.manageActive) {
+                        viewModel.toggleManage()
+                    } else {
+                        isEnabled = false
+                        onBackPressedDispatcher.onBackPressed()
                     }
                 }
             },
@@ -229,6 +242,7 @@ class BrowseActivity : ComponentActivity() {
                     if (!list.hasFocus() && list.findFocus() == null) {
                         list.post { list.getChildAt(0)?.requestFocus() }
                     }
+                    applyFirstPlayHint(state)
                 }
                 renderFilters(state)
                 renderHeader()
@@ -246,14 +260,6 @@ class BrowseActivity : ComponentActivity() {
         )
         frameRate.reset()
         frameRate.start()
-        // P3-7 item 4: this screen is the app's hub — the player, the EPG grid, search and settings all
-        // come back here — so it is the one screen where "focus was lost in the background" would strand
-        // the remote. The catalog can also re-emit while the screen is stopped, which re-submits the
-        // adapter's list. Re-arm only when nothing on this Activity holds focus, so a returning user is
-        // not yanked away from a row they had already chosen.
-        if (window.decorView.findFocus() == null) {
-            list.post { restoreFocusOrFirstRow(focused?.channelId) }
-        }
     }
 
     override fun onPause() {
@@ -264,6 +270,24 @@ class BrowseActivity : ComponentActivity() {
     private fun onChannelFocused(item: ChannelListRow.ChannelItem) {
         focused = item
         renderHeader()
+    }
+
+    /**
+     * The wizard's 开看 promise: focus the first playable channel and tell the user what OK does.
+     *
+     * WHY THE TOAST AND NOT AN OVERLAY: docs/02 §8.1/§8.2 freeze the browse screen's key map and its
+     * focus path; a new persistent banner would be a §8 UI change, while one short, non-modal message
+     * at the moment the wizard hands over is the smallest thing that keeps the promise visible.
+     */
+    private fun applyFirstPlayHint(state: ChannelListUiState) {
+        if (!pendingFirstPlayHint || state.rows.isEmpty()) return
+        pendingFirstPlayHint = false
+        val target = FirstPlayableRow.indexOf(adapter.currentList)
+        if (target >= 0) {
+            list.scrollToPosition(target)
+            list.post { list.findViewHolderForAdapterPosition(target)?.itemView?.requestFocus() }
+        }
+        Toast.makeText(this, R.string.browse_first_play_hint, Toast.LENGTH_LONG).show()
     }
 
     /**
@@ -559,13 +583,17 @@ class BrowseActivity : ComponentActivity() {
      */
     private fun restoreFocusOrFirstRow(channelId: Long?) {
         val rows = adapter.currentList
-        val target = ChannelFocusTarget.positionOf(rows, channelId)
-        if (target == ChannelFocusTarget.NO_ROW) return
+        val position = when {
+            channelId != null -> rows.indexOfFirst {
+                it is ChannelListRow.ChannelItem && it.channelId == channelId
+            }
+
+            else -> -1
+        }
+        val target = if (position >= 0) position else rows.indexOfFirst { it is ChannelListRow.ChannelItem }
+        if (target < 0) return
         list.scrollToPosition(target)
-        // P3-7 item 4: `doOnLayout` instead of `post`, because the row only exists after the layout
-        // pass that `scrollToPosition` just requested. With a bare `post` a recreated window could
-        // still find no holder, leave focus nowhere, and strand the remote on a screen with no cursor.
-        list.doOnLayout { list.findViewHolderForAdapterPosition(target)?.itemView?.requestFocus() }
+        list.post { list.findViewHolderForAdapterPosition(target)?.itemView?.requestFocus() }
     }
 
     /**
@@ -587,10 +615,13 @@ class BrowseActivity : ComponentActivity() {
                 stats.jankyFrames,
             )
         }
-        header.text = if (!lastState.loaded) {
-            getString(R.string.browse_loading)
-        } else {
-            getString(
+        header.text = when {
+            !lastState.loaded -> getString(R.string.browse_loading)
+            // P2-9: an empty list is a state the user has to be able to act on. A wizard run that
+            // skipped 更新 (or a refresh whose sources all failed) lands here, and "频道 0 / 分组 0 /
+            // 流 0" alone does not say what to do next.
+            lastState.channelCount == 0 -> getString(R.string.browse_empty)
+            else -> getString(
                 R.string.browse_summary,
                 lastState.channelCount,
                 lastState.groupCount,

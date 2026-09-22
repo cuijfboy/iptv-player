@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Header: "第 1 步 / 共 3 步 · 选择源" plus the BACK hint (docs/02 §8.1 返回键层级). -->
+    <string name="wizard_header">第 %1$d 步 / 共 %2$d 步 · %3$s</string>
+    <string name="wizard_step_source">选择源</string>
+    <string name="wizard_step_update">更新频道表</string>
+    <string name="wizard_step_watch">开始看</string>
+    <string name="wizard_hint_back_previous">按返回键回到上一步</string>
+    <string name="wizard_hint_back_exit">按返回键退出向导（下次启动还会出现）</string>
+
+    <!-- Step 1 · 选源 -->
+    <string name="wizard_source_summary">内置聚合源 %1$d 个，已全部启用，更新时会一起刷新。也可以先导入自己的清单或添加订阅。</string>
+    <string name="wizard_source_list_placeholder">正在读取内置源…</string>
+    <string name="wizard_source_subscriptions">已添加订阅：%1$d 个</string>
+    <string name="wizard_source_imported">当前播放列表：%1$s</string>
+    <string name="wizard_source_import_none">还没有导入过自己的清单</string>
+    <string name="wizard_source_skipped">已跳过选源：将直接使用内置聚合源</string>
+    <string name="wizard_source_continue">使用内置源并继续</string>
+    <string name="wizard_source_import">导入本地清单</string>
+    <string name="wizard_source_subscribe">添加订阅</string>
+    <string name="wizard_source_skip">跳过选源</string>
+    <string name="wizard_import_done">已导入 %1$s：%2$d 个频道 / %3$d 条流</string>
+
+    <!-- Step 2 · 更新 -->
+    <string name="wizard_update_idle">还没有更新。更新会拉取上面的源、逐条校验可播放性并写入频道表。</string>
+    <string name="wizard_update_preparing">已排队，等待网络…</string>
+    <string name="wizard_update_running">正在更新：%1$s</string>
+    <string name="wizard_update_running_percent">正在更新：%1$s %2$d%%</string>
+    <string name="wizard_update_done">更新完成：可播放 %1$d 条 / 失败 %2$d 条</string>
+    <string name="wizard_update_done_partial">更新完成（预算内提前结束）：可播放 %1$d 条 / 失败 %2$d 条</string>
+    <string name="wizard_update_failed_run">更新失败：源不可用或网络中断（%1$s）。可以重试。</string>
+    <string name="wizard_update_failed_gave_up">更新失败：多次重试后仍未成功（%1$s）。可以重试，或先跳过。</string>
+    <string name="wizard_update_failed_deferred">更新已推迟：正在播放，稍后自动重试。</string>
+    <string name="wizard_update_failed_unknown">更新结束，但结果无法识别（%1$s）。可以重试。</string>
+    <string name="wizard_update_cancelled">已中断更新：已经写入的数据保留，可以再点更新继续。</string>
+    <string name="wizard_update_skipped">已跳过更新：频道表可能还是空的，稍后可在设置里手动刷新</string>
+    <string name="wizard_update_start">开始更新</string>
+    <string name="wizard_update_retry">重试更新</string>
+    <string name="wizard_update_cancel">中断更新</string>
+    <string name="wizard_update_skip">跳过更新</string>
+    <string name="wizard_phase_unknown">准备中</string>
+    <string name="wizard_phase_fetch">获取源</string>
+    <string name="wizard_phase_parse">解析清单</string>
+    <string name="wizard_phase_normalize">规范化</string>
+    <string name="wizard_phase_dedupe">去重</string>
+    <string name="wizard_phase_shallow">轻量校验</string>
+    <string name="wizard_phase_deep">深度探测</string>
+    <string name="wizard_phase_score">评分</string>
+    <string name="wizard_phase_select">甄选</string>
+    <string name="wizard_phase_persist">写入</string>
+    <string name="wizard_phase_done">完成</string>
+
+    <!-- Step 3 · 开看 -->
+    <string name="wizard_watch_ready">当前有 %1$d 个频道，其中 %2$d 个可播放。进入频道表后焦点会落在第一个可播放频道上，按 OK 播放。</string>
+    <string name="wizard_watch_loading">正在读取频道表…</string>
+    <string name="wizard_watch_empty">还没有可播放的频道：可以导入本地清单，或回到第 2 步更新内置源。</string>
+    <string name="wizard_watch_open">进入频道表（按 OK 播放）</string>
+    <string name="wizard_watch_import">导入本地清单</string>
+    <string name="wizard_watch_skip">跳过，直接进入频道表</string>
+
+    <!-- The shared import dialog (same wording as the browse screen's entrance). -->
+    <string name="wizard_import_title">导入播放列表</string>
+    <string name="wizard_import_hint">当前：%1$s\n投放目录：%2$s\n（adb push 到这个目录即可被列出）</string>
+    <string name="wizard_import_none">没有导入过</string>
+    <string name="wizard_import_pick_saf">用系统文件选择器打开</string>
+    <string name="wizard_import_pick_drop">从投放目录选择</string>
+    <string name="wizard_import_empty">投放目录里没有可用的清单：\n%1$s\n把 M3U/TXT 复制进去，或 adb push 一个文件。</string>
+    <string name="wizard_import_cancel">取消</string>
+    <string name="wizard_import_close">关闭</string>
+    <string name="wizard_import_cancelled">已取消导入</string>
+    <string name="wizard_import_saf_unavailable">这台设备没有系统文件选择器，请用投放目录</string>
+</resources>

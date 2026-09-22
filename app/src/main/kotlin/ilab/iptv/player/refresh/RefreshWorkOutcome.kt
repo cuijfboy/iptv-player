@@ -25,6 +25,24 @@ object RefreshWorkOutcome {
     const val KEY_INTERRUPTED = "interrupted"
     const val KEY_GAVE_UP = "gaveUp"
 
+    /**
+     * P2-9: the counters the wizard's 更新 step reports, plus the failure's short class name.
+     *
+     * They are additive — no existing key changes meaning and the retry policy below is untouched —
+     * but they are what makes "完成：可播放 412 条 / 失败 3 条" and "失败（IOException），可重试"
+     * say something true instead of "完成（细节未知）".
+     */
+    const val KEY_OK_COUNT = "okCount"
+    const val KEY_FAIL_COUNT = "failCount"
+    const val KEY_ERROR = "error"
+
+    /**
+     * P2-9: the progress payload the worker publishes while it runs (`setProgress`), so a screen can
+     * show the run instead of only its notification.
+     */
+    const val KEY_DONE = "done"
+    const val KEY_TOTAL = "total"
+
     const val RESULT_COMPLETED = "completed"
     const val RESULT_DEFERRED = "deferred"
     const val RESULT_GAVE_UP = "gaveUp"
@@ -36,6 +54,8 @@ object RefreshWorkOutcome {
                     .putString(KEY_RESULT, RESULT_COMPLETED)
                     .putString(KEY_PHASE, result.last.phase.name)
                     .putString(KEY_INTERRUPTED, result.interrupted?.reason?.name)
+                    .putInt(KEY_OK_COUNT, result.last.okCount)
+                    .putInt(KEY_FAIL_COUNT, result.last.failCount)
                     .build(),
             )
 
@@ -56,6 +76,7 @@ object RefreshWorkOutcome {
                     Data.Builder()
                         .putString(KEY_RESULT, RESULT_GAVE_UP)
                         .putBoolean(KEY_GAVE_UP, true)
+                        .putString(KEY_ERROR, result.error::class.simpleName)
                         .build(),
                 )
             }

@@ -17,8 +17,12 @@ import ilab.iptv.player.core.data.playlist.LocalPlaylistImportRepository
 import ilab.iptv.player.core.data.playlist.PlaylistFileSystem
 import ilab.iptv.player.core.data.playlist.RememberedPlaylistSource
 import ilab.iptv.player.core.data.playlist.UriPermissionStore
+import ilab.iptv.player.core.data.wizard.BuiltInSourceCatalogImpl
+import ilab.iptv.player.core.data.wizard.SharedPrefsFirstRunStore
 import ilab.iptv.player.core.domain.playlist.ImportFolders
 import ilab.iptv.player.core.domain.playlist.PlaylistImportPort
+import ilab.iptv.player.core.domain.wizard.BuiltInSourceCatalog
+import ilab.iptv.player.core.domain.wizard.FirstRunStore
 import javax.inject.Singleton
 
 /**
@@ -82,4 +86,18 @@ object DataModule {
     @Singleton
     fun provideUriPermissionStore(@ApplicationContext context: Context): UriPermissionStore =
         AndroidUriPermissionStore(context.contentResolver)
+
+    /**
+     * P2-9 item 1: the "wizard already handled" flag. Bound here (and not in `:app`) because its
+     * implementation is a small Android store, exactly like the other three seams above; the router
+     * and the wizard screen both consume the `:core:domain` interface.
+     */
+    @Provides
+    @Singleton
+    fun provideFirstRunStore(store: SharedPrefsFirstRunStore): FirstRunStore = store
+
+    /** P2-9 item 2 ①: the built-in aggregate catalogue, for the wizard's 选源 list. */
+    @Provides
+    @Singleton
+    fun provideBuiltInSourceCatalog(catalog: BuiltInSourceCatalogImpl): BuiltInSourceCatalog = catalog
 }

@@ -81,4 +81,36 @@ class RefreshWorkOutcomeTest {
         assertThat(maxAttempts).isEqualTo(3)
         assertThat(RefreshWorkSpec.BACKOFF_MS * maxAttempts).isEqualTo(90L * 60_000L)
     }
+
+    /**
+     * P2-9: the 更新 step reads the payload to tell "the update worked" from "the job succeeded", so
+     * the two counters have to actually be in it. The retry policy above is unchanged — these keys are
+     * additive, which is why this test asserts the values rather than the shape.
+     */
+    @Test
+    fun `a completed run reports the counters the wizard shows`() {
+        val result = resultOf(
+            RefreshRunResult.Completed(
+                frame(RefreshPhase.DONE, done = 415, total = 415, ok = 412, fail = 3),
+                interrupted = null,
+            ),
+            attempt = 0,
+        )
+
+        val data = (result as ListenableWorker.Result.Success).outputData
+        assertThat(data.getInt(RefreshWorkOutcome.KEY_OK_COUNT, -1)).isEqualTo(412)
+        assertThat(data.getInt(RefreshWorkOutcome.KEY_FAIL_COUNT, -1)).isEqualTo(3)
+    }
+
+    /** P2-9: "失败给可读提示" needs the failure's class name in the payload, not only in the log. */
+    @Test
+    fun `giving up names the failure`() {
+        val last = resultOf(
+            RefreshRunResult.Failed(IllegalStateException("boom")),
+            attempt = maxAttempts - 1,
+        )
+
+        val data = (last as ListenableWorker.Result.Success).outputData
+        assertThat(data.getString(RefreshWorkOutcome.KEY_ERROR)).isEqualTo("IllegalStateException")
+    }
 }
