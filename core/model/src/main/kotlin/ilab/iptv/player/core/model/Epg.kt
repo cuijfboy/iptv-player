@@ -108,10 +108,15 @@ data class EpgSourceStatus(
  * `byId` is keyed on the *source's* channel attribute (`tvg-id`), `byNameKey` on the normalized
  * display name of an XMLTV `<channel>` — exactly the two keys the first two match tiers need. Both
  * map to the XMLTV channel id, which is what `programme.epg_channel_id` stores.
+ *
+ * `byNameKey` maps to a **list**: a real guide declares one name more than once, and the ids disagree
+ * about whether they carry programmes (EPG-BIND: `CCTV2` = `561310` has none, `CCTV-2 财经` = `545933`
+ * has 274; 52 names are declared 2–3 times). Keeping only the first id made "which id does this name
+ * mean" a decision the index took by accident; every id is now a candidate for the binding choice.
  */
 data class EpgChannelIndex(
     val byId: Map<String, String> = emptyMap(),
-    val byNameKey: Map<String, String> = emptyMap(),
+    val byNameKey: Map<String, List<String>> = emptyMap(),
 ) {
     val size: Int get() = byId.size + byNameKey.size
 }

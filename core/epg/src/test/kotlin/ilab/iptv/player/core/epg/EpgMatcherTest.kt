@@ -20,10 +20,10 @@ class EpgMatcherTest {
     private val index = EpgChannelIndex(
         byId = mapOf("CCTV1.cn" to "CCTV1.cn", "CCTV2.cn" to "CCTV2.cn", "hunan.cn" to "hunan.cn"),
         byNameKey = mapOf(
-            "cctv-1" to "CCTV1.cn",
-            "cctv-1综合" to "CCTV1.cn",
-            "cctv-2财经" to "CCTV2.cn",
-            "湖南卫视" to "hunan.cn",
+            "cctv-1" to listOf("CCTV1.cn"),
+            "cctv-1综合" to listOf("CCTV1.cn"),
+            "cctv-2财经" to listOf("CCTV2.cn"),
+            "湖南卫视" to listOf("hunan.cn"),
         ),
     )
 
@@ -96,7 +96,7 @@ class EpgMatcherTest {
         // target is a guide *name* (the public guide's ids are per-source numbers).
         val report = matcher.match(
             listOf(channel(id = 9, name = "央视新闻", group = ChannelGroup.CCTV)),
-            index.copy(byNameKey = index.byNameKey + ("cctv-13新闻" to "CCTV13.cn")),
+            index.copy(byNameKey = index.byNameKey + ("cctv-13新闻" to listOf("CCTV13.cn"))),
         )
         val hit = report.hits.single()
         assertThat(hit.type).isEqualTo(EpgMatchType.ALIAS)
@@ -112,7 +112,7 @@ class EpgMatcherTest {
         val report = matcher.match(
             listOf(channel(id = 11, name = "福建东南卫视 高清", group = ChannelGroup.SATELLITE)),
             index.copy(
-                byNameKey = index.byNameKey + ("东南卫视" to "dndw.cn"),
+                byNameKey = index.byNameKey + ("东南卫视" to listOf("dndw.cn")),
                 byId = index.byId + ("dndw.cn" to "dndw.cn"),
             ),
         )
@@ -130,7 +130,7 @@ class EpgMatcherTest {
         val traditional = EpgMatcher(aliases = EpgAliases.EMPTY)
         val report = traditional.match(
             listOf(channel(id = 21, name = "澳视澳门", group = ChannelGroup.HK_MO_TW)),
-            EpgChannelIndex(byId = emptyMap(), byNameKey = mapOf("澳視澳門" to "mo.id")),
+            EpgChannelIndex(byId = emptyMap(), byNameKey = mapOf("澳視澳門" to listOf("mo.id"))),
         )
         val hit = report.hits.single()
         assertThat(hit.type).isEqualTo(EpgMatchType.NAME_FUZZY)
@@ -146,7 +146,10 @@ class EpgMatcherTest {
         // rule now does it with an empty alias table, which is the point of preferring a rule.
         val index = EpgChannelIndex(
             byId = emptyMap(),
-            byNameKey = mapOf("鳳凰衛視中文台" to "phoenix.cn", "鳳凰衛視資訊台" to "phoenix.info"),
+            byNameKey = mapOf(
+                "鳳凰衛視中文台" to listOf("phoenix.cn"),
+                "鳳凰衛視資訊台" to listOf("phoenix.info"),
+            ),
         )
         val report = EpgMatcher(aliases = EpgAliases.EMPTY).match(
             listOf(
@@ -182,11 +185,11 @@ class EpgMatcherTest {
         val guide = EpgChannelIndex(
             byId = emptyMap(),
             byNameKey = mapOf(
-                "中天綜合台" to "cti.zh",
-                "中天娛樂台" to "cti.yl",
-                "中天亞洲台" to "cti.yz",
-                "黃金翡翠台" to "tvb.gold",
-                "翡翠台" to "tvb.jade",
+                "中天綜合台" to listOf("cti.zh"),
+                "中天娛樂台" to listOf("cti.yl"),
+                "中天亞洲台" to listOf("cti.yz"),
+                "黃金翡翠台" to listOf("tvb.gold"),
+                "翡翠台" to listOf("tvb.jade"),
             ),
         )
         val report = matcher.match(
@@ -214,7 +217,7 @@ class EpgMatcherTest {
         // `CCTV5`'s guide, and `CCTV5` must never take `CCTV5+`'s.
         val index = EpgChannelIndex(
             byId = emptyMap(),
-            byNameKey = mapOf("cctv5" to "cctv5.id", "cctv5plus" to "cctv5plus.id"),
+            byNameKey = mapOf("cctv5" to listOf("cctv5.id"), "cctv5plus" to listOf("cctv5plus.id")),
         )
         val report = matcher.match(
             listOf(
@@ -228,6 +231,85 @@ class EpgMatcherTest {
         assertThat(report.hits.single { it.channelId == 2L }.epgChannelId).isEqualTo("cctv5plus.id")
         // Nothing in the guide is called CCTV4K → it is a miss, not a silent bind to `cctv5`.
         assertThat(report.misses.map { it.channelId }).containsExactly(3L)
+    }
+
+    @Test
+    fun `a zero-programme stub is offered as a candidate and loses to the column id`() {
+        // The EPG-BIND root cause in miniature: the guide declares `CCTV2` (a stub with no
+        // programmes) and the real data under `CCTV-2 财经`. The matcher's job is to offer *both* —
+        // before this round it `continue`d on the name hit and the column id never reached the
+        // decision. Picking by window depth is `EpgBindingPreference`'s job, exercised here so the
+        // matcher's output is shown to be sufficient for the fix.
+        val guide = EpgChannelIndex(
+            byId = emptyMap(),
+            byNameKey = mapOf(
+                "cctv2" to listOf("561310"),
+                "cctv-2财经" to listOf("545933"),
+            ),
+        )
+        val report = matcher.match(
+            listOf(channel(id = 1, name = "CCTV2", group = ChannelGroup.CCTV)),
+            guide,
+        )
+        assertThat(report.hits.map { it.epgChannelId }).containsExactly("561310", "545933")
+        assertThat(report.hits.map { it.type }).containsExactly(
+            EpgMatchType.NAME_EXACT,
+            EpgMatchType.NAME_FUZZY,
+        )
+        assertThat(report.misses).isEmpty()
+
+        val candidates = report.hits.map { hit ->
+            EpgBindingCandidate(
+                channelId = hit.channelId,
+                epgChannelId = hit.epgChannelId,
+                type = hit.type,
+                matchedOn = hit.matchedOn,
+                guideKey = hit.guideKey,
+                sourceOrder = 0,
+            )
+        }
+        val chosen = EpgBindingPreference.choose(candidates) { id -> if (id == "545933") 274 else 0 }
+        assertThat(chosen!!.epgChannelId).isEqualTo("545933")
+    }
+
+    @Test
+    fun `a name hit no longer hides the alias tier`() {
+        // The short circuit that made "补别名也修不好": the channel matches a guide stub by name, so
+        // the alias tier never ran. It runs now, and its target is a second candidate.
+        val aliased = EpgMatcher(aliases = EpgAliases(mapOf("CCTV2" to "中央二套财经")))
+        val guide = EpgChannelIndex(
+            byId = emptyMap(),
+            byNameKey = mapOf(
+                "cctv2" to listOf("stub.id"),
+                "中央二套财经" to listOf("thick.id"),
+            ),
+        )
+        val report = aliased.match(
+            listOf(channel(id = 1, name = "CCTV2", group = ChannelGroup.CCTV)),
+            guide,
+        )
+        assertThat(report.hits.map { it.epgChannelId to it.type }).containsExactly(
+            "stub.id" to EpgMatchType.NAME_EXACT,
+            "thick.id" to EpgMatchType.ALIAS,
+        )
+        assertThat(report.hits.first { it.epgChannelId == "thick.id" }.matchedOn).isEqualTo("cctv2")
+    }
+
+    @Test
+    fun `a guide name declared twice offers both ids`() {
+        // 52 groups of the shipped guide declare one name under several ids (东方卫视 → three). The
+        // index kept only the first; every id is a candidate now, so the depth rule can choose.
+        val guide = EpgChannelIndex(
+            byId = emptyMap(),
+            byNameKey = mapOf("东方卫视" to listOf("thin.cn", "deep.cn", "empty.cn")),
+        )
+        val report = matcher.match(
+            listOf(channel(id = 1, name = "东方卫视", group = ChannelGroup.SATELLITE)),
+            guide,
+        )
+        assertThat(report.hits.map { it.epgChannelId })
+            .containsExactly("thin.cn", "deep.cn", "empty.cn").inOrder()
+        assertThat(report.hits.map { it.type }.toSet()).containsExactly(EpgMatchType.NAME_EXACT)
     }
 
     @Test

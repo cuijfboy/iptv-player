@@ -228,7 +228,7 @@ class XmltvPullParserTest {
         )
         val index = epgChannelIndex(collected.channels)
         assertThat(index.byId).containsEntry("CCTV1.cn", "CCTV1.cn")
-        assertThat(index.byNameKey).containsEntry("cctv-1", "CCTV1.cn")
-        assertThat(index.byNameKey).containsEntry("cctv-2财经", "CCTV2.cn")
+        assertThat(index.byNameKey).containsEntry("cctv-1", listOf("CCTV1.cn"))
+        assertThat(index.byNameKey).containsEntry("cctv-2财经", listOf("CCTV2.cn"))
     }
 }

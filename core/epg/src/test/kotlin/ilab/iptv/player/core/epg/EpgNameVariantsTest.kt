@@ -55,14 +55,14 @@ class EpgNameVariantsTest {
 
     @Test
     fun `the script fold is applied to the guide side too and the raw form stays first`() {
-        val index = EpgNameVariants.index(linkedMapOf("澳視澳門" to "mo.id"))
+        val index = EpgNameVariants.index(linkedMapOf("澳視澳門" to listOf("mo.id")))
         // A Simplified playlist key finds the Traditional guide name...
-        val hit = index["澳视澳门"]!!
+        val hit = index["澳视澳门"]!!.single()
         assertThat(hit.epgChannelId).isEqualTo("mo.id")
         // ...and the reported guide key is the guide's own spelling, never the folded one: folding is a
         // lookup key, the display name the user sees is untouched.
         assertThat(hit.guideKey).isEqualTo("澳視澳門")
-        assertThat(index["澳視澳門"]!!.epgChannelId).isEqualTo("mo.id")
+        assertThat(index["澳視澳門"]!!.single().epgChannelId).isEqualTo("mo.id")
         // The least-mutated form is still the first variant, so a hit explains the smallest change.
         assertThat(EpgNameVariants.variants("澳視澳門").first()).isEqualTo("澳視澳門")
         assertThat(EpgNameVariants.variants("澳視澳門")).contains("澳视澳门")
@@ -94,25 +94,53 @@ class EpgNameVariantsTest {
     }
 
     @Test
-    fun `the index expands both sides and the first guide name wins`() {
+    fun `the numbered handle folds a guide column name onto the playlist's bare number`() {
+        // The EPG-BIND root cause: the mainland guide spells the channel by its column (`CCTV-2 财经`)
+        // and the playlist by the number (`CCTV2`). Neither the name key nor punctuation can bridge
+        // them, so both must reduce to the same handle — otherwise the playlist's only match is the
+        // guide's zero-programme `CCTV2` stub.
+        assertThat(EpgNameVariants.variants("cctv-2财经")).contains("cctv2")
+        assertThat(EpgNameVariants.variants("cctv2")).containsExactly("cctv2")
+        assertThat(EpgNameVariants.variants("cctv-16奥林匹克")).contains("cctv16")
+        assertThat(EpgNameVariants.variants("cctv-5+体育赛事")).contains("cctv5+")
+        // The handle is a lookup form, not a canonical rewrite: `canonical` stays the four P3-5 rules
+        // (the ones a hit is explained with), so nothing that pinned those numbers moves.
+        assertThat(EpgNameVariants.canonical("cctv-2财经")).isEqualTo("cctv2财经")
+    }
+
+    @Test
+    fun `the numbered handle never folds a different channel onto the plain number`() {
+        // The same "错配比不匹配更糟" boundary as the feed-marker rule: a Latin tail is a different
+        // channel (`CCTV4K` is not `CCTV4`), and a bracketed region marker is a different feed.
+        assertThat(EpgNameVariants.variants("cctv4k")).containsExactly("cctv4k")
+        assertThat(EpgNameVariants.variants("cctv-8k")).containsExactly("cctv-8k", "cctv8k")
+        assertThat(EpgNameVariants.variants("cctv-4(亚洲)")).doesNotContain("cctv4")
+        assertThat(EpgNameVariants.variants("cctv5+")).doesNotContain("cctv5")
+    }
+
+    @Test
+    fun `the index expands both sides and keeps every id a variant stands for`() {
         val index = EpgNameVariants.index(
             linkedMapOf(
-                "cctv1" to "id.plain",
-                "cctv1高清" to "id.hd",
-                "cctv5+体育赛事" to "id.plus",
+                "cctv1" to listOf("id.plain"),
+                "cctv1高清" to listOf("id.hd"),
+                "cctv5+体育赛事" to listOf("id.plus"),
             ),
         )
-        assertThat(index["cctv1"]!!.epgChannelId).isEqualTo("id.plain")
-        assertThat(index["cctv1高清"]!!.epgChannelId).isEqualTo("id.hd")
+        // Two guide names reduce to `cctv1`, so both ids are candidates, in guide order. Before
+        // EPG-BIND the first one silently shadowed the second.
+        assertThat(index["cctv1"]!!.map { it.epgChannelId })
+            .containsExactly("id.plain", "id.hd").inOrder()
+        assertThat(index["cctv1高清"]!!.map { it.epgChannelId }).containsExactly("id.hd")
         // The guide side is folded too, so a playlist spelling without the marker finds the HD entry.
         assertThat(index["cctv5plus"]).isNull()
-        assertThat(index["cctv5+体育赛事"]!!).isEqualTo(
+        assertThat(index["cctv5+体育赛事"]!!.single()).isEqualTo(
             EpgNameVariants.VariantHit("id.plus", "cctv5+体育赛事"),
         )
         // The direction that matters in production: the guide writes `CCTV-5+ 体育赛事`, a playlist
         // writes `CCTV5+ 体育赛事` — the guide's un-hyphenated form is registered, so the playlist key
         // finds it without any per-channel entry.
-        val hyphenated = EpgNameVariants.index(linkedMapOf("cctv-5+体育赛事" to "id.hyphen"))
-        assertThat(hyphenated["cctv5+体育赛事"]!!.epgChannelId).isEqualTo("id.hyphen")
+        val hyphenated = EpgNameVariants.index(linkedMapOf("cctv-5+体育赛事" to listOf("id.hyphen")))
+        assertThat(hyphenated["cctv5+体育赛事"]!!.single().epgChannelId).isEqualTo("id.hyphen")
     }
 }

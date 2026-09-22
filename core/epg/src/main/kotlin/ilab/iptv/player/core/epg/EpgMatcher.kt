@@ -42,14 +42,23 @@ data class EpgMiss(
  * The outcome of one match pass. [preserved] are channels whose `MANUAL` binding was left alone
  * (§6.3: a user binding is never overwritten) — reported separately from [hits] on purpose, because
  * counting them as matches would overstate what the automatic chain achieved.
+ *
+ * [hits] holds **one entry per candidate**, and EPG-BIND made that more than one per channel: a
+ * channel can be proposed by several tiers of the same guide (`CCTV2` matches the guide's `CCTV2`
+ * stub by name and its `CCTV-2 财经` entry by the numbered handle). The binding choice is what picks
+ * one; the matcher reports every justification it found.
  */
 data class EpgMatchReport(
     val hits: List<EpgMatchResult>,
     val misses: List<EpgMiss>,
     val preserved: List<Long>,
 ) {
-    /** Coverage of the automatic chain over the channels it was allowed to touch. */
-    val attempted: Int get() = hits.size + misses.size
+    /**
+     * Channels the automatic chain was allowed to touch: one per channel with at least one candidate,
+     * plus every miss. Counted by channel, not by candidate, so adding a tier's second proposal to a
+     * channel does not inflate it.
+     */
+    val attempted: Int get() = hits.distinctBy { it.channelId }.size + misses.size
 }
 
 /**
@@ -67,6 +76,14 @@ data class EpgMatchReport(
  * 4. **alias table** — [EpgAliases], for the names normalization cannot bridge (`央视新闻` →
  *    `CCTV-13 新闻`, `凤凰卫视中文台` → the guide's `凤凰中文`). Alias lookups also try the tier-3
  *    variant keys, so `福建东南卫视 高清` reaches the `福建东南卫视` entry.
+ *
+ * **Every tier is a candidate (EPG-BIND).** The chain used to `continue` on its first hit, so a
+ * channel the guide spelled two ways only ever saw one of them and the alias tier was dead code for
+ * any channel that matched earlier. Each tier now *proposes*; its proposals are deduplicated by guide
+ * id (keeping the earliest tier as the explanation) and handed to `EpgBindingPreference`, which picks
+ * the id with the most programmes in the retention window. That is what turns "the first tier that
+ * hit wins" into "the guide id that actually has data wins" — see
+ * `docs/05-过程记录/43-EPG匹配层候选化.md`.
  *
  * §6.3's ③ (prefix/contains fuzzy) and ⑤ (user manual binding) are deliberately **not** here: the
  * first is a match that can be wrong and is worse than a miss (measured: +4 channels on the shipped
@@ -100,66 +117,84 @@ class EpgMatcher(
                 continue
             }
 
+            // One proposal per guide id, first tier wins the explanation. `LinkedHashMap` (not
+            // `putIfAbsent`, which is API 24 and this module supports API 21) keeps the order stable.
+            val candidates = LinkedHashMap<String, EpgMatchResult>()
+            fun offer(result: EpgMatchResult) {
+                if (result.epgChannelId !in candidates) candidates[result.epgChannelId] = result
+            }
+
             val tvgId = channel.tvgId?.trim()?.takeIf { it.isNotEmpty() }
             val byId = tvgId?.let { index.byId[it] }
-            if (byId != null) {
-                hits += EpgMatchResult(channel.id, byId, EpgMatchType.TVG_ID, matchedOn = tvgId)
-                continue
+            if (tvgId != null && byId != null) {
+                offer(EpgMatchResult(channel.id, byId, EpgMatchType.TVG_ID, matchedOn = tvgId))
             }
 
             val key = channel.nameKey.ifEmpty { nameKey(channel.name) }
-            val byName = key.takeIf { it.isNotEmpty() }?.let { index.byNameKey[it] }
-            if (byName != null) {
-                hits += EpgMatchResult(channel.id, byName, EpgMatchType.NAME_EXACT, matchedOn = key)
-                continue
-            }
-
-            // ③ feed/punctuation-folded name: same key after EpgNameVariants.canonical, reported with
-            // the variant that hit so the fold is visible in `EPG_MATCH_HIT`.
-            val variantHit = variantHit(key, variantIndex)
-            if (variantHit != null) {
-                hits += EpgMatchResult(
-                    channelId = channel.id,
-                    epgChannelId = variantHit.hit.epgChannelId,
-                    type = EpgMatchType.NAME_FUZZY,
-                    matchedOn = variantHit.variant,
-                    guideKey = variantHit.hit.guideKey,
-                )
-                continue
+            if (key.isNotEmpty()) {
+                // ② every id the guide declares under this exact name. More than one is normal: a guide
+                // that lists a name twice (52 such groups on the shipped one) has an id per declaration.
+                for (id in index.byNameKey[key].orEmpty()) {
+                    offer(EpgMatchResult(channel.id, id, EpgMatchType.NAME_EXACT, matchedOn = key))
+                }
+                // ③ feed/punctuation/script/number-folded name: reported with the variant that hit so
+                // the fold is visible in `EPG_MATCH_HIT`.
+                for (hit in variantHits(key, variantIndex)) {
+                    offer(
+                        EpgMatchResult(
+                            channelId = channel.id,
+                            epgChannelId = hit.hit.epgChannelId,
+                            type = EpgMatchType.NAME_FUZZY,
+                            matchedOn = hit.variant,
+                            guideKey = hit.hit.guideKey,
+                        ),
+                    )
+                }
             }
 
             // ④ alias table, on the plain key first and then on the same variant keys — a source that
             // writes `福建东南卫视 高清` must not lose the `福建东南卫视` entry.
             val alias = aliasLookup(channel.name, key)
-            val resolvedAlias = alias?.let { resolveAlias(it.target, index, knownIds, variantIndex) }
-            if (alias != null && resolvedAlias != null) {
-                hits += EpgMatchResult(
-                    channelId = channel.id,
-                    epgChannelId = resolvedAlias.epgChannelId,
-                    type = EpgMatchType.ALIAS,
-                    matchedOn = alias.key,
-                    guideKey = resolvedAlias.guideKey,
-                )
-                continue
+            if (alias != null) {
+                for (resolved in resolveAlias(alias.target, index, knownIds, variantIndex)) {
+                    offer(
+                        EpgMatchResult(
+                            channelId = channel.id,
+                            epgChannelId = resolved.epgChannelId,
+                            type = EpgMatchType.ALIAS,
+                            matchedOn = alias.key,
+                            guideKey = resolved.guideKey,
+                        ),
+                    )
+                }
             }
 
-            misses += EpgMiss(channelId = channel.id, nameKey = key, triedTvgId = tvgId)
+            if (candidates.isEmpty()) {
+                misses += EpgMiss(channelId = channel.id, nameKey = key, triedTvgId = tvgId)
+            } else {
+                hits += candidates.values
+            }
         }
         return EpgMatchReport(hits = hits, misses = misses, preserved = preserved)
     }
 
     /**
-     * The first form of `key` a guide owns, *including the key itself*: the guide side is expanded, so
-     * a guide that writes `CCTV-8K` registers `cctv8k`, and a playlist that writes `CCTV8K` finds it
-     * here — tier 2 could not, because tier 2 compares against the guide's **unfolded** name keys.
+     * Every `(variant, guide channel)` pair the guide can justify for `key`, *including the key
+     * itself*: the guide side is expanded, so a guide that writes `CCTV-8K` registers `cctv8k`, and a
+     * playlist that writes `CCTV8K` finds it here — tier 2 could not, because tier 2 compares against
+     * the guide's **unfolded** name keys. Variants are walked least-mutated first, so the first pair
+     * reported is the smallest change that explains the hit.
      */
-    private fun variantHit(key: String, variantIndex: Map<String, EpgNameVariants.VariantHit>): Hit? {
-        if (key.isEmpty()) return null
+    private fun variantHits(
+        key: String,
+        variantIndex: Map<String, List<EpgNameVariants.VariantHit>>,
+    ): List<Hit> {
+        if (key.isEmpty()) return emptyList()
+        val out = ArrayList<Hit>(4)
         for (variant in EpgNameVariants.variants(key)) {
-            val hit = variantIndex[variant] ?: continue
-            return Hit(variant, hit)
+            for (hit in variantIndex[variant].orEmpty()) out += Hit(variant, hit)
         }
-        return null
+        return out
     }
 
     private data class Hit(val variant: String, val hit: EpgNameVariants.VariantHit)
@@ -180,51 +215,52 @@ class EpgMatcher(
     /**
      * An alias target is either the guide's channel id or a channel name. Trying the id first matters:
      * a name-shaped target that happens to equal some id would otherwise bind to the wrong channel.
+     * Every id the target stands for is returned — an alias does not pick a winner either.
      */
     private fun resolveAlias(
         target: String,
         index: EpgChannelIndex,
         knownIds: Set<String>,
-        variantIndex: Map<String, EpgNameVariants.VariantHit>,
-    ): ResolvedAlias? {
+        variantIndex: Map<String, List<EpgNameVariants.VariantHit>>,
+    ): List<ResolvedAlias> {
         val trimmed = target.trim()
-        if (trimmed.isEmpty()) return null
+        if (trimmed.isEmpty()) return emptyList()
         if (trimmed in knownIds) {
             val byId = index.byId[trimmed]
-            if (byId != null) return ResolvedAlias(byId, guideKey = null)
+            if (byId != null) return listOf(ResolvedAlias(byId, guideKey = null))
             val guideKey = nameKey(trimmed)
-            return ResolvedAlias(index.byNameKey[guideKey] ?: trimmed, guideKey)
+            return listOf(ResolvedAlias(index.byNameKey[guideKey]?.firstOrNull() ?: trimmed, guideKey))
         }
         val guideKey = nameKey(trimmed)
         val byName = index.byNameKey[guideKey]
-        if (byName == null) {
-            // The guide spells the target with a feed marker or punctuation the alias entry dropped:
-            // resolve it through the same variant table tier 3 uses, so one entry keeps working
-            // across sources (`凤凰中文` vs `凤凰中文 高清`).
-            val variant = variantHit(guideKey, variantIndex) ?: return null
-            return ResolvedAlias(variant.hit.epgChannelId, variant.hit.guideKey)
-        }
-        return ResolvedAlias(byName, guideKey)
+        if (byName != null) return byName.map { ResolvedAlias(it, guideKey) }
+        // The guide spells the target with a feed marker or punctuation the alias entry dropped:
+        // resolve it through the same variant table tier 3 uses, so one entry keeps working
+        // across sources (`凤凰中文` vs `凤凰中文 高清`).
+        return variantHits(guideKey, variantIndex)
+            .map { ResolvedAlias(it.hit.epgChannelId, it.hit.guideKey) }
     }
 
     private data class ResolvedAlias(val epgChannelId: String, val guideKey: String?)
 }
 
 /** Every EPG channel id the guide declared, from either half of the index. */
-fun EpgChannelIndex.epgChannelIds(): Set<String> = byId.values.toSet() + byNameKey.values.toSet()
+fun EpgChannelIndex.epgChannelIds(): Set<String> =
+    byId.values.toSet() + byNameKey.values.flatten().toSet()
 
 /**
  * Builds the index from the `<channel>` elements the parser emitted: the id is its own lookup key
  * (XMLTV's `<channel id>` *is* the `tvg-id` the playlist carries), and each display name gets a
- * normalized key. Later duplicates lose — a guide that lists a name twice cannot make the second one
- * shadow the first, and reported order is stable.
+ * normalized key. A name can hold **several** ids and keeps them all in guide order (EPG-BIND): a
+ * guide that lists a name twice has two ids behind it and the binding choice, not this map, decides
+ * which one the channel gets. Reported order stays stable for the tests.
  */
 fun epgChannelIndex(
     channels: List<XmltvChannel>,
     nameKey: (String?) -> String = EpgNameKey::key,
 ): EpgChannelIndex {
     val byId = LinkedHashMap<String, String>(channels.size)
-    val byNameKey = LinkedHashMap<String, String>()
+    val byNameKey = LinkedHashMap<String, List<String>>()
     for (channel in channels) {
         val id = channel.id.trim()
         if (id.isEmpty()) continue
@@ -233,7 +269,9 @@ fun epgChannelIndex(
         if (id !in byId) byId[id] = id
         for (displayName in channel.displayNames) {
             val key = nameKey(displayName)
-            if (key.isNotEmpty() && key !in byNameKey) byNameKey[key] = id
+            if (key.isEmpty()) continue
+            val existing = byNameKey[key].orEmpty()
+            if (id !in existing) byNameKey[key] = existing + id
         }
     }
     return EpgChannelIndex(byId = byId, byNameKey = byNameKey)
