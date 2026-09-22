@@ -47,6 +47,9 @@ import kotlinx.coroutines.launch
  *     `GiveUp` shows the row's user message and ends the session;
  *  5. log `PLAY_FAILOVER` (`from`/`to`/`reason`/`attempt`) and `PLAY_STALL` exactly where docs/03
  *     §3.3 says they belong — the controller, never the engine.
+ *  6. SWITCH-P95-1: hand the policy the *phase* of the failure (`FailoverInput.startupFailure`) and
+ *     give the first `prepare` of a channel that has a backup a shorter window, so a dead main source
+ *     reaches its backup in seconds instead of two full 12 s timeouts.
  *
  * `FailoverInput.attempt` follows the frozen semantics: it is the 1-based ordinal of the *active
  * stream's* failure in this session, and it resets to 1 when the loop moves to another stream. A
@@ -63,12 +66,36 @@ class PlaybackFailoverCoordinator(
     private val scope: CoroutineScope,
     private val limits: FailoverLimits = FailoverLimits(),
     private val tickMs: Long = TICK_MS,
+    /**
+     * §7.5 `EngineTuning.prepareTimeoutMs`: the start-up window of every attempt that is not the
+     * "fast first attempt" below. Unchanged value, unchanged meaning.
+     */
+    private val prepareTimeoutMs: Long = DEFAULT_PREPARE_TIMEOUT_MS,
+    /**
+     * SWITCH-P95-1: the start-up window of the **first** `prepare` of a session whose channel has a
+     * backup. Every later attempt (a retry, or the `prepare` after a switch) keeps the 12 s window on
+     * purpose: once the user is already in a fail-over round, patience is what lets a *slow but alive*
+     * main source (measured 0.7–10 s on the imported lists) come up rather than be lost for good.
+     *
+     * Why a shorter window at all: keeping the 12 s line means a dead main source alone costs the
+     * user 12 s before the backup is even considered — the G7-1 tail (p95 5,953 ms / max 24,940 ms).
+     * The budget is the fail-over criterion minus the measured backup start-up:
+     * `5,000 ms − 729…805 ms (G7-1 §5.5 / G7-2 §4.5) ≈ 4,200 ms`, rounded down to `4,000 ms`.
+     * Data for the other side of the trade (a *slow but alive* main source must not be abandoned):
+     * the delivered 154-channel snapshot is single-stream, so this window is never used there; on the
+     * 571-channel import the measured first frames were 642–2,004 ms (G7-1/G7-2), i.e. 4 s keeps a
+     * ~2× margin. `0` switches the fast window off (every attempt then uses [prepareTimeoutMs]).
+     */
+    private val fastFirstAttemptTimeoutMs: Long = FAST_FIRST_ATTEMPT_TIMEOUT_MS,
 ) {
 
     private var job: Job? = null
     private var switchFromChannelId: Long? = null
     private var switchStartedAtMs = 0L
     private var pendingSwitchFromStreamId: Long? = null
+    private var pendingSwitchStage: String? = null
+    /** SWITCH-P95-1: only the session's very first `prepare` gets the short window. */
+    private var firstPrepareOfSession = true
     private var paused = false
     private var preferPassthrough = true
 
@@ -89,6 +116,8 @@ class PlaybackFailoverCoordinator(
         paused = false
         preferPassthrough = true
         pendingSwitchFromStreamId = null
+        pendingSwitchStage = null
+        firstPrepareOfSession = true
         this.switchFromChannelId = switchedFromChannelId
         switchStartedAtMs = clock.nowMs()
         job = scope.launch { runSession(channel, stream) }
@@ -113,13 +142,18 @@ class PlaybackFailoverCoordinator(
         var stream = initial
         var attempt = 1
         while (currentCoroutineContext().isActive) {
-            watchdog.onPrepareStart(clock.nowMs())
-            val result = port.watch(channel, stream, attempt, preferPassthrough)
+            val candidates = catalog.candidates(channel.id)
+            val firstOfSession = firstPrepareOfSession
+            firstPrepareOfSession = false
+            val timeoutMs = prepareTimeoutFor(attempt, candidates.size, firstOfSession)
+            watchdog.onPrepareStart(clock.nowMs(), timeoutMs)
+            val result = port.watch(channel, stream, attempt, preferPassthrough, timeoutMs)
             val episode = when (result) {
                 is AppResult.Ok -> supervise(channel, stream)
-                is AppResult.Err -> Episode.Failure(result.error)
+                // The engine never reached the first frame: a start-up failure (SWITCH-P95-1).
+                is AppResult.Err -> Episode.Failure(result.error, startup = true)
             }
-            when (val step = act(channel, stream, attempt, episode)) {
+            when (val step = act(channel, stream, attempt, episode, candidates)) {
                 is Step.Reprepare -> {
                     stream = step.stream
                     attempt = step.attempt
@@ -146,9 +180,11 @@ class PlaybackFailoverCoordinator(
                     onPlaybackStarted(channel, stream)
                 }
 
-                PlaybackPhase.ERROR -> return Episode.Failure(
-                    port.state.value.lastError ?: AppError.unknown(EventCodes.PLAY_PREPARE_FAIL),
-                )
+            PlaybackPhase.ERROR -> return Episode.Failure(
+                port.state.value.lastError ?: AppError.unknown(EventCodes.PLAY_PREPARE_FAIL),
+                // A failure before we ever saw PLAYING is a start-up failure; after it, it is not.
+                startup = !started,
+            )
 
                 PlaybackPhase.STOPPED, PlaybackPhase.RELEASED, PlaybackPhase.IDLE -> return Episode.Stopped
                 else -> Unit
@@ -177,6 +213,7 @@ class PlaybackFailoverCoordinator(
                 is WatchdogVerdict.PrepareTimeout -> return Episode.Failure(
                     AppError.timeout(EventCodes.PLAY_PREPARE_FAIL)
                         .copy(detail = "watchdog prepare timeout ${verdict.waitedMs}ms"),
+                    startup = true,
                 )
 
                 is WatchdogVerdict.NoProgress -> {
@@ -195,9 +232,16 @@ class PlaybackFailoverCoordinator(
 
     // ---------------------------------------------------------------- decide and act
 
-    private suspend fun act(channel: Channel, stream: Stream, attempt: Int, episode: Episode): Step {
+    private suspend fun act(
+        channel: Channel,
+        stream: Stream,
+        attempt: Int,
+        episode: Episode,
+        candidates: List<Stream>,
+    ): Step {
         if (episode is Episode.Stopped) return Step.End
         val failure = (episode as? Episode.Failure)?.error
+        val startup = (episode as? Episode.Failure)?.startup == true
         val stall = (episode as? Episode.Stall)?.signal
 
         // docs/02 §4.6: STORAGE / PERMISSION / CANCELLED never switch and never emit PLAY_FAILOVER.
@@ -211,7 +255,7 @@ class PlaybackFailoverCoordinator(
         var ordinal = attempt.coerceAtLeast(1)
         var passthrough = preferPassthrough
         while (currentCoroutineContext().isActive) {
-            val action = policy.decide(inputFor(channel, stream, ordinal, failure, stall))
+            val action = policy.decide(inputFor(channel, stream, ordinal, failure, stall, startup, candidates))
             when (action) {
                 is FailoverAction.Backoff -> {
                     // "Wait, then ask me again" — a Backoff never prepares anything by itself (§4.6).
@@ -233,25 +277,27 @@ class PlaybackFailoverCoordinator(
 
                 is FailoverAction.SwitchTo -> {
                     port.onFailoverRunning(HINT_SWITCHING)
-                    logFailover(stream, action.stream, action.reason, ordinal, ACTION_SWITCH)
+                    logFailover(stream, action.stream, action.reason, ordinal, ACTION_SWITCH, startup)
                     pendingSwitchFromStreamId = stream.id
+                    pendingSwitchStage = stageOf(startup)
                     preferPassthrough = true
                     return Step.Reprepare(action.stream, 1)
                 }
 
                 is FailoverAction.ResolveFresh -> {
                     port.onFailoverRunning(HINT_SWITCHING)
-                    logFailover(stream, null, action.reason, ordinal, ACTION_RESOLVE_FRESH)
+                    logFailover(stream, null, action.reason, ordinal, ACTION_RESOLVE_FRESH, startup)
                     val refreshed = catalog.reprobe(channel.id)
                     val target = bestTarget(refreshed, stream)
                     if (target != null) {
-                        logFailover(stream, target, action.reason, ordinal, ACTION_SWITCH)
+                        logFailover(stream, target, action.reason, ordinal, ACTION_SWITCH, startup)
                         pendingSwitchFromStreamId = stream.id
+                        pendingSwitchStage = stageOf(startup)
                         preferPassthrough = true
                         return Step.Reprepare(target, 1)
                     }
                     val message = FailurePolicies.plan(action.reason.failure).userMessage ?: HINT_NO_SOURCE
-                    logFailover(stream, null, action.reason, ordinal, ACTION_GIVE_UP)
+                    logFailover(stream, null, action.reason, ordinal, ACTION_GIVE_UP, startup)
                     port.onFailoverExhausted(action.reason, message)
                     return Step.End
                 }
@@ -261,7 +307,7 @@ class PlaybackFailoverCoordinator(
                         ?.let { FailurePolicies.plan(it.failure).userMessage }
                         ?: HINT_NO_SOURCE
                     if (failure != null) {
-                        logFailover(stream, null, failure, ordinal, ACTION_GIVE_UP)
+                        logFailover(stream, null, failure, ordinal, ACTION_GIVE_UP, startup)
                     }
                     port.onFailoverExhausted(failure, message)
                     return Step.End
@@ -277,8 +323,10 @@ class PlaybackFailoverCoordinator(
         attempt: Int,
         failure: AppError?,
         stall: StallSignal?,
+        startup: Boolean,
+        candidates: List<Stream>,
     ): FailoverInput {
-        val candidates = catalog.candidates(channel.id)
+        val candidates = candidates
             .ifEmpty { listOf(activeStream) }
             .let { candidates -> if (candidates.any { it.id == activeStream.id }) candidates else candidates + activeStream }
         return FailoverInput(
@@ -291,6 +339,7 @@ class PlaybackFailoverCoordinator(
             health = catalog.health(candidates.map { it.id }),
             nowMs = clock.nowMs(),
             limits = limits,
+            startupFailure = startup,
         )
     }
 
@@ -300,12 +349,17 @@ class PlaybackFailoverCoordinator(
      * by the re-check.
      */
     private fun bestTarget(candidates: List<Stream>, active: Stream): Stream? {
+        // Streams this session refuses outright: permanent demotions (403/404/410).
         val demoted = policy.demotedStreamIds()
+        // SWITCH-P95-1 (god 条件 3a): a stream that failed to start is only *down-ranked* here too, so
+        // this re-probe can still come back to a slow main source instead of writing it off.
+        val startupFailed = policy.startupFailedStreamIds()
         return candidates
             .asSequence()
             .filter { !it.disabled && it.id != active.id && it.id !in demoted }
             .sortedWith(
-                compareByDescending<Stream> { it.score }
+                compareBy<Stream> { it.id in startupFailed }
+                    .thenByDescending { it.score }
                     .thenBy { it.priority }
                     .thenByDescending { it.lastOkAtMs ?: Long.MIN_VALUE }
                     .thenBy { it.id },
@@ -318,12 +372,19 @@ class PlaybackFailoverCoordinator(
     private fun onPlaybackStarted(channel: Channel, stream: Stream) {
         pendingSwitchFromStreamId?.let { from ->
             pendingSwitchFromStreamId = null
+            val stage = pendingSwitchStage ?: STAGE_PLAYING
+            pendingSwitchStage = null
             port.onFailoverSwitched(stream.id, HINT_SWITCHED)
             logger.w(
                 LogCategory.PLAYER,
                 EventCodes.PLAY_FAILOVER,
                 "failover switch completed",
-                mapOf("from" to from, "to" to stream.id, "action" to ACTION_SWITCH_DONE),
+                mapOf(
+                    "from" to from,
+                    "to" to stream.id,
+                    "action" to ACTION_SWITCH_DONE,
+                    "stage" to stage,
+                ),
             )
         }
         val fromChannel = switchFromChannelId ?: return
@@ -347,6 +408,7 @@ class PlaybackFailoverCoordinator(
         reason: AppError,
         attempt: Int,
         action: String,
+        startup: Boolean,
     ) {
         logger.w(
             LogCategory.PLAYER,
@@ -359,9 +421,14 @@ class PlaybackFailoverCoordinator(
                 "httpStatus" to reason.httpStatus,
                 "attempt" to attempt,
                 "action" to action,
+                // god 条件 3b (2026-09-23): tell a start-up failure apart from a mid-play one.
+                "stage" to stageOf(startup),
             ),
         )
     }
+
+    /** `PLAY_FAILOVER.stage`: `startup` = the stream never produced a first frame (SWITCH-P95-1). */
+    private fun stageOf(startup: Boolean): String = if (startup) STAGE_STARTUP else STAGE_PLAYING
 
     private fun logStall(stream: Stream, signal: StallSignal) {
         logger.w(
@@ -380,9 +447,23 @@ class PlaybackFailoverCoordinator(
     private fun hintFor(failure: AppError?): String =
         if (failure == null) HINT_SWITCHING else HINT_RETRYING
 
+    /**
+     * The start-up window of this attempt (SWITCH-P95-1): the first `prepare` of a channel that has a
+     * backup gets the short one, everything else keeps the §7.5 window.
+     */
+    private fun prepareTimeoutFor(attempt: Int, candidateCount: Int, firstOfSession: Boolean): Long {
+        val fast = fastFirstAttemptTimeoutMs
+        return if (fast > 0 && firstOfSession && attempt <= 1 && candidateCount >= 2) {
+            fast
+        } else {
+            prepareTimeoutMs
+        }
+    }
+
     /** One failure/stall episode of the active stream. */
     private sealed interface Episode {
-        data class Failure(val error: AppError) : Episode
+        /** [startup] = the stream had not produced a first frame yet (SWITCH-P95-1). */
+        data class Failure(val error: AppError, val startup: Boolean) : Episode
         data class Stall(val signal: StallSignal) : Episode
         data object Stopped : Episode
     }
@@ -393,14 +474,24 @@ class PlaybackFailoverCoordinator(
         data object End : Step
     }
 
-    private companion object {
-        /** Position sampling cadence: 4 Hz, which is finer than every watchdog threshold. */
-        const val TICK_MS = 250L
+    companion object {
+        /** docs/02 §7.5: `EngineTuning.prepareTimeoutMs`, the unchanged start-up window. */
+        const val DEFAULT_PREPARE_TIMEOUT_MS = 12_000L
 
-        const val ACTION_SWITCH = "switch"
-        const val ACTION_SWITCH_DONE = "switch_done"
-        const val ACTION_RESOLVE_FRESH = "resolve_fresh"
-        const val ACTION_GIVE_UP = "give_up"
+        /** SWITCH-P95-1: the first attempt of a channel with a backup (see the constructor KDoc). */
+        const val FAST_FIRST_ATTEMPT_TIMEOUT_MS = 4_000L
+
+        /** Position sampling cadence: 4 Hz, which is finer than every watchdog threshold. */
+        private const val TICK_MS = 250L
+
+        private const val ACTION_SWITCH = "switch"
+        private const val ACTION_SWITCH_DONE = "switch_done"
+        private const val ACTION_RESOLVE_FRESH = "resolve_fresh"
+        private const val ACTION_GIVE_UP = "give_up"
+
+        /** `PLAY_FAILOVER.stage` values (god 条件 3b, 2026-09-23). */
+        const val STAGE_STARTUP = "startup"
+        const val STAGE_PLAYING = "playing"
     }
 }
 

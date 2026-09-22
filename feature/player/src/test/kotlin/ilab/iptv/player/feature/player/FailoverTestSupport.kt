@@ -101,6 +101,8 @@ class FakePlaybackPort : PlaybackPort {
         val attempt: Int,
         val preferPassthrough: Boolean,
         val atMs: Long,
+        /** SWITCH-P95-1: the start-up window the coordinator asked this attempt for. */
+        val timeoutMs: Long = 0L,
     )
 
     val prepares = mutableListOf<Prepare>()
@@ -108,13 +110,25 @@ class FakePlaybackPort : PlaybackPort {
     val runningHints = mutableListOf<String>()
     val exhausted = mutableListOf<String>()
 
+    /** When the screen was told "no source left" — how long the channel took to give up. */
+    var exhaustedAtMs: Long? = null
+
     var responses: (Long, Int) -> AppResult<PreparedMedia> = { id, _ -> prepared(id) }
     var samples: () -> EngineSample = { EngineSample(0, 0, false) }
     var now: () -> Long = { 0L }
     var stoppedReason: String? = null
 
+    /** The window the current `watch` was asked for — how a fake "slow source" knows if it made it. */
+    var lastRequestedTimeoutMs: Long = 0L
+
     /** How long a prepare takes in virtual time; a channel-switch cost needs a non-zero number. */
     var prepareDelayMs: Long = 0L
+
+    /**
+     * Per-(stream, window) override of [prepareDelayMs]: a dead main source really costs the window
+     * it was given (`{ _, timeoutMs -> timeoutMs }` = the faithful "no first frame, ever" source).
+     */
+    var prepareDelayFor: ((streamId: Long, timeoutMs: Long) -> Long)? = null
 
     private val _state = MutableStateFlow(PlaybackUiState.EMPTY)
     override val state: StateFlow<PlaybackUiState> = _state.asStateFlow()
@@ -124,9 +138,12 @@ class FakePlaybackPort : PlaybackPort {
         stream: Stream,
         attempt: Int,
         preferPassthrough: Boolean,
+        timeoutMs: Long,
     ): AppResult<PreparedMedia> {
-        prepares += Prepare(channel.id, stream.id, attempt, preferPassthrough, now())
-        if (prepareDelayMs > 0) kotlinx.coroutines.delay(prepareDelayMs)
+        prepares += Prepare(channel.id, stream.id, attempt, preferPassthrough, now(), timeoutMs)
+        lastRequestedTimeoutMs = timeoutMs
+        val delayMs = prepareDelayFor?.invoke(stream.id, timeoutMs) ?: prepareDelayMs
+        if (delayMs > 0) kotlinx.coroutines.delay(delayMs)
         val result = responses(stream.id, attempt)
         _state.value = when (result) {
             is AppResult.Ok -> PlaybackUiState.EMPTY.copy(
@@ -143,6 +160,14 @@ class FakePlaybackPort : PlaybackPort {
             )
         }
         return result
+    }
+
+    /**
+     * Turn the running stream into an ERROR after the first frame (SWITCH-P95-1 test ⑤: a mid-play
+     * failure must keep the frozen `RetrySame` step, unlike a start-up failure).
+     */
+    fun failMidPlay(error: AppError) {
+        _state.value = _state.value.copy(phase = PlaybackPhase.ERROR, lastError = error)
     }
 
     override suspend fun sample(): EngineSample = samples()
@@ -168,6 +193,7 @@ class FakePlaybackPort : PlaybackPort {
 
     override fun onFailoverExhausted(error: AppError?, message: String) {
         exhausted += message
+        exhaustedAtMs = now()
         _state.value = _state.value.copy(
             phase = PlaybackPhase.ERROR,
             lastError = error,
@@ -250,9 +276,10 @@ class RecordingLogger : Logger {
 class FailoverHarness(
     scope: CoroutineScope,
     scheduler: TestCoroutineScheduler,
-    limits: FailoverLimits = FailoverLimits(),
+    val limits: FailoverLimits = FailoverLimits(),
     tuning: FailoverTuning = FailoverTuning(),
     tickMs: Long = 250L,
+    fastFirstAttemptTimeoutMs: Long = PlaybackFailoverCoordinator.FAST_FIRST_ATTEMPT_TIMEOUT_MS,
 ) {
     val clock = SchedulerClock(scheduler)
     val port = FakePlaybackPort()
@@ -262,7 +289,7 @@ class FailoverHarness(
     val watchdog = PlaybackWatchdog(
         clock = clock,
         config = WatchdogConfig(
-            prepareTimeoutMs = 12_000,
+            prepareTimeoutMs = PlaybackFailoverCoordinator.DEFAULT_PREPARE_TIMEOUT_MS,
             progressThresholdMs = limits.stallThresholdMs,
             bufferingThresholdMs = limits.stallThresholdMs,
         ),
@@ -277,6 +304,7 @@ class FailoverHarness(
         scope = scope,
         limits = limits,
         tickMs = tickMs,
+        fastFirstAttemptTimeoutMs = fastFirstAttemptTimeoutMs,
     )
 
     init {

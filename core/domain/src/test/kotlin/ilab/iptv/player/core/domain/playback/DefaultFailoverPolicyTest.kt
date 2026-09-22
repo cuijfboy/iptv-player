@@ -24,6 +24,7 @@ class DefaultFailoverPolicyTest {
         health: Map<Long, StreamHealth> = emptyMap(),
         nowMs: Long = 0L,
         limits: FailoverLimits = FailoverLimits(),
+        startupFailure: Boolean = false,
     ): FailoverAction = policy.decide(
         failoverInput(
             channelId = channelId,
@@ -34,6 +35,7 @@ class DefaultFailoverPolicyTest {
             health = health,
             nowMs = nowMs,
             limits = limits,
+            startupFailure = startupFailure,
         ),
     )
 
@@ -77,6 +79,61 @@ class DefaultFailoverPolicyTest {
         assertThat(FailurePolicies.plan(FailureClass.DECODE_UNSUPPORTED).demoteCodecCombination).isTrue()
         // Only a 4xx source is demoted outright; a codec problem keeps the stream eligible.
         assertThat(policy.demotedStreamIds()).isEmpty()
+    }
+
+    // ---- SWITCH-P95-1 · 起播超时立即切备胎（docs/05-过程记录/65-换台p95修复.md） ------------------
+
+    @Test
+    fun `a start-up timeout switches at once and does not come straight back to the dead source`() {
+        val action = decide(FailureClass.TIMEOUT, attempt = 1, startupFailure = true)
+        assertThat(action).isInstanceOf(FailoverAction.SwitchTo::class.java)
+        assertThat((action as FailoverAction.SwitchTo).stream.id).isEqualTo(11L)
+        assertThat(policy.startupFailedStreamIds()).containsExactly(10L)
+        // 起播失败的流**不被永久降权**（god 条件 3a）：它只是排在后面，后面几轮仍可回退到它。
+        assertThat(policy.demotedStreamIds()).isEmpty()
+
+        // From the backup the channel does NOT switch straight back to the source that failed to start
+        // — it takes the frozen retry step instead (no ping-pong, docs/05/65 §4.1).
+        val next = decide(
+            FailureClass.TIMEOUT,
+            attempt = 1,
+            activeStreamId = 11L,
+            startupFailure = true,
+        )
+        assertThat(next).isEqualTo(FailoverAction.RetrySame(0))
+    }
+
+    @Test
+    fun `the stream that failed to start is still reachable once nothing fresh is left`() {
+        // 主源起播超时（被记为"起播失败"）→ 切备胎；备胎也起播超时（没有 fresh 目标）→ 按 §4.6 重试
+        // 备胎一次，第二次失败后 `SwitchTo(next)` 回到主源（god 条件 3a 的「有界回退」）。
+        decide(FailureClass.TIMEOUT, attempt = 1, startupFailure = true)
+        assertThat(policy.startupFailedStreamIds()).containsExactly(10L)
+        decide(FailureClass.TIMEOUT, attempt = 1, activeStreamId = 11L, startupFailure = true)
+        assertThat(policy.startupFailedStreamIds()).containsExactly(10L, 11L)
+        val back = decide(FailureClass.TIMEOUT, attempt = 2, activeStreamId = 11L, startupFailure = true)
+        assertThat(back).isInstanceOf(FailoverAction.SwitchTo::class.java)
+        assertThat((back as FailoverAction.SwitchTo).stream.id).isEqualTo(10L)
+    }
+
+    @Test
+    fun `a mid-play timeout keeps the frozen retry-then-switch recipe`() {
+        // `startupFailure = false`: the stream had already produced a first frame (a live-edge overrun
+        // also maps to TIMEOUT), where re-preparing the same stream is correct and switching is a 误切.
+        assertThat(decide(FailureClass.TIMEOUT, attempt = 1)).isEqualTo(FailoverAction.RetrySame(0))
+        assertThat(policy.startupFailedStreamIds()).isEmpty()
+    }
+
+    @Test
+    fun `a start-up timeout with no alternative keeps the retry and re-probe path`() {
+        val action = decide(
+            FailureClass.TIMEOUT,
+            attempt = 1,
+            candidates = listOf(stream(10)),
+            startupFailure = true,
+        )
+        // 单流频道：没有备胎 → 不触发起播快切，逐字走 §4.6（`RetrySame(≤1) → ResolveFresh → GiveUp`）。
+        assertThat(action).isEqualTo(FailoverAction.RetrySame(0))
     }
 
     // ---- §4.6 · retry-then-switch rows --------------------------------------------------------

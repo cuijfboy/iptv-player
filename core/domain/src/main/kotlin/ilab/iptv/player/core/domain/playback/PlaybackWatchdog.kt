@@ -7,6 +7,10 @@ import ilab.iptv.player.core.common.Clock
  *
  * `prepareTimeoutMs` mirrors `PlaybackRequest.timeoutMs` (docs/02 §4.2, default 12 s) — the
  * controller builds the watchdog from the same constant so "起播超时" means the same thing to both.
+ * SWITCH-P95-1 makes that mirroring per-prepare: the controller may start one attempt with a shorter
+ * window (the "fast first attempt" of a channel that has a backup) and passes the same number here
+ * through [PlaybackWatchdog.onPrepareStart], so the engine's timeout and the watchdog's deadline can
+ * never disagree. [prepareTimeoutMs] stays the default for every attempt that does not say otherwise.
  * `progressThresholdMs` mirrors `FailoverLimits.stallThresholdMs` (default 8 s): the watchdog needs
  * its own copy because it runs before a `FailoverInput` exists, and the controller is expected to
  * wire both from one number.
@@ -72,6 +76,10 @@ class PlaybackWatchdog(
     var phase: WatchdogPhase = WatchdogPhase.IDLE
         private set
 
+    /** The window the current (or next) prepare is judged against; see [onPrepareStart]. */
+    var prepareTimeoutMs: Long = config.prepareTimeoutMs
+        private set
+
     private var prepareStartedAtMs = 0L
     private var lastProgressAtMs = 0L
     private var lastPositionMs = 0L
@@ -79,9 +87,16 @@ class PlaybackWatchdog(
     private var bufferingSinceMs: Long? = null
     private var lastSample: PlaybackSample? = null
 
-    /** `prepare()` was sent. Starts the start-up timeout and clears everything from the last stream. */
-    fun onPrepareStart(nowMs: Long = clock.nowMs()) {
+    /**
+     * `prepare()` was sent. Starts the start-up timeout and clears everything from the last stream.
+     *
+     * [timeoutMs] is the window this one attempt gets; it defaults to [WatchdogConfig.prepareTimeoutMs]
+     * (12 s) and is set from the same value the engine's `PlaybackRequest.timeoutMs` carries
+     * (SWITCH-P95-1: the first attempt on a channel with a backup asks for a shorter one).
+     */
+    fun onPrepareStart(nowMs: Long = clock.nowMs(), timeoutMs: Long = config.prepareTimeoutMs) {
         phase = WatchdogPhase.PREPARING
+        prepareTimeoutMs = timeoutMs.coerceAtLeast(1L)
         prepareStartedAtMs = nowMs
         lastProgressAtMs = nowMs
         lastPositionMs = 0L
@@ -136,15 +151,15 @@ class PlaybackWatchdog(
      */
     fun nextDeadlineMs(): Long? = when (phase) {
         WatchdogPhase.IDLE, WatchdogPhase.STOPPED -> null
-        WatchdogPhase.PREPARING -> prepareStartedAtMs + config.prepareTimeoutMs
+        WatchdogPhase.PREPARING -> prepareStartedAtMs + prepareTimeoutMs
         WatchdogPhase.PLAYING -> lastProgressAtMs + config.progressThresholdMs
         WatchdogPhase.BUFFERING -> (bufferingSinceMs ?: lastProgressAtMs) + config.bufferingThresholdMs
     }
 
     private fun prepareVerdict(nowMs: Long): WatchdogVerdict {
         val waitedMs = nowMs - prepareStartedAtMs
-        return if (waitedMs >= config.prepareTimeoutMs) {
-            WatchdogVerdict.PrepareTimeout(waitedMs, config.prepareTimeoutMs)
+        return if (waitedMs >= prepareTimeoutMs) {
+            WatchdogVerdict.PrepareTimeout(waitedMs, prepareTimeoutMs)
         } else {
             WatchdogVerdict.Ok
         }

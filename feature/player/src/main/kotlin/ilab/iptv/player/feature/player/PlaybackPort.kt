@@ -29,12 +29,19 @@ interface PlaybackPort {
     /** The single source of truth the UI renders (docs/02 §4.5 C1). */
     val state: StateFlow<PlaybackUiState>
 
-    /** Prepare [stream] of [channel] on the ONE engine instance (§7.2 P1: reuse, never rebuild). */
+    /**
+     * Prepare [stream] of [channel] on the ONE engine instance (§7.2 P1: reuse, never rebuild).
+     *
+     * [timeoutMs] is the start-up window of this one attempt (§4.2 `PlaybackRequest.timeoutMs`);
+     * SWITCH-P95-1 passes a shorter one for the first attempt of a channel that has a backup. `0`
+     * means "the engine's own `EngineTuning.prepareTimeoutMs`".
+     */
     suspend fun watch(
         channel: Channel,
         stream: Stream,
         attempt: Int,
         preferPassthrough: Boolean,
+        timeoutMs: Long = 0L,
     ): AppResult<PreparedMedia>
 
     /** Live position/buffering read for the watchdog (§6.2). */
@@ -62,8 +69,15 @@ class SessionPlaybackPort(private val session: PlaybackSession) : PlaybackPort {
         stream: Stream,
         attempt: Int,
         preferPassthrough: Boolean,
+        timeoutMs: Long,
     ): AppResult<PreparedMedia> =
-        session.watch(channel, stream, attempt = attempt, preferPassthrough = preferPassthrough)
+        session.watch(
+            channel,
+            stream,
+            attempt = attempt,
+            preferPassthrough = preferPassthrough,
+            timeoutMs = timeoutMs,
+        )
 
     override suspend fun sample(): EngineSample = session.sample()
 

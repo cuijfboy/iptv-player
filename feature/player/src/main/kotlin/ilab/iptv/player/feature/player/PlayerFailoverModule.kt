@@ -60,5 +60,5 @@ object PlayerFailoverModule {
     ): FailoverCatalog = RepositoryFailoverCatalog(channels, streams)
 
     /** docs/02 §4.2: `PlaybackRequest.timeoutMs` default; the two must agree (P1-6 checkpoint 3). */
-    private const val PREPARE_TIMEOUT_MS = 12_000L
+    private const val PREPARE_TIMEOUT_MS = PlaybackFailoverCoordinator.DEFAULT_PREPARE_TIMEOUT_MS
 }

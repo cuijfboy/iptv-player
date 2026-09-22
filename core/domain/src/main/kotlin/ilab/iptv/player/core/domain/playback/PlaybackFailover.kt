@@ -54,6 +54,22 @@ data class FailoverInput(
     val health: Map<Long, StreamHealth>,
     val nowMs: Long,
     val limits: FailoverLimits,
+    /*
+     * SWITCH-P95-1 (docs/05-过程记录/65-换台p95修复.md): true when the failure happened while the
+     * stream had not produced its first frame yet — the coordinator sets it for a `prepare` failure
+     * (engine start-up timeout or the watchdog's `PrepareTimeout`) and leaves it false for anything
+     * that surfaced after the first frame.
+     *
+     * WHY: a start-up timeout means "this source did not come up", and retrying the very same source
+     * costs another full `prepareTimeoutMs` before the backup is even considered (G7-1 measured
+     * 24,940 ms of user wait: two 12 s windows). A mid-play timeout is a different animal — it can be
+     * the live edge overrunning (`ERROR_CODE_BEHIND_LIVE_WINDOW` also maps to `TIMEOUT`), where
+     * re-preparing the same stream is the correct move and switching would be a false switch.
+     *
+     * Additive and defaulted, so every existing construction site keeps its exact behaviour; the
+     * §4.3 field list needs an arch write-back (proposal sent to god with the SWITCH-P95-1 report).
+     */
+    val startupFailure: Boolean = false,
 )
 
 /** One decision of the fail-over state machine (docs/02 §4.3 + §6.2, frozen). */

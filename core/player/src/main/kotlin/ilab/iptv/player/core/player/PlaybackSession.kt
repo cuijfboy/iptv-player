@@ -180,6 +180,7 @@ class PlaybackSession(
         stream: Stream,
         attempt: Int = 1,
         preferPassthrough: Boolean = tuning.normalized().preferPassthrough,
+        timeoutMs: Long = 0L,
     ): AppResult<PreparedMedia> =
         watchMutex.withLock {
             this.channel = channel
@@ -202,7 +203,9 @@ class PlaybackSession(
             val request = PlaybackRequest(
                 channelId = channel.id,
                 stream = stream,
-                timeoutMs = tuning.normalized().prepareTimeoutMs,
+                // §4.2 `PlaybackRequest.timeoutMs`. SWITCH-P95-1 passes an explicit window for the
+                // first attempt of a channel that has a backup; `0` keeps the §7.5 tuning default.
+                timeoutMs = if (timeoutMs > 0) timeoutMs else tuning.normalized().prepareTimeoutMs,
                 // P1-5 wiring, docs/02 §7.6 step 2: the NO_CAPABILITY row retries the same stream
                 // with the compressed bitstream handed over disabled; every other path keeps the
                 // tuning default.

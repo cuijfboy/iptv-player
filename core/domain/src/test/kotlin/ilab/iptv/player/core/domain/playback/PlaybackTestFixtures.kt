@@ -89,6 +89,7 @@ fun failoverInput(
     health: Map<Long, StreamHealth> = emptyMap(),
     nowMs: Long = 0L,
     limits: FailoverLimits = FailoverLimits(),
+    startupFailure: Boolean = false,
 ): FailoverInput = FailoverInput(
     channelId = channelId,
     attempt = attempt,
@@ -99,4 +100,5 @@ fun failoverInput(
     health = health,
     nowMs = nowMs,
     limits = limits,
+    startupFailure = startupFailure,
 )
