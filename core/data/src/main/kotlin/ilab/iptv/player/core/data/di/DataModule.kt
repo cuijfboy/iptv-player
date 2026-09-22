@@ -42,7 +42,15 @@ object DataModule {
     @Provides
     @Singleton
     fun provideBundledPlaylist(@ApplicationContext context: Context): BundledPlaylist =
-        AssetBundledPlaylist(context.assets)
+        // SNAPSHOT-1: the file the app seeds with on a fresh install is the TV-measured snapshot
+        // (`app/src/main/assets/snapshot/channels.m3u`), not the synthetic P1-2 fixture. The fixture
+        // stays the default of `AssetBundledPlaylist` and is still what the `:core:data` tests parse;
+        // the production choice is made here, in the DI graph, so no test rig changes.
+        AssetBundledPlaylist(
+            assets = context.assets,
+            assetPath = AssetBundledPlaylist.SNAPSHOT_ASSET,
+            sourceId = AssetBundledPlaylist.SNAPSHOT_SOURCE_ID,
+        )
 
     /**
      * Local playlist import (P2-6 slice). Both folders live under the app's **own** external files

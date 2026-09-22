@@ -16,8 +16,8 @@ import javax.inject.Singleton
  * CatalogSink 收口) the one startup path the app uses. The in-memory [ChannelCatalogLoader] is kept
  * only for the off-device tests.
  *
- * It seeds the database from the same bundled fixture exactly **once per database lifetime**: if the
- * `channel` table already has rows, nothing is parsed and nothing is written. On a cold start after
+ * It seeds the database from the injected [BundledPlaylist] exactly **once per database lifetime**: if
+ * the `channel` table already has rows, nothing is parsed and nothing is written. On a cold start after
  * the first run — or after a local import — the channel table already has rows and this is a no-op:
  * the list comes from SQLite with no asset read and no parse. That is what makes the import durable
  * without a second "restore the remembered copy" step (the import wrote Room through the same sink).
@@ -61,6 +61,25 @@ class RoomCatalogSeeder @Inject constructor(
                     val text = bundled.read().toString(Charsets.UTF_8)
                     catalog.prepare(text, bundled.sourceId)
                 }
+                // SNAPSHOT-1: a bundled file that parses "successfully" into nothing (truncated
+                // asset, a foreign file, a build that shipped no snapshot) must not be published as
+                // the user's catalog — an empty list with the seed marked done is the one outcome
+                // the user cannot recover from. Same guard, and same reason, as
+                // `ChannelCatalogLoader.loadRemembered`. Degrading to "no catalog yet" keeps the
+                // next start (or the wizard / a manual import) able to fill it.
+                if (prepared.report.channels == 0) {
+                    logger.w(
+                        category = LogCategory.SOURCE,
+                        code = EventCodes.SRC_PARSE_FAIL,
+                        message = "bundled snapshot has no channels, not seeding",
+                        fields = mapOf(
+                            "provider" to bundled.sourceId,
+                            "lines" to prepared.report.lines,
+                            "entries" to prepared.report.rawEntries,
+                        ),
+                    )
+                    return false
+                }
                 catalog.commit(prepared)
                 logger.i(
                     category = LogCategory.SOURCE,
@@ -91,7 +110,11 @@ class RoomCatalogSeeder @Inject constructor(
     }
 
     companion object {
-        /** The P1-2 bundled fixture; the same asset [ChannelCatalogLoader] reads. */
+        /**
+         * The P1-2 bundled fixture. **Test-only since SNAPSHOT-1**: production seeds the TV-measured
+         * snapshot instead ([AssetBundledPlaylist.SNAPSHOT_ASSET], bound in `DataModule`), while the
+         * `:core:data` rigs still parse this synthetic file (`RoomFixtures`).
+         */
         internal const val FIXTURE_ASSET = "playlists/p1-2-baseline.m3u"
         internal const val FIXTURE_SOURCE_ID = "p1-2-fixture"
     }
