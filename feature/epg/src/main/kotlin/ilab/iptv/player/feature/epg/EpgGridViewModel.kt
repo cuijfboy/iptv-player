@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import ilab.iptv.player.core.common.Clock
+import ilab.iptv.player.core.domain.epg.EpgChannelHop
 import ilab.iptv.player.core.domain.repository.ChannelRepository
 import ilab.iptv.player.core.domain.repository.EpgRepository
 import ilab.iptv.player.core.model.Channel
@@ -127,9 +128,12 @@ class EpgGridViewModel @Inject constructor(
         if (wanted.isEmpty()) return flowOf(PageData(emptyMap(), emptySet()))
         // `programme` is keyed on the EPG channel id; map it back to the business channel id here, the
         // layer that owns the identity hop (`RoomEpgRepository` does the same thing in SQL).
-        val channelIdByEpgId = request.channels
-            .filter { it.epgChannelId != null && it.id in wanted }
-            .associate { it.epgChannelId!! to it.id }
+        //
+        // This hop is **many-to-many** and used to be done with `associate` (one guide id → one
+        // channel). Several business channels legitimately share one guide id — the shipped fixture
+        // binds `CCTV1`, `CCTV-1综合`, `CCTV1 高清` and `CCTV1 标清` to the same guide channel — and a
+        // one-to-one map kept only the last of them, so every earlier row rendered as "no EPG" while
+        // the diagnostics panel reported that guide id's programmes for it (BUG-20260922-018).
         val query = EpgWindowQuery(
             fromMs = request.window.fromMs,
             toMs = request.window.toMs,
@@ -139,9 +143,11 @@ class EpgGridViewModel @Inject constructor(
         return epgRepository.observeWindow(query)
             .map { programmes ->
                 PageData(
-                    programmesByChannel = programmes.groupBy { channelIdByEpgId[it.epgChannelId] }
-                        .mapNotNull { (channelId, rows) -> channelId?.let { it to rows } }
-                        .toMap(),
+                    programmesByChannel = EpgChannelHop.programmesByChannel(
+                        pageChannelIds = request.channelIds,
+                        channels = request.channels,
+                        programmes = programmes,
+                    ),
                     loadedChannelIds = wanted,
                 )
             }
