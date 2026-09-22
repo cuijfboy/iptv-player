@@ -99,6 +99,36 @@ class PlaybackEventLogger(private val logger: Logger, private val sessionId: Str
         )
     }
 
+    /**
+     * A user track change (P3-3 items 1–2: audio-track switch, subtitle on/off/select).
+     *
+     * EVENT-CODE DECISION (P3-3, reported to god): `docs/03 §3.3` has no code for "the user changed a
+     * track", and P3-3 forbids touching `docs/01–04` (and `EventCodes.ALL`/`EventCodesTest` are pinned
+     * to the 50 registered codes). Of the registered `PLAY_*` codes, `PLAY_FIRST_FRAME` is the only
+     * one whose field contract covers what actually changed — §7.6 ties the audio path (`acodec`,
+     * `audioPath`) to that event, and a track switch can move playback from one decoder path to
+     * another (e.g. AC3 passthrough → AAC PCM). The event is therefore re-used with
+     * `reason=track-change` and a `kind` discriminator, and the log line says "track changed" so a
+     * reader is never told a first frame arrived. A dedicated `PLAY_TRACK_SELECT` (50 → 51) is the
+     * right fix and is proposed in the P3-2/P3-3 verification record §7.
+     */
+    fun onTrackSelected(kind: String, id: String?, label: String?, enabled: Boolean, audioCodec: String?) {
+        logger.i(
+            LogCategory.PLAYER,
+            EventCodes.PLAY_FIRST_FRAME,
+            "playback track changed",
+            mapOf(
+                "reason" to TRACK_CHANGE_REASON,
+                "kind" to kind,
+                "track" to id,
+                "trackLabel" to label,
+                "trackEnabled" to enabled,
+                "acodec" to audioCodec,
+                "sessionId" to sessionId,
+            ),
+        )
+    }
+
     /** Routes the events that have a registered code. Returns true when the event was logged. */
     fun onEvent(engineId: String, event: PlaybackEvent, snapshot: PlaybackSnapshot): Boolean {
         return when (event) {
@@ -125,5 +155,10 @@ class PlaybackEventLogger(private val logger: Logger, private val sessionId: Str
             //   belongs to the end of the session, not to one media item finishing).
             else -> false
         }
+    }
+
+    companion object {
+        /** Discriminator of the re-used `PLAY_FIRST_FRAME` line; see [onTrackSelected]. */
+        const val TRACK_CHANGE_REASON = "track-change"
     }
 }

@@ -12,6 +12,26 @@
     <string name="player_aspect_default">画幅：适应</string>
     <!-- 1 = the mode label from AspectRatioCycle. -->
     <string name="player_aspect_format">画幅：%1$s</string>
+    <!-- P3-3: 信息条的音轨/字幕/过扫描三个控件；1 = the value label (track label, 关/开/无, percent). -->
+    <string name="player_audio_default">音轨</string>
+    <string name="player_audio_format">音轨：%1$s</string>
+    <string name="player_subtitle_default">字幕</string>
+    <string name="player_subtitle_format">字幕：%1$s</string>
+    <string name="player_overscan_default">过扫描</string>
+    <string name="player_overscan_format">过扫描：%1$s</string>
+    <string name="player_audio_title">选择音轨</string>
+    <string name="player_subtitle_title">选择字幕</string>
+    <!-- 1 = the current step ("100%"). -->
+    <string name="player_overscan_title">过扫描微调（当前 %1$s）</string>
+    <string name="player_overscan_zoom_in">放大一档（+2%）</string>
+    <string name="player_overscan_zoom_out">缩小一档（-2%）</string>
+    <string name="player_overscan_reset">恢复标准（100%）</string>
+    <!-- Menu rows: the marker is text, so the list stays a plain framework dialog on the remote. -->
+    <string name="player_track_selected">● %1$s</string>
+    <string name="player_track_unselected">○ %1$s</string>
+    <string name="player_audio_single">当前流只有一条音轨，无需切换</string>
+    <string name="player_subtitle_none">当前流没有字幕轨，无法开启</string>
+    <string name="player_track_switch_failed">切换失败：这条轨道已不在当前流里</string>
     <!-- P1-5: the digit window of docs/02 §8.2; 1 = the digits typed so far. -->
     <string name="player_channel_number">跳台：%1$s</string>
     <!-- P1-7: the ongoing playback notification (mediaPlayback foreground service). -->

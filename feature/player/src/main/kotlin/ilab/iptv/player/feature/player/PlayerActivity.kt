@@ -1,5 +1,6 @@
 package ilab.iptv.player.feature.player
 
+import android.app.AlertDialog
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -25,6 +26,10 @@ import ilab.iptv.player.core.common.LogCategory
 import ilab.iptv.player.core.common.Logger
 import ilab.iptv.player.core.model.AspectRatioMode
 import ilab.iptv.player.core.model.InfoBarState
+import ilab.iptv.player.core.model.PlaybackUiState
+import ilab.iptv.player.core.player.AudioTrackState
+import ilab.iptv.player.core.player.OverscanPolicy
+import ilab.iptv.player.core.player.SubtitleTrackState
 import ilab.iptv.player.core.ui.player.PlayerContract
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -76,6 +81,9 @@ class PlayerActivity : ComponentActivity(), SurfaceHolder.Callback {
     private lateinit var infoNowNext: TextView
     private lateinit var infoStatus: TextView
     private lateinit var infoAspect: TextView
+    private lateinit var infoAudio: TextView
+    private lateinit var infoSubtitle: TextView
+    private lateinit var infoOverscan: TextView
     private lateinit var statusGroup: View
     private lateinit var statusText: TextView
     private lateinit var errorGroup: View
@@ -85,6 +93,13 @@ class PlayerActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var channelId: Long? = null
     private var lastOverlay: PlayerOverlay? = null
     private var lastInfo: InfoBarState? = null
+
+    /**
+     * A one-shot line for the info bar ("当前流没有字幕轨"), shown like a fail-over hint and dropped
+     * with the bar. P1-5 already froze that line for "what the state machine is doing"; a greyed
+     * entry point has to say why it is greyed, and this is the cheapest honest place for it.
+     */
+    private var transientHint: String? = null
 
     private val hideRunnable = Runnable { if (visibility.tick(now())) hideInfoBar() }
     private val commitNumberRunnable = Runnable { commitNumber() }
@@ -127,11 +142,20 @@ class PlayerActivity : ComponentActivity(), SurfaceHolder.Callback {
             applyAspectRatio(mode)
             showInfoBar()
         }
+        // P3-3 items 1–3: the three track/display controls. Each opens its own list; a list with
+        // nothing to choose explains itself on the status line instead of opening empty.
+        infoAudio.setOnClickListener { openAudioMenu() }
+        infoSubtitle.setOnClickListener { openSubtitleMenu() }
+        infoOverscan.setOnClickListener { openOverscanMenu() }
         retryButton.setOnClickListener {
             viewModel.retry()
             showInfoBar()
         }
 
+        applyOverscan(viewModel.overscanIndex.value)
+        lifecycleScope.launch {
+            viewModel.overscanIndex.collect { applyOverscan(it) }
+        }
         lifecycleScope.launch {
             viewModel.playback.collect { state ->
                 val previousChannelId = channelId
@@ -139,6 +163,7 @@ class PlayerActivity : ComponentActivity(), SurfaceHolder.Callback {
                 channelId = state.channelId ?: channelId
                 lastInfo = state.infoBar
                 renderInfoBar(state.infoBar)
+                renderTracks(state)
                 applyAspectRatio(state.aspectRatio)
                 // A switch and a fail-over are both worth surfacing: the user pressed UP (or the
                 // source died) and the screen must say so without waiting for a key press.
@@ -303,6 +328,9 @@ class PlayerActivity : ComponentActivity(), SurfaceHolder.Callback {
         infoNowNext = findViewById(R.id.info_now_next)
         infoStatus = findViewById(R.id.info_status)
         infoAspect = findViewById(R.id.info_aspect)
+        infoAudio = findViewById(R.id.info_audio)
+        infoSubtitle = findViewById(R.id.info_subtitle)
+        infoOverscan = findViewById(R.id.info_overscan)
         statusGroup = findViewById(R.id.player_status_group)
         statusText = findViewById(R.id.player_status)
         errorGroup = findViewById(R.id.player_error_group)
@@ -315,6 +343,23 @@ class PlayerActivity : ComponentActivity(), SurfaceHolder.Callback {
         infoAspect.nextFocusRightId = root.id
         infoAspect.nextFocusUpId = infoAspect.id
         infoAspect.nextFocusDownId = infoAspect.id
+        // P3-3: one horizontal chain for the bar's four controls. LEFT/RIGHT still enters the bar from
+        // the video (docs/02 §8.2's frozen path to 画幅), and each further press walks to the next
+        // control and finally back to the root — no key can strand focus, and nothing else moved.
+        infoAspect.nextFocusLeftId = root.id
+        infoAspect.nextFocusRightId = infoAudio.id
+        infoAudio.nextFocusLeftId = infoAspect.id
+        infoAudio.nextFocusRightId = infoSubtitle.id
+        infoAudio.nextFocusUpId = infoAudio.id
+        infoAudio.nextFocusDownId = infoAudio.id
+        infoSubtitle.nextFocusLeftId = infoAudio.id
+        infoSubtitle.nextFocusRightId = infoOverscan.id
+        infoSubtitle.nextFocusUpId = infoSubtitle.id
+        infoSubtitle.nextFocusDownId = infoSubtitle.id
+        infoOverscan.nextFocusLeftId = infoSubtitle.id
+        infoOverscan.nextFocusRightId = root.id
+        infoOverscan.nextFocusUpId = infoOverscan.id
+        infoOverscan.nextFocusDownId = infoOverscan.id
         root.nextFocusUpId = root.id
         root.nextFocusDownId = root.id
         root.nextFocusLeftId = root.id
@@ -362,11 +407,121 @@ class PlayerActivity : ComponentActivity(), SurfaceHolder.Callback {
         val hint = lastInfo?.failoverHint
         val text = when {
             digits.isNotEmpty() -> getString(R.string.player_channel_number, digits)
+            transientHint != null -> transientHint
             hint != null -> hint
             else -> null
         }
         infoStatus.visibility = if (text == null) View.GONE else View.VISIBLE
         infoStatus.text = text ?: ""
+    }
+
+    /**
+     * P3-3 items 1–2: the two track buttons follow the *stream*, not last round's channel — the
+     * engine reports its tracks per media item, so a channel without subtitles greys the entry point
+     * and one with a single audio track says so instead of offering a pointless menu.
+     */
+    private fun renderTracks(state: PlaybackUiState) {
+        val audio = AudioTrackState(state.audioTracks, state.selectedAudioTrackId)
+        infoAudio.text = getString(R.string.player_audio_format, audio.valueLabel())
+        infoAudio.alpha = if (audio.enabled) 1f else DISABLED_ALPHA
+
+        val subtitle = SubtitleTrackState(
+            tracks = state.subtitleTracks,
+            selectedId = state.selectedSubtitleTrackId,
+            enabled = state.subtitlesEnabled,
+        )
+        infoSubtitle.text = getString(R.string.player_subtitle_format, subtitle.valueLabel())
+        infoSubtitle.alpha = if (subtitle.available) 1f else DISABLED_ALPHA
+    }
+
+    /** P3-3 item 3: the scale step, applied to the video container (docs/02 §7.4, not the engine). */
+    private fun applyOverscan(index: Int) {
+        val scale = OverscanPolicy.scale(index)
+        frame.scaleX = scale
+        frame.scaleY = scale
+        infoOverscan.text = getString(R.string.player_overscan_format, OverscanPolicy.label(index))
+    }
+
+    // ---------------------------------------------------------------- P3-3 menus
+
+    private fun openAudioMenu() {
+        val state = viewModel.playback.value
+        val menu = AudioTrackState(state.audioTracks, state.selectedAudioTrackId)
+        if (!menu.enabled) {
+            showBarHint(getString(R.string.player_audio_single))
+            return
+        }
+        val options = menu.options()
+        alertRows(
+            title = getString(R.string.player_audio_title),
+            rows = options.map { getString(trackRowLabel(it.selected), it.label) },
+        ) { which ->
+            if (!viewModel.selectAudioTrack(options[which].id)) {
+                showBarHint(getString(R.string.player_track_switch_failed))
+            }
+        }
+    }
+
+    private fun openSubtitleMenu() {
+        val state = viewModel.playback.value
+        val menu = SubtitleTrackState(
+            tracks = state.subtitleTracks,
+            selectedId = state.selectedSubtitleTrackId,
+            enabled = state.subtitlesEnabled,
+        )
+        if (!menu.available) {
+            // The P3-3 wording: "无可选时入口置灰并说明" — the entry point is dimmed above, and this is
+            // the explanation when the user presses it anyway.
+            showBarHint(getString(R.string.player_subtitle_none))
+            return
+        }
+        val options = menu.options()
+        alertRows(
+            title = getString(R.string.player_subtitle_title),
+            rows = options.map { getString(trackRowLabel(it.selected), it.label) },
+        ) { which ->
+            if (!viewModel.selectSubtitleTrack(options[which].id)) {
+                showBarHint(getString(R.string.player_track_switch_failed))
+            }
+        }
+    }
+
+    private fun openOverscanMenu() {
+        alertRows(
+            title = getString(
+                R.string.player_overscan_title,
+                OverscanPolicy.label(viewModel.overscanIndex.value),
+            ),
+            rows = listOf(
+                getString(R.string.player_overscan_zoom_in),
+                getString(R.string.player_overscan_zoom_out),
+                getString(R.string.player_overscan_reset),
+            ),
+        ) { which ->
+            when (which) {
+                0 -> viewModel.moveOverscan(+1)
+                1 -> viewModel.moveOverscan(-1)
+                else -> viewModel.resetOverscan()
+            }
+        }
+    }
+
+    /** The framework's own list dialog: `setItems` keeps the remote's focus path (the BUG-013 lesson). */
+    private fun alertRows(title: String, rows: List<String>, onPick: (Int) -> Unit) {
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setItems(rows.toTypedArray()) { _, which -> onPick(which) }
+            .setOnDismissListener { showInfoBar() }
+            .show()
+    }
+
+    private fun trackRowLabel(selected: Boolean): Int =
+        if (selected) R.string.player_track_selected else R.string.player_track_unselected
+
+    /** Puts a one-shot explanation on the status line; the bar shows and re-arms so it can be read. */
+    private fun showBarHint(text: String) {
+        transientHint = text
+        showInfoBar()
     }
 
     private fun applyAspectRatio(mode: AspectRatioMode) {
@@ -443,6 +598,9 @@ class PlayerActivity : ComponentActivity(), SurfaceHolder.Callback {
         mainHandler.removeCallbacks(hideRunnable)
         numberBuffer.reset()
         mainHandler.removeCallbacks(commitNumberRunnable)
+        // A one-shot hint belongs to the bar it was shown in: the next time the bar comes up it is
+        // either a new message or nothing, never a stale "当前流没有字幕轨" over a different channel.
+        transientHint = null
         if (infoBar.hasFocus()) root.requestFocus()
         infoBar.animate().cancel()
         infoBar.animate()
@@ -471,5 +629,8 @@ class PlayerActivity : ComponentActivity(), SurfaceHolder.Callback {
         /** §8.2: UP = next channel, DOWN = previous, inside the current group. */
         const val NEXT_CHANNEL = 1
         const val PREVIOUS_CHANNEL = -1
+
+        /** P3-3: how far a greyed (but still readable/pressable) entry point is dimmed. */
+        const val DISABLED_ALPHA = 0.45f
     }
 }

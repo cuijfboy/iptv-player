@@ -186,7 +186,9 @@
 
         </LinearLayout>
 
-        <!-- The only focusable control of this screen this round: the §7.4 display mode. -->
+        <!-- The §7.4 display mode. P1-4's "only focusable control" claim no longer holds: P3-3 adds
+             the three controls below, reached with LEFT/RIGHT, so the frozen up/down = channel-switch
+             mapping of §8.2 is untouched. -->
         <TextView
             android:id="@+id/info_aspect"
             android:layout_width="wrap_content"
@@ -204,6 +206,66 @@
             android:text="@string/player_aspect_default"
             android:textColor="#FFE6E6E6"
             android:textSize="22sp" />
+
+        <!-- P3-3 item 1: the audio-track menu. Dims itself when the stream has ≤1 track. -->
+        <TextView
+            android:id="@+id/info_audio"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:background="@drawable/bg_player_button"
+            android:clickable="true"
+            android:defaultFocusHighlightEnabled="false"
+            android:focusable="true"
+            android:gravity="center"
+            android:minHeight="48dp"
+            android:minWidth="140dp"
+            android:paddingHorizontal="24dp"
+            android:paddingVertical="12dp"
+            android:text="@string/player_audio_default"
+            android:textColor="#FFE6E6E6"
+            android:textSize="22sp"
+            tools:text="音轨：中文" />
+
+        <!-- P3-3 item 2: the subtitle menu (「关闭」 plus one row per text track). -->
+        <TextView
+            android:id="@+id/info_subtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:background="@drawable/bg_player_button"
+            android:clickable="true"
+            android:defaultFocusHighlightEnabled="false"
+            android:focusable="true"
+            android:gravity="center"
+            android:minHeight="48dp"
+            android:minWidth="140dp"
+            android:paddingHorizontal="24dp"
+            android:paddingVertical="12dp"
+            android:text="@string/player_subtitle_default"
+            android:textColor="#FFE6E6E6"
+            android:textSize="22sp"
+            tools:text="字幕：关" />
+
+        <!-- P3-3 item 3: the overscan ± ladder (docs/02 §7.4: a container scale, not an aspect mode). -->
+        <TextView
+            android:id="@+id/info_overscan"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:background="@drawable/bg_player_button"
+            android:clickable="true"
+            android:defaultFocusHighlightEnabled="false"
+            android:focusable="true"
+            android:gravity="center"
+            android:minHeight="48dp"
+            android:minWidth="160dp"
+            android:paddingHorizontal="24dp"
+            android:paddingVertical="12dp"
+            android:text="@string/player_overscan_default"
+            android:textColor="#FFE6E6E6"
+            android:textSize="22sp"
+            tools:text="过扫描：100%" />
 
     </LinearLayout>
 

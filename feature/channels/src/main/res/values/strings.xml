@@ -9,6 +9,17 @@
     <string name="browse_sources_action">源管理</string>
     <string name="browse_settings_action">设置</string>
     <string name="browse_epg_action">节目单</string>
+    <string name="browse_search_action">搜索</string>
+    <!-- P3-2 搜索页：遥控数字键或屏幕字母网格输入；结果按频道/节目两路。 -->
+    <string name="search_query_empty">搜索：输入频道名或节目名</string>
+    <string name="search_query_format">搜索：%1$s</string>
+    <string name="search_index_loading">正在建立索引…</string>
+    <string name="search_index_ready">已索引 %1$d 个频道 / %2$d 个节目（数字键直输，方向键选字母）</string>
+    <string name="search_index_failed">索引失败：%1$s</string>
+    <string name="search_hits_format">找到 %1$d 条：↓ 进结果，OK 打开，BACK 清空</string>
+    <string name="search_hits_none">没有匹配的频道或节目</string>
+    <!-- 1 = programme start (HH:mm), 2 = stop, 3 = channel name. -->
+    <string name="search_programme_subtitle">节目 %1$s–%2$s · %3$s</string>
     <string name="browse_import_pick_saf">从文件选择（系统选择器）</string>
     <string name="browse_import_pick_drop">从投放目录选择</string>
     <string name="browse_import_saf_unavailable">这台设备没有可用的文件选择器，请改用投放目录</string>

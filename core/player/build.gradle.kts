@@ -30,6 +30,13 @@ dependencies {
     // its coroutine plumbing (Flows, Mutex, withContext). `-android` so a Handler-backed
     // dispatcher can serve as the ExoPlayer application looper.
     implementation(libs.kotlinx.coroutines.android)
+
+    // P3-3 item 3: the OverscanSettings persistence is a real SharedPreferences round trip, so the
+    // module's unit tests need Robolectric (same shape as `:core:data`'s Room tests). Test-only, and
+    // it does not touch the engine's own JVM-testable surface.
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.test.ext.junit)
+    testImplementation(libs.robolectric)
 }
 
 /**

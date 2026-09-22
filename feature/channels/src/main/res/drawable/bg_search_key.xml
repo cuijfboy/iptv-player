@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One on-screen key of the P3-2 search keypad; the focused state is drawn here, not by the system. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape>
+            <solid android:color="#FF2A2A38" />
+            <stroke
+                android:width="2dp"
+                android:color="#FFFFB84D" />
+            <corners android:radius="8dp" />
+        </shape>
+    </item>
+    <item>
+        <shape>
+            <solid android:color="#FF1E1E28" />
+            <corners android:radius="8dp" />
+        </shape>
+    </item>
+</selector>

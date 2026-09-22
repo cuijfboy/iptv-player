@@ -9,6 +9,7 @@ import ilab.iptv.player.core.model.NowNext
 import ilab.iptv.player.core.model.PlaybackPhase
 import ilab.iptv.player.core.model.PlaybackUiState
 import ilab.iptv.player.core.model.PreparedMedia
+import ilab.iptv.player.core.model.SubtitleTrackInfo
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -47,6 +48,11 @@ class PlaybackUiStateMachine(initial: PlaybackUiState = PlaybackUiState.EMPTY) {
                 activeStreamId = streamId,
                 phase = PlaybackPhase.PREPARING,
                 infoBar = infoBar.copy(failoverHint = hint),
+                // P3-3: a switch changes the stream, so the previous channel's tracks are gone until
+                // the engine reports the new stream's (a TS stream may carry none at all).
+                subtitleTracks = emptyList(),
+                selectedSubtitleTrackId = null,
+                subtitlesEnabled = false,
                 lastError = null,
                 errorText = null,
             ),
@@ -144,6 +150,25 @@ class PlaybackUiStateMachine(initial: PlaybackUiState = PlaybackUiState.EMPTY) {
 
     fun onAudioTracks(tracks: List<AudioTrackInfo>, selectedId: String?): PlaybackUiState = publish(
         _state.value.copy(audioTracks = tracks, selectedAudioTrackId = selectedId),
+    )
+
+    /**
+     * P3-3 item 2: the stream's text tracks and whether subtitles are on.
+     *
+     * Sent on every `onTracksChanged` (which is also what a subtitle switch triggers), so the info
+     * bar's entry point follows the stream instead of a guess: an empty list greys it, a non-empty one
+     * with `enabled=false` shows "字幕：关".
+     */
+    fun onSubtitleTracks(
+        tracks: List<SubtitleTrackInfo>,
+        selectedId: String?,
+        enabled: Boolean,
+    ): PlaybackUiState = publish(
+        _state.value.copy(
+            subtitleTracks = tracks,
+            selectedSubtitleTrackId = selectedId,
+            subtitlesEnabled = enabled,
+        ),
     )
 
     fun onAspectRatio(mode: AspectRatioMode): PlaybackUiState = publish(

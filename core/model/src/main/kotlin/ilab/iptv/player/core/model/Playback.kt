@@ -44,6 +44,21 @@ data class AudioTrackInfo(
     val isDefault: Boolean,
 )
 
+/**
+ * One selectable text (subtitle) track of the current stream (P3-3 item 2).
+ *
+ * The same shape as [AudioTrackInfo] on purpose: both are "a track the user can pick", and the
+ * on-screen menu treats them identically. `id` is the engine's opaque handle — the UI only ever
+ * echoes it back through `PlaybackSession.selectSubtitleTrack`.
+ */
+data class SubtitleTrackInfo(
+    val id: String,
+    val label: String,
+    val language: String?,
+    val mimeType: String,
+    val isSelected: Boolean,
+)
+
 /** Engine-side state only. The UI phase mapping is docs/02 §4.5 C1, owned by the controller. */
 enum class EngineState { IDLE, PREPARING, READY, BUFFERING, PLAYING, ENDED, ERROR, RELEASED }
 
@@ -63,6 +78,20 @@ sealed interface PlaybackEvent {
     data class Error(val error: AppError, val fatal: Boolean) : PlaybackEvent
     data class Ended(val reason: EndReason) : PlaybackEvent
     data class AudioTracks(val tracks: List<AudioTrackInfo>, val selectedId: String?) : PlaybackEvent
+
+    /**
+     * The stream's text tracks plus whether the text renderer is on (P3-3 item 2).
+     *
+     * `enabled` is separate from `tracks.isNotEmpty()`: a stream can carry subtitles that the user
+     * switched off, and "there are no subtitles" is a different state from "subtitles are off" —
+     * the info bar greys the entry point in the first case and shows "已关闭" in the second.
+     */
+    data class SubtitleTracks(
+        val tracks: List<SubtitleTrackInfo>,
+        val selectedId: String?,
+        val enabled: Boolean,
+    ) : PlaybackEvent
+
     data class Capabilities(val caps: Set<EngineCapability>) : PlaybackEvent
 }
 
@@ -95,6 +124,11 @@ data class PlaybackUiState(
     val aspectRatio: AspectRatioMode,
     val audioTracks: List<AudioTrackInfo>,
     val selectedAudioTrackId: String?,
+    /** P3-3 item 2: empty means "this stream has no subtitle track" → the entry point is greyed. */
+    val subtitleTracks: List<SubtitleTrackInfo>,
+    val selectedSubtitleTrackId: String?,
+    /** False = the user switched subtitles off (or the stream has none). */
+    val subtitlesEnabled: Boolean,
     val failoverCount: Int,
     val lastError: AppError?,
     /** Human-readable failure for the on-screen prompt (P1-4 item 3: "失败要有可读提示与重试入口"). */
@@ -109,6 +143,9 @@ data class PlaybackUiState(
             aspectRatio = AspectRatioMode.FIT,
             audioTracks = emptyList(),
             selectedAudioTrackId = null,
+            subtitleTracks = emptyList(),
+            selectedSubtitleTrackId = null,
+            subtitlesEnabled = false,
             failoverCount = 0,
             lastError = null,
             errorText = null,

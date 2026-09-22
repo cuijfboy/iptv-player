@@ -18,6 +18,8 @@ import ilab.iptv.player.core.model.ChannelFilter
 import ilab.iptv.player.core.model.PlaybackPhase
 import ilab.iptv.player.core.model.PlaybackUiState
 import ilab.iptv.player.core.model.Stream
+import ilab.iptv.player.core.player.OverscanPolicy
+import ilab.iptv.player.core.player.OverscanSettings
 import ilab.iptv.player.core.player.PlaybackSession
 import ilab.iptv.player.core.ui.player.PlayerContract
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -63,6 +65,11 @@ class PlayerViewModel @Inject constructor(
      * see is this interface (docs/02 §3.2).
      */
     private val epg: EpgRepository,
+    /**
+     * P3-3 item 3: the persisted overscan step. Injected as the `:core:player` interface so this
+     * screen never sees `SharedPreferences`, and so the persistence claim is testable with a fake.
+     */
+    private val overscan: OverscanSettings,
 ) : ViewModel() {
 
     /** The session's state is the UI's state (docs/02 §4.5 C1) — no second copy lives here. */
@@ -70,6 +77,10 @@ class PlayerViewModel @Inject constructor(
 
     private val _fault = MutableStateFlow<String?>(null)
     val fault: StateFlow<String?> = _fault.asStateFlow()
+
+    /** P3-3 item 3: the current overscan ladder index, mirrored for the screen to render. */
+    private val _overscanIndex = MutableStateFlow(OverscanPolicy.clamp(overscan.levelIndex))
+    val overscanIndex: StateFlow<Int> = _overscanIndex.asStateFlow()
 
     /** Sort+number order of the whole catalog — the same order the browse list shows (§8.1/D12). */
     private val _order = MutableStateFlow<List<NumberedChannel>>(emptyList())
@@ -192,6 +203,39 @@ class PlayerViewModel @Inject constructor(
         val next = AspectRatioCycle.next(playback.value.aspectRatio)
         session.setAspectRatio(next)
         return next
+    }
+
+    // ---------------------------------------------------------------- P3-3 tracks and overscan
+
+    /**
+     * P3-3 item 1: switch the audio track. The engine applies it on the running stream (no
+     * re-prepare), so the change is heard immediately; the returned value reports whether the id was
+     * still part of the stream.
+     */
+    fun selectAudioTrack(id: String?): Boolean = session.selectAudioTrack(id)
+
+    /** P3-3 item 2: pick one subtitle track; `null` is the menu's 「关闭」 row. */
+    fun selectSubtitleTrack(id: String?): Boolean = session.selectSubtitleTrack(id)
+
+    /** P3-3 item 2: plain subtitle on/off, keeping the remembered track. */
+    fun setSubtitlesEnabled(enabled: Boolean) = session.setSubtitlesEnabled(enabled)
+
+    /**
+     * P3-3 item 3: one overscan step (±). The ladder clamps at both ends (it is a step, not a cycle)
+     * and the new index is written straight to the store, so the value survives a restart.
+     */
+    fun moveOverscan(delta: Int): Int {
+        val next = OverscanPolicy.move(_overscanIndex.value, delta)
+        overscan.levelIndex = next
+        _overscanIndex.value = next
+        return next
+    }
+
+    /** P3-3 item 3: back to 100 % — the escape hatch from a ladder the user got lost in. */
+    fun resetOverscan(): Int {
+        overscan.levelIndex = OverscanPolicy.DEFAULT_INDEX
+        _overscanIndex.value = OverscanPolicy.DEFAULT_INDEX
+        return OverscanPolicy.DEFAULT_INDEX
     }
 
     /** docs/02 §8.2: `KEYCODE_MEDIA_*` are the play/pause controls; a paused stream never stalls. */

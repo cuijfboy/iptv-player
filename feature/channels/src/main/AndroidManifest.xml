@@ -33,6 +33,15 @@
             android:exported="true"
             android:screenOrientation="landscape" />
 
+        <!--
+          P3-2 search screen. Same reasoning as BrowseActivity for `exported="true"`: QA drives the
+          remote-only input path from adb (`am start -n ilab.iptv.player/…search.SearchActivity`).
+        -->
+        <activity
+            android:name=".search.SearchActivity"
+            android:exported="true"
+            android:screenOrientation="landscape" />
+
     </application>
 
 </manifest>

@@ -3,6 +3,7 @@ package ilab.iptv.player.feature.channels
 import android.app.AlertDialog
 import android.os.Bundle
 import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.text.InputType
 import android.widget.Button
 import android.widget.EditText
@@ -28,6 +29,7 @@ import ilab.iptv.player.core.ui.import.ImportPickerModel
 import ilab.iptv.player.core.ui.epg.EpgContract
 import ilab.iptv.player.core.ui.player.PlayerContract
 import ilab.iptv.player.core.ui.settings.SettingsContract
+import ilab.iptv.player.feature.channels.search.SearchActivity
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -67,6 +69,7 @@ class BrowseActivity : ComponentActivity() {
     private lateinit var hiddenButton: Button
     private lateinit var settingsButton: Button
     private lateinit var epgButton: Button
+    private lateinit var searchButton: Button
     private lateinit var adapter: ChannelListAdapter
 
     /**
@@ -153,6 +156,12 @@ class BrowseActivity : ComponentActivity() {
         epgButton.setOnClickListener {
             // P3-1: the EPG grid, opened on the focused row so the remote's place is kept.
             startActivity(EpgContract.intent(this, focused?.channelId))
+        }
+        searchButton = findViewById(R.id.open_search)
+        searchButton.setOnClickListener {
+            // P3-2: the search screen is in this module, so no action contract is needed (the
+            // contract trick exists for feature → feature, docs/02 §3.2).
+            startActivity(Intent(this, SearchActivity::class.java))
         }
         adapter = ChannelListAdapter(
             onChannelFocused = { item -> onChannelFocused(item) },

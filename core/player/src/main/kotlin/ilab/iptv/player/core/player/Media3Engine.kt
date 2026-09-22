@@ -38,6 +38,7 @@ import ilab.iptv.player.core.model.PlaybackEvent
 import ilab.iptv.player.core.model.PlaybackRequest
 import ilab.iptv.player.core.model.PreparedMedia
 import ilab.iptv.player.core.model.Stream
+import ilab.iptv.player.core.model.SubtitleTrackInfo
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -122,6 +123,13 @@ class Media3Engine(
 
     @Volatile
     private var cachedSelectedTrackId: String? = null
+
+    /** P3-3 item 2: the stream's text tracks and whether one is selected (read off the engine thread). */
+    @Volatile
+    private var cachedTextTracks: List<SubtitleTrackInfo> = emptyList()
+
+    @Volatile
+    private var cachedSelectedTextId: String? = null
 
     @Volatile
     private var snapshotCache: PlaybackSnapshot = PlaybackSnapshot.EMPTY
@@ -215,6 +223,8 @@ class Media3Engine(
             publish(stateMachine.onPlayerPhase(PlayerPhase.IDLE))
             cachedTracks = emptyList()
             cachedSelectedTrackId = null
+            cachedTextTracks = emptyList()
+            cachedSelectedTextId = null
         }
     }
 
@@ -231,6 +241,8 @@ class Media3Engine(
             appliedPassthrough = null
             cachedTracks = emptyList()
             cachedSelectedTrackId = null
+            cachedTextTracks = emptyList()
+            cachedSelectedTextId = null
             snapshotCache = PlaybackSnapshot.EMPTY
             publish(stateMachine.onReleased())
         }
@@ -257,6 +269,56 @@ class Media3Engine(
             exo.trackSelectionParameters = builder.build()
         }
         return known
+    }
+
+    // ---------------------------------------------------------------- text tracks (P3-3 item 2)
+
+    /** The stream's subtitle tracks as last observed; safe to call off the engine thread. */
+    fun subtitleTracks(): List<SubtitleTrackInfo> = cachedTextTracks
+
+    /**
+     * Selects one text track, in the same shape as [selectAudioTrack]: an override on the text
+     * `TrackGroup`, applied on the engine thread and therefore without re-preparing the stream.
+     * Returns whether the id is known; `null` clears the override (back to the player's default).
+     */
+    fun selectSubtitleTrack(id: String?): Boolean {
+        val known = id == null || cachedTextTracks.any { it.id == id }
+        scope.launch {
+            val exo = player ?: return@launch
+            val builder = exo.trackSelectionParameters.buildUpon()
+            val parsed = id?.let { parseTextTrackId(it) }
+            val group = parsed?.let { (groupIndex, _) ->
+                exo.currentTracks.groups.filter { it.type == C.TRACK_TYPE_TEXT }.getOrNull(groupIndex)
+            }
+            if (parsed != null && group != null) {
+                builder.setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, parsed.second))
+            } else {
+                builder.clearOverridesOfType(C.TRACK_TYPE_TEXT)
+            }
+            exo.trackSelectionParameters = builder.build()
+            emitTextTracks(id, enabled = id != null)
+        }
+        return known
+    }
+
+    /**
+     * The subtitle on/off switch of P3-3 item 2: the text *renderer* is disabled rather than the
+     * override dropped, so switching subtitles back on returns to the track the user last picked.
+     * Like the other commands it is asynchronous and applies immediately (no re-prepare).
+     */
+    fun setSubtitlesEnabled(enabled: Boolean) {
+        scope.launch {
+            val exo = player ?: return@launch
+            exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !enabled)
+                .build()
+            emitTextTracks(if (enabled) cachedSelectedTextId else null, enabled)
+        }
+    }
+
+    private fun emitTextTracks(selectedId: String?, enabled: Boolean) {
+        cachedSelectedTextId = selectedId
+        _events.tryEmit(PlaybackEvent.SubtitleTracks(cachedTextTracks, selectedId, enabled))
     }
 
     // ---------------------------------------------------------------- prepare
@@ -441,8 +503,17 @@ class Media3Engine(
         override fun onTracksChanged(tracks: Tracks) {
             cachedTracks = audioTracksOf(tracks)
             cachedSelectedTrackId = selectedAudioTrackId(tracks)
+            cachedTextTracks = textTracksOf(tracks)
+            cachedSelectedTextId = selectedTextTrackId(tracks)
             updateSnapshot()
             _events.tryEmit(PlaybackEvent.AudioTracks(cachedTracks, cachedSelectedTrackId))
+            _events.tryEmit(
+                PlaybackEvent.SubtitleTracks(
+                    tracks = cachedTextTracks,
+                    selectedId = cachedSelectedTextId,
+                    enabled = cachedSelectedTextId != null,
+                ),
+            )
         }
     }
 
@@ -558,6 +629,48 @@ class Media3Engine(
         return group to track
     }
 
+    private fun textTracksOf(tracks: Tracks): List<SubtitleTrackInfo> {
+        val result = mutableListOf<SubtitleTrackInfo>()
+        var groupIndex = -1
+        tracks.groups.forEach { group ->
+            if (group.type != C.TRACK_TYPE_TEXT) return@forEach
+            groupIndex++
+            for (trackIndex in 0 until group.length) {
+                val format = group.getTrackFormat(trackIndex)
+                result += SubtitleTrackInfo(
+                    id = textTrackId(groupIndex, trackIndex),
+                    label = labelOf(format, trackIndex),
+                    language = format.language,
+                    mimeType = format.sampleMimeType ?: "",
+                    isSelected = group.isTrackSelected(trackIndex),
+                )
+            }
+        }
+        return result
+    }
+
+    private fun selectedTextTrackId(tracks: Tracks): String? {
+        var groupIndex = -1
+        tracks.groups.forEach { group ->
+            if (group.type != C.TRACK_TYPE_TEXT) return@forEach
+            groupIndex++
+            for (trackIndex in 0 until group.length) {
+                if (group.isTrackSelected(trackIndex)) return textTrackId(groupIndex, trackIndex)
+            }
+        }
+        return null
+    }
+
+    private fun textTrackId(groupIndex: Int, trackIndex: Int) = "$TEXT_ID_PREFIX$groupIndex:$trackIndex"
+
+    private fun parseTextTrackId(id: String): Pair<Int, Int>? {
+        if (!id.startsWith(TEXT_ID_PREFIX)) return null
+        val parts = id.removePrefix(TEXT_ID_PREFIX).split(':')
+        val group = parts.getOrNull(0)?.toIntOrNull() ?: return null
+        val track = parts.getOrNull(1)?.toIntOrNull() ?: return null
+        return group to track
+    }
+
     private fun publish(next: EngineState) {
         _state.value = next
     }
@@ -567,6 +680,9 @@ class Media3Engine(
 
     /** Selected audio track id as last observed on the engine thread. */
     fun selectedAudioTrackId(): String? = cachedSelectedTrackId
+
+    /** Selected text track id as last observed on the engine thread (null while subtitles are off). */
+    fun selectedSubtitleTrackId(): String? = cachedSelectedTextId
 
     /** `preferPassthrough=true` equivalent of the S2 fixture: the sink is built from device capabilities. */
     private class PassthroughRenderersFactory(context: Context) : DefaultRenderersFactory(context) {
@@ -583,6 +699,7 @@ class Media3Engine(
 
     private companion object {
         const val AUDIO_ID_PREFIX = "audio:"
+        const val TEXT_ID_PREFIX = "text:"
 
         /** S2 needed a settle window before an audio-only stream could be judged as running. */
         const val AUDIO_ONLY_FIRST_FRAME_DELAY_MS = 250L

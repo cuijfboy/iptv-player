@@ -305,8 +305,73 @@ class PlaybackSession(
         machine.onAspectRatio(mode)
     }
 
-    /** Selected audio track; P3-3 owns the track-switching UI, the call already works. */
-    fun selectAudioTrack(id: String?): Boolean = engine.selectAudioTrack(id)
+    /**
+     * Selected audio track (P3-3 item 1). The engine applies it without re-preparing the stream, so
+     * the switch is heard immediately; the track list, the chosen row and the on-screen label come
+     * back through [state], because this call only confirms the id is known.
+     *
+     * The `PLAY_*` line is emitted here rather than in the engine: docs/02 §7.7 makes the controller
+     * the only writer of playback telemetry. See [PlaybackEventLogger.onTrackSelected] for why the
+     * code is the re-used `PLAY_FIRST_FRAME`.
+     */
+    fun selectAudioTrack(id: String?): Boolean {
+        val known = engine.selectAudioTrack(id)
+        if (known) {
+            val track = engine.audioTracks().firstOrNull { it.id == id }
+            telemetry.onTrackSelected(
+                kind = "audio",
+                id = id,
+                label = track?.label,
+                enabled = true,
+                audioCodec = snapshot().audioCodec,
+            )
+            machine.onAudioTracks(engine.audioTracks(), id)
+        }
+        return known
+    }
+
+    /**
+     * Subtitle selection (P3-3 item 2): one text track, or `null` for 「关闭」.
+     *
+     * The text renderer lives next to the ExoPlayer instance, so this is a `Media3Engine` method
+     * reached through the same narrow bridge as [setDucked] / [mediaSessionPlayer] — nothing is added
+     * to the frozen [PlayerEngine] interface (docs/02 §4.4 v1 stays additive-free here).
+     */
+    fun selectSubtitleTrack(id: String?): Boolean {
+        val media3 = engine as? Media3Engine ?: return false
+        val known = if (id == null) {
+            media3.setSubtitlesEnabled(false)
+            true
+        } else {
+            val applied = media3.selectSubtitleTrack(id)
+            if (applied) media3.setSubtitlesEnabled(true)
+            applied
+        }
+        if (known) {
+            val label = media3.subtitleTracks().firstOrNull { it.id == id }?.label
+            telemetry.onTrackSelected(
+                kind = "subtitle",
+                id = id,
+                label = label,
+                enabled = id != null,
+                audioCodec = snapshot().audioCodec,
+            )
+        }
+        return known
+    }
+
+    /** P3-3 item 2's plain on/off switch, leaving the remembered track alone. */
+    fun setSubtitlesEnabled(enabled: Boolean) {
+        val media3 = engine as? Media3Engine ?: return
+        media3.setSubtitlesEnabled(enabled)
+        telemetry.onTrackSelected(
+            kind = "subtitle",
+            id = media3.selectedSubtitleTrackId(),
+            label = null,
+            enabled = enabled,
+            audioCodec = snapshot().audioCodec,
+        )
+    }
 
     /** Releases the engine for good (docs/02 §7.2 P5). Called when the session really ends. */
     fun release() {
@@ -334,6 +399,9 @@ class PlaybackSession(
             is PlaybackEvent.Prepared -> lastPrepared = event.media
 
             is PlaybackEvent.AudioTracks -> machine.onAudioTracks(event.tracks, event.selectedId)
+
+            is PlaybackEvent.SubtitleTracks ->
+                machine.onSubtitleTracks(event.tracks, event.selectedId, event.enabled)
 
             // A failure AFTER the first frame is a session failure; `PLAY_PREPARE_FAIL` means
             // "起播失败" (docs/03 §3.3), so the state carries it and P1-6's policy is the one that
