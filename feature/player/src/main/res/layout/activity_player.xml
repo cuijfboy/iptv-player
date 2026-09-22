@@ -105,167 +105,208 @@
 
     </LinearLayout>
 
-    <!-- Info bar (P1-4 item 2). Alpha-faded by PlayerActivity after 5 s of no key; the channel logo
-         is a placeholder (P1-2 same promise) and now/next is a placeholder until EPG lands (P2-7). -->
+    <!-- Info bar (P1-4 item 2; BUG-017). Alpha-faded by PlayerActivity after 5 s of no key; the channel
+         logo is a placeholder (P1-2 same promise) and now/next is real since P2-7.
+
+         Two rows, not one. P3-3 added the four controls to what had been a single horizontal row, which
+         left the channel name / quality / now-next column 209 px wide on a 1920×1080 screen — every line
+         ellipsised (acceptance report 42 §2, `uiautomator` bounds). Row 1 is the logo plus the whole text
+         column; row 2 is the four controls. `InfoBarLayout` holds the numbers and proves the text column
+         keeps its floor at both 1920×1080 (960 dp) and 1280×720 (640 dp); `InfoBarLayoutTest` pins it. -->
     <LinearLayout
         android:id="@+id/info_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
         android:background="@drawable/bg_info_bar"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingHorizontal="32dp"
-        android:paddingVertical="20dp"
+        android:orientation="vertical"
+        android:paddingHorizontal="@dimen/info_bar_padding_horizontal"
+        android:paddingVertical="@dimen/info_bar_padding_vertical"
         android:visibility="gone"
         tools:visibility="visible">
 
-        <TextView
-            android:id="@+id/info_logo"
-            android:layout_width="64dp"
-            android:layout_height="64dp"
-            android:background="@drawable/bg_logo_placeholder"
-            android:gravity="center"
-            android:textColor="#FFE6E6E6"
-            android:textSize="26sp"
-            tools:text="C" />
-
+        <!-- Row 1: the logo and the whole text column. The column is this row's only weighted child, so
+             it spans the bar instead of sharing the line with the controls (that share is what BUG-017
+             was). Left/right never enters a text view, so the focus walk below is unaffected. -->
         <LinearLayout
-            android:layout_width="0dp"
+            android:id="@+id/info_bar_main"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="24dp"
-            android:layout_weight="1"
-            android:orientation="vertical">
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
             <TextView
-                android:id="@+id/info_name"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
+                android:id="@+id/info_logo"
+                android:layout_width="@dimen/info_logo_size"
+                android:layout_height="@dimen/info_logo_size"
+                android:background="@drawable/bg_logo_placeholder"
+                android:gravity="center"
                 android:textColor="#FFE6E6E6"
-                android:textSize="30sp"
-                tools:text="CCTV1 综合" />
+                android:textSize="26sp"
+                tools:text="C" />
 
-            <TextView
-                android:id="@+id/info_quality"
-                android:layout_width="match_parent"
+            <LinearLayout
+                android:id="@+id/info_text_column"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="#FFB9B9C6"
-                android:textSize="18sp"
-                tools:text="1080p H.264 AAC" />
+                android:layout_marginStart="@dimen/info_text_margin_start"
+                android:layout_weight="1"
+                android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/info_now_next"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="#FF9A9AA5"
-                android:textSize="18sp"
-                android:visibility="gone"
-                tools:text="正在播出：新闻联播"
-                tools:visibility="visible" />
+                <TextView
+                    android:id="@+id/info_name"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="#FFE6E6E6"
+                    android:textSize="30sp"
+                    tools:text="CCTV1 综合" />
 
-            <!-- P1-5 status line: what the fail-over state machine is doing ("正在切换备用源…" /
-                 "已切换备用源" / "无可用源") or the digits of a channel number being typed. It is
-                 the same line on purpose — the user never needs both at once. -->
-            <TextView
-                android:id="@+id/info_status"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="#FFFFB84D"
-                android:textSize="20sp"
-                android:visibility="gone"
-                tools:text="正在切换备用源…"
-                tools:visibility="visible" />
+                <TextView
+                    android:id="@+id/info_quality"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="#FFB9B9C6"
+                    android:textSize="18sp"
+                    tools:text="1080p H.264 AAC" />
+
+                <TextView
+                    android:id="@+id/info_now_next"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="#FF9A9AA5"
+                    android:textSize="18sp"
+                    android:visibility="gone"
+                    tools:text="正在播出：新闻联播"
+                    tools:visibility="visible" />
+
+                <!-- P1-5 status line: what the fail-over state machine is doing ("正在切换备用源…" /
+                     "已切换备用源" / "无可用源") or the digits of a channel number being typed. It is
+                     the same line on purpose — the user never needs both at once. -->
+                <TextView
+                    android:id="@+id/info_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="#FFFFB84D"
+                    android:textSize="20sp"
+                    android:visibility="gone"
+                    tools:text="正在切换备用源…"
+                    tools:visibility="visible" />
+
+            </LinearLayout>
 
         </LinearLayout>
 
-        <!-- The §7.4 display mode. P1-4's "only focusable control" claim no longer holds: P3-3 adds
-             the three controls below, reached with LEFT/RIGHT, so the frozen up/down = channel-switch
-             mapping of §8.2 is untouched. -->
-        <TextView
-            android:id="@+id/info_aspect"
-            android:layout_width="wrap_content"
+        <!-- Row 2: the four controls on their own row. The §7.4 display mode is the first; P1-4's
+             "only focusable control" claim no longer holds — P3-3 added the other three, still reached
+             with LEFT/RIGHT so the frozen up/down = channel-switch mapping of §8.2 is untouched.
+             They split the row evenly (`layout_weight=1`), which is what makes them fit at 640 dp: a
+             fixed-width control row would run off the screen at the 1280×720 layout. -->
+        <LinearLayout
+            android:id="@+id/info_controls"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="24dp"
-            android:background="@drawable/bg_player_button"
-            android:clickable="true"
-            android:defaultFocusHighlightEnabled="false"
-            android:focusable="true"
-            android:minHeight="48dp"
-            android:minWidth="160dp"
-            android:gravity="center"
-            android:paddingHorizontal="24dp"
-            android:paddingVertical="12dp"
-            android:text="@string/player_aspect_default"
-            android:textColor="#FFE6E6E6"
-            android:textSize="22sp" />
+            android:layout_marginTop="@dimen/info_controls_margin_top"
+            android:orientation="horizontal">
 
-        <!-- P3-3 item 1: the audio-track menu. Dims itself when the stream has ≤1 track. -->
-        <TextView
-            android:id="@+id/info_audio"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:background="@drawable/bg_player_button"
-            android:clickable="true"
-            android:defaultFocusHighlightEnabled="false"
-            android:focusable="true"
-            android:gravity="center"
-            android:minHeight="48dp"
-            android:minWidth="140dp"
-            android:paddingHorizontal="24dp"
-            android:paddingVertical="12dp"
-            android:text="@string/player_audio_default"
-            android:textColor="#FFE6E6E6"
-            android:textSize="22sp"
-            tools:text="音轨：中文" />
+            <TextView
+                android:id="@+id/info_aspect"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/info_control_margin_start"
+                android:layout_weight="1"
+                android:background="@drawable/bg_player_button"
+                android:clickable="true"
+                android:defaultFocusHighlightEnabled="false"
+                android:ellipsize="end"
+                android:focusable="true"
+                android:gravity="center"
+                android:maxLines="1"
+                android:minHeight="@dimen/info_control_min_height"
+                android:minWidth="@dimen/info_control_min_width"
+                android:paddingHorizontal="@dimen/info_control_padding_horizontal"
+                android:paddingVertical="@dimen/info_control_padding_vertical"
+                android:text="@string/player_aspect_default"
+                android:textColor="#FFE6E6E6"
+                android:textSize="@dimen/info_control_text_size" />
 
-        <!-- P3-3 item 2: the subtitle menu (「关闭」 plus one row per text track). -->
-        <TextView
-            android:id="@+id/info_subtitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:background="@drawable/bg_player_button"
-            android:clickable="true"
-            android:defaultFocusHighlightEnabled="false"
-            android:focusable="true"
-            android:gravity="center"
-            android:minHeight="48dp"
-            android:minWidth="140dp"
-            android:paddingHorizontal="24dp"
-            android:paddingVertical="12dp"
-            android:text="@string/player_subtitle_default"
-            android:textColor="#FFE6E6E6"
-            android:textSize="22sp"
-            tools:text="字幕：关" />
+            <!-- P3-3 item 1: the audio-track menu. Dims itself when the stream has ≤1 track. -->
+            <TextView
+                android:id="@+id/info_audio"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/info_control_margin_start"
+                android:layout_weight="1"
+                android:background="@drawable/bg_player_button"
+                android:clickable="true"
+                android:defaultFocusHighlightEnabled="false"
+                android:ellipsize="end"
+                android:focusable="true"
+                android:gravity="center"
+                android:maxLines="1"
+                android:minHeight="@dimen/info_control_min_height"
+                android:minWidth="@dimen/info_control_min_width"
+                android:paddingHorizontal="@dimen/info_control_padding_horizontal"
+                android:paddingVertical="@dimen/info_control_padding_vertical"
+                android:text="@string/player_audio_default"
+                android:textColor="#FFE6E6E6"
+                android:textSize="@dimen/info_control_text_size"
+                tools:text="音轨：中文" />
 
-        <!-- P3-3 item 3: the overscan ± ladder (docs/02 §7.4: a container scale, not an aspect mode). -->
-        <TextView
-            android:id="@+id/info_overscan"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:background="@drawable/bg_player_button"
-            android:clickable="true"
-            android:defaultFocusHighlightEnabled="false"
-            android:focusable="true"
-            android:gravity="center"
-            android:minHeight="48dp"
-            android:minWidth="160dp"
-            android:paddingHorizontal="24dp"
-            android:paddingVertical="12dp"
-            android:text="@string/player_overscan_default"
-            android:textColor="#FFE6E6E6"
-            android:textSize="22sp"
-            tools:text="过扫描：100%" />
+            <!-- P3-3 item 2: the subtitle menu (「关闭」 plus one row per text track). -->
+            <TextView
+                android:id="@+id/info_subtitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/info_control_margin_start"
+                android:layout_weight="1"
+                android:background="@drawable/bg_player_button"
+                android:clickable="true"
+                android:defaultFocusHighlightEnabled="false"
+                android:ellipsize="end"
+                android:focusable="true"
+                android:gravity="center"
+                android:maxLines="1"
+                android:minHeight="@dimen/info_control_min_height"
+                android:minWidth="@dimen/info_control_min_width"
+                android:paddingHorizontal="@dimen/info_control_padding_horizontal"
+                android:paddingVertical="@dimen/info_control_padding_vertical"
+                android:text="@string/player_subtitle_default"
+                android:textColor="#FFE6E6E6"
+                android:textSize="@dimen/info_control_text_size"
+                tools:text="字幕：关" />
+
+            <!-- P3-3 item 3: the overscan ± ladder (docs/02 §7.4: a container scale, not an aspect mode). -->
+            <TextView
+                android:id="@+id/info_overscan"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/info_control_margin_start"
+                android:layout_weight="1"
+                android:background="@drawable/bg_player_button"
+                android:clickable="true"
+                android:defaultFocusHighlightEnabled="false"
+                android:ellipsize="end"
+                android:focusable="true"
+                android:gravity="center"
+                android:maxLines="1"
+                android:minHeight="@dimen/info_control_min_height"
+                android:minWidth="@dimen/info_control_min_width"
+                android:paddingHorizontal="@dimen/info_control_padding_horizontal"
+                android:paddingVertical="@dimen/info_control_padding_vertical"
+                android:text="@string/player_overscan_default"
+                android:textColor="#FFE6E6E6"
+                android:textSize="@dimen/info_control_text_size"
+                tools:text="过扫描：100%" />
+
+        </LinearLayout>
 
     </LinearLayout>
 

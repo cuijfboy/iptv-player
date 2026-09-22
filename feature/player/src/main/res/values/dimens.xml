@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Info bar geometry (BUG-017). The numbers live here because the layout XML uses them, and
+  `InfoBarLayout` mirrors them so `InfoBarLayoutTest` can read the XML back and refuse to let the two
+  drift — the same guard `TvFocusTokenTest` puts on the focus tokens.
+
+  The bar is two rows (see `activity_player.xml`): the channel/now-next text owns the first row, the
+  four controls (画幅/音轨/字幕/过扫描) share the second. `InfoBarLayout` proves that split keeps the text
+  column above its floor at both the 1920×1080 (960 dp) and the 1280×720 (640 dp) layout.
+-->
+<resources>
+    <dimen name="info_bar_padding_horizontal">32dp</dimen>
+    <dimen name="info_bar_padding_vertical">20dp</dimen>
+    <dimen name="info_logo_size">64dp</dimen>
+    <dimen name="info_text_margin_start">24dp</dimen>
+
+    <dimen name="info_controls_margin_top">16dp</dimen>
+    <dimen name="info_control_min_width">96dp</dimen>
+    <dimen name="info_control_min_height">48dp</dimen>
+    <dimen name="info_control_margin_start">8dp</dimen>
+    <dimen name="info_control_padding_horizontal">6dp</dimen>
+    <dimen name="info_control_padding_vertical">12dp</dimen>
+    <dimen name="info_control_text_size">18sp</dimen>
+</resources>

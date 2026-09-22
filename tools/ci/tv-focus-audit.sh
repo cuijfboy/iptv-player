@@ -21,6 +21,23 @@ set -uo pipefail
 
 cd "$(git rev-parse --show-toplevel)" || exit 2
 
+# Screens that are deliberately NOT interactive, with the reason. Same shape as the redaction
+# guard's allowlist: an exception must be explicit and argued, never silent.
+#   activity_main — since P2-9 `MainActivity` is a router: it reads the first-run flag and forwards
+#   to the wizard or to the browse page before anything can be drawn. There is nothing for a remote
+#   to land on, and that is the design, not a 死角.
+NON_INTERACTIVE_SCREENS_REASONS=(
+    "activity_main|路由器：读首启标记后立即转向导/浏览页，从不与用户交互（P2-9）"
+)
+
+is_non_interactive() {
+    local base="$1"
+    for entry in "${NON_INTERACTIVE_SCREENS_REASONS[@]}"; do
+        [ "${entry%%|*}" = "$base" ] && { printf '%s' "${entry#*|}"; return 0; }
+    done
+    return 1
+}
+
 printf '%-42s %-10s %-30s %s\n' "layout" "焦点控件" "BACK 机制" "Activity"
 printf '%-42s %-10s %-30s %s\n' "------------------------------------------" "----------" "------------------------------" "--------"
 
@@ -48,6 +65,10 @@ for layout in $(git ls-files | grep -E '/res/layout/activity_[a-z0-9_]+\.xml$' |
         # No focusable widget in the XML: the screen must build its own and focus them itself.
         if grep -qE 'requestFocus' "$activity"; then
             note="代码构建"
+        elif reason="$(is_non_interactive "$base")"; then
+            # Deliberate: the screen never takes the remote. Print the reason so it stays visible.
+            printf '%-42s %-10s %-30s %s\n' "$base" "0（例外）" "$reason" "$(basename "$activity")"
+            continue
         else
             printf '%-42s %-10s %-30s %s\n' "$base" "0" "—" "$(basename "$activity")"
             echo "tv-focus-audit: FAIL — $layout has no focusable widget and $activity never requests focus" >&2
