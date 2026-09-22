@@ -1,6 +1,7 @@
 package ilab.iptv.player.core.data.store
 
 import ilab.iptv.player.core.data.mapper.MappedCatalog
+import ilab.iptv.player.core.model.Stream
 
 /**
  * The **one** write seam for "a catalog arrived — make it the current channel table".
@@ -58,4 +59,24 @@ interface CatalogSink {
      * sink as an import, so "reads Room / writes Room" stays one decision.
      */
     suspend fun upsertChannels(catalog: MappedCatalog, nowMs: Long): Map<Long, Long>
+
+    /**
+     * The **stream** half of the refresh seam (卡 STREAM-ID-1): map each stream's per-load id in
+     * [streams] to the id of the stored `stream` row with the same §5.1 identity
+     * `(channel_id, url_hash)`. Read-only — it writes nothing.
+     *
+     * Why the pipeline needs it: [ilab.iptv.player.core.data.mapper.ChannelMapper] mints stream ids
+     * from a per-load counter, exactly as it mints channel ids, so a stream's in-memory id is not its
+     * database id (the channel side of this mismatch is [upsertChannels]). Everything downstream
+     * addresses a stream **by id** — the shallow stage stamps health through
+     * `StreamRepository.recordOutcome(streamId)` and the scorer reads it back through
+     * `StreamRepository.health(streamId)` — so a per-load id either misses its row (a silent no-op)
+     * or, worse, hits a *different* stream and writes the probe verdict and its `play_history` row
+     * onto a stranger. Resolving ids after the write, through this seam, is the fix.
+     *
+     * A stream the store does not hold gets no entry: with no row there is nothing to stamp, and
+     * keeping the per-load id would be the mis-addressing this removes. A storage failure degrades
+     * (docs/02 §11): the implementation logs `DB_FAIL` and returns an empty map.
+     */
+    suspend fun resolveStreamIds(streams: List<Stream>): Map<Long, Long>
 }

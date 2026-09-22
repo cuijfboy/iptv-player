@@ -8,6 +8,7 @@ import ilab.iptv.player.core.data.mapper.PersistenceMapper
 import ilab.iptv.player.core.database.IptvDatabase
 import ilab.iptv.player.core.database.dao.ChannelDao
 import ilab.iptv.player.core.database.dao.StreamDao
+import ilab.iptv.player.core.model.Stream
 import androidx.room.withTransaction
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -160,6 +161,40 @@ class RoomCatalogWriter @Inject constructor(
             fields = mapOf("table" to "channel", "rows" to ids.size, "batch" to BATCH_SIZE),
         )
         return ids
+    }
+
+    /**
+     * The read half of the refresh seam (卡 STREAM-ID-1): `in-memory stream id -> stored stream id`,
+     * keyed on the §5.1 upsert identity `(channel_id, url_hash)` — the same key
+     * [StreamDao.upsertAll] writes on, so a stream that was just upserted always resolves to the row
+     * it landed on (an existing row keeps its id, a new one gets the id Room assigned it).
+     *
+     * One `SELECT id, channel_id, url_hash` for the whole batch, then the joins in Kotlin: the
+     * alternative — a lookup per stream — is one indexed query per row of a 1–2k-stream refresh.
+     *
+     * A storage failure degrades (docs/02 §11): it returns an empty map and logs `DB_FAIL`, and the
+     * caller writes no health rather than stamping a row it could not identify.
+     */
+    override suspend fun resolveStreamIds(streams: List<Stream>): Map<Long, Long> {
+        if (streams.isEmpty()) return emptyMap()
+        return try {
+            val stored = streamDao.allIdentities()
+                .associate { (it.channelId to it.urlHash) to it.id }
+            streams.mapNotNull { stream ->
+                stored[stream.channelId to stream.urlHash]?.let { stream.id to it }
+            }.toMap()
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logger.w(
+                category = LogCategory.APP,
+                code = EventCodes.DB_FAIL,
+                message = "stream id resolution failed",
+                fields = mapOf("streams" to streams.size, "err" to e.message),
+                error = e,
+            )
+            emptyMap()
+        }
     }
 
     /** Deletes every stored channel whose id is not in [kept]; returns how many channels were removed. */

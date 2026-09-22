@@ -199,7 +199,10 @@ class RefreshSourcesUseCase @Inject constructor(
         // first: the channels land in the store and the streams are pointed at the ids it returned,
         // which is what keeps `stream.channel_id -> channel.id` satisfiable (卡 REFRESH-PERSIST-1).
         val resolved = resolveStreamChannelIds(ChannelMapper.toDomain(capped))
-        val persisted = persistMergingHealth(resolved)
+        // The mapped stream ids are per-load (`ChannelMapper`), and the shallow stage and the scorer
+        // both address a stream **by id**, so the write above is followed by a read that swaps each
+        // per-load id for the id of the row it actually landed on (卡 STREAM-ID-1).
+        val persisted = alignStreamIds(persistMergingHealth(resolved))
 
         // --- Shallow reachability (parallel, budget-gated, resume-aware) ---
         val shallow = shallowValidate(persisted, budget, governor)
@@ -635,6 +638,36 @@ class RefreshSourcesUseCase @Inject constructor(
         }
         streamRepository.upsertAll(merged)
         return merged
+    }
+
+    /**
+     * Re-addresses the streams of this run (卡 STREAM-ID-1). [ChannelMapper] mints a stream's id from
+     * a per-load counter — the class KDoc says so: they "are not identity across refreshes" — and
+     * that id is what [StreamRepository.upsertAll] keys *past*: the write goes to the row whose
+     * `(channel_id, url_hash)` matches, keeping its id ([RoomCatalogWriter]).
+     *
+     * Everything after this point addresses a stream **by id**, so the per-load id has to go:
+     * - the shallow stage stamps its verdict with `recordOutcome(stream.id, …)`, which resolves the
+     *   row and appends the `play_history` row that owns it;
+     * - the scorer reads the same row back with `health(stream.id)` for its `stability` factor.
+     *
+     * With the per-load id in place the verdict lands on whichever row happens to carry that id —
+     * on a store that already had streams (the bundled snapshot, the previous refresh) that is a
+     * *different* channel's stream, so the health stamps, the `play_history` trail and the score's
+     * input are all attributed to the wrong row. This is the stream-side twin of
+     * [resolveStreamChannelIds], which fixed the channel side of the same mismatch.
+     *
+     * A stream the store does not carry is dropped: with no row there is nothing to stamp, and the
+     * per-load id would be exactly the mis-addressing this removes. In the normal path every stream
+     * resolves (the write just before it succeeded); an empty result therefore means the store could
+     * not be read (already logged `DB_FAIL` by the seam) or could not be written, and the run writes
+     * no health rather than guessing.
+     */
+    private suspend fun alignStreamIds(streams: List<Stream>): List<Stream> {
+        if (streams.isEmpty()) return streams
+        val storedIds = catalogSink.resolveStreamIds(streams)
+        if (storedIds.isEmpty()) return emptyList()
+        return streams.mapNotNull { stream -> storedIds[stream.id]?.let { stream.copy(id = it) } }
     }
 
     // --- Shallow ---------------------------------------------------------------------------------

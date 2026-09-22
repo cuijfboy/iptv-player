@@ -98,6 +98,23 @@ class ChannelStore : CatalogSink {
         return mapping
     }
 
+    /**
+     * The stream half of the refresh seam, mirroring [RoomCatalogWriter.resolveStreamIds]: the
+     * in-memory store keeps the row it was handed (its id and all), so this is the identity map for
+     * every stream the store holds and empty for one it does not.
+     *
+     * The in-memory path has no auto-increment, which is why it never showed the defect the Room path
+     * did — the tests that use this store therefore keep their old numbers, while the Room tests
+     * (卡 STREAM-ID-1) are where the per-load id and the stored id actually diverge.
+     */
+    override suspend fun resolveStreamIds(streams: List<Stream>): Map<Long, Long> {
+        if (streams.isEmpty()) return emptyMap()
+        val storedIds = snapshotStreams().associate { (it.channelId to it.urlHash) to it.id }
+        return streams.mapNotNull { stream ->
+            storedIds[stream.channelId to stream.urlHash]?.let { stream.id to it }
+        }.toMap()
+    }
+
     /** Applies [transform] to one channel; returns false when the id is unknown. */
     fun updateChannel(id: Long, transform: (Channel) -> Channel): Boolean {
         var found = false
