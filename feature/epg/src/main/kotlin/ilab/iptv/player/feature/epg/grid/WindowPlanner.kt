@@ -1,5 +1,7 @@
 package ilab.iptv.player.feature.epg.grid
 
+import ilab.iptv.player.core.model.EpgGridWindow
+
 /**
  * Decides **which** time window and **which** channels the grid asks `EpgRepository` for.
  *
@@ -13,11 +15,18 @@ package ilab.iptv.player.feature.epg.grid
  */
 object WindowPlanner {
 
-    /** Opens on six hours, the window the S3 prototype measured (docs/05 07 §4). */
-    const val DEFAULT_SPAN_MS: Long = 6L * 60L * 60L * 1000L
+    /**
+     * Opens on six hours, the window the S3 prototype measured (docs/05 07 §4).
+     *
+     * **Both numbers are [EpgGridWindow]'s, not this file's** (BUG-20260922-018). The coverage report,
+     * the binding pick and the "is this guide empty?" gate all ask the same question — "what does the
+     * grid show?" — and they live in modules that cannot see `:feature:epg`, so the definition sits in
+     * `:core:model` and is consumed from both sides. Nothing here may grow a second copy of the span.
+     */
+    const val DEFAULT_SPAN_MS: Long = EpgGridWindow.SPAN_MS
 
     /** Where "now" sits inside the opening window: a little history left, most of the day to the right. */
-    const val DEFAULT_HISTORY_MS: Long = 30L * 60L * 1000L
+    const val DEFAULT_HISTORY_MS: Long = EpgGridWindow.HISTORY_MS
 
     /** The cursor may get this close to either edge before the window is extended. */
     const val EDGE_MARGIN_MS: Long = 60L * 60L * 1000L
@@ -31,10 +40,14 @@ object WindowPlanner {
     /** Rows loaded beyond the visible band, so a fast scroll does not flash "loading". */
     const val PREFETCH_ROWS: Int = 8
 
-    /** The opening window: aligned to a ruler step so the leftmost tick is a real tick. */
+    /**
+     * The opening window: aligned to a ruler step so the leftmost tick is a real tick. It is
+     * [EpgGridWindow.of] verbatim — the shared definition of "the window the grid shows" — mapped onto
+     * the grid's own `TimeWindow` type.
+     */
     fun initialWindow(nowMs: Long, timeAxis: TimeAxis): TimeWindow {
-        val start = timeAxis.alignWindowStart(nowMs - DEFAULT_HISTORY_MS)
-        return TimeWindow(start, start + DEFAULT_SPAN_MS)
+        val window = EpgGridWindow.of(nowMs, timeAxis.zone)
+        return TimeWindow(window.fromMs, window.toMs)
     }
 
     /**

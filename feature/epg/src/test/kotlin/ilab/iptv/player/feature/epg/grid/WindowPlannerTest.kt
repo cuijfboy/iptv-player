@@ -1,6 +1,7 @@
 package ilab.iptv.player.feature.epg.grid
 
 import com.google.common.truth.Truth.assertThat
+import ilab.iptv.player.core.model.EpgGridWindow
 import java.util.Calendar
 import java.util.TimeZone
 import org.junit.Test
@@ -20,6 +21,22 @@ class WindowPlannerTest {
         assertThat(axis.label(window.fromMs)).isEqualTo("09:30")
         assertThat(window.spanMs).isEqualTo(WindowPlanner.DEFAULT_SPAN_MS)
         assertThat(window.contains(now)).isTrue()
+    }
+
+    @Test
+    fun `the opening window and the ruler come from the one shared definition`() {
+        // BUG-20260922-018: the coverage report, the binding pick and the gate all ask "what does the
+        // grid show?" from `:core:model`, and the grid must answer with exactly that window — not with a
+        // second copy of the span. This is the link that makes the alignment claim true.
+        val window = WindowPlanner.initialWindow(now, axis)
+        val shared = EpgGridWindow.of(now, zone)
+
+        assertThat(window.fromMs).isEqualTo(shared.fromMs)
+        assertThat(window.toMs).isEqualTo(shared.toMs)
+        assertThat(WindowPlanner.DEFAULT_SPAN_MS).isEqualTo(EpgGridWindow.SPAN_MS)
+        assertThat(WindowPlanner.DEFAULT_HISTORY_MS).isEqualTo(EpgGridWindow.HISTORY_MS)
+        assertThat(axis.floorToStep(now))
+            .isEqualTo(EpgGridWindow.floorToStep(now, EpgGridWindow.RULER_STEP_MINUTES, zone))
     }
 
     @Test

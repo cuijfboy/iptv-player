@@ -1,5 +1,6 @@
 package ilab.iptv.player.feature.epg.grid
 
+import ilab.iptv.player.core.model.EpgGridWindow
 import java.util.Calendar
 import java.util.Locale
 import java.util.TimeZone
@@ -48,15 +49,11 @@ class TimeAxis(
         return "${two(calendar.get(Calendar.MONTH) + 1)}-${two(calendar.get(Calendar.DAY_OF_MONTH))}"
     }
 
-    /** Largest step instant ≤ [atMs]. */
-    fun floorToStep(atMs: Long): Long {
-        val calendar = calendarAt(atMs)
-        calendar.set(Calendar.SECOND, 0)
-        calendar.set(Calendar.MILLISECOND, 0)
-        val minute = calendar.get(Calendar.MINUTE)
-        calendar.set(Calendar.MINUTE, minute - Math.floorMod(minute, stepMinutes))
-        return calendar.timeInMillis
-    }
+    /**
+     * Largest step instant ≤ [atMs]. Delegates to [EpgGridWindow.floorToStep] so the ruler and the
+     * coverage window cannot align differently (BUG-20260922-018): one implementation, two callers.
+     */
+    fun floorToStep(atMs: Long): Long = EpgGridWindow.floorToStep(atMs, stepMinutes, zone)
 
     /** Smallest step instant ≥ [atMs]. */
     fun ceilToStep(atMs: Long): Long {

@@ -5,6 +5,7 @@ import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.common.LogCategory
 import ilab.iptv.player.core.common.Logger
 import ilab.iptv.player.core.data.epg.EpgSourceStatusReader
+import ilab.iptv.player.core.data.epg.EpgStoredGuideReader
 import ilab.iptv.player.core.domain.refresh.EpgRefreshAction
 import ilab.iptv.player.core.domain.refresh.EpgRefreshDecision
 import ilab.iptv.player.core.domain.refresh.EpgRefreshPolicy
@@ -29,6 +30,12 @@ import ilab.iptv.player.core.model.RefreshTrigger
  * whether the TV is *busy* is only meaningful at run time (and the attempt counter that bounds the
  * deferrals lives in WorkManager), so that half is [EpgRefreshCoordinator]'s.
  *
+ * The gate reads two things, not one (BUG-20260922-016): [EpgSourceStatusReader] for *when* the last
+ * fetch happened and [EpgStoredGuideReader] for *whether it produced anything a viewer can see*. The
+ * second one is what stops the cold-start white run — an app start before the channel table exists now
+ * answers `DEFER(catalog_empty)` and waits, instead of fetching four guides into a table with nothing
+ * to bind and stamping six hours of false freshness while it does it.
+ *
  * The user's own button does not come through here — [EpgRefreshGateway] sends it straight to the
  * manual queue, so a tap is never silently dropped by the freshness gate.
  */
@@ -37,6 +44,7 @@ class EpgRefreshScheduler(
     private val policy: EpgRefreshPolicy,
     private val settings: EpgRefreshSettings,
     private val status: EpgSourceStatusReader,
+    private val guide: EpgStoredGuideReader,
     private val logger: Logger,
     private val clock: Clock,
 ) {
@@ -45,7 +53,8 @@ class EpgRefreshScheduler(
     suspend fun request(trigger: RefreshTrigger): EpgRefreshDecision {
         val nowMs = clock.nowMs()
         val lastFetchAtMs = status.read().lastFetchAtMs
-        val decision = policy.gate(trigger, lastFetchAtMs, nowMs, settings)
+        val stored = guide.read()
+        val decision = policy.gate(trigger, lastFetchAtMs, nowMs, settings, stored)
         val fields = mapOf(
             "job" to EpgRefreshCoordinator.JOB,
             "trigger" to trigger.name,
@@ -54,6 +63,11 @@ class EpgRefreshScheduler(
             "lastFetchAtMs" to lastFetchAtMs,
             "ageMs" to lastFetchAtMs?.let { nowMs - it },
             "minIntervalMs" to settings.minIntervalMs,
+            // The second half of the gate's input: what the stored guide looks like right now, so
+            // "we deferred because there is nothing to bind yet" is readable from this line alone.
+            "channels" to stored.channels,
+            "matched" to stored.matched,
+            "programmed" to stored.programmed,
         )
         if (decision.action == EpgRefreshAction.SKIP) {
             logger.i(LogCategory.WORK, EventCodes.WORK_SCHEDULE, "epg refresh not scheduled", fields)

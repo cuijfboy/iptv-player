@@ -18,6 +18,7 @@ import ilab.iptv.player.core.epg.EpgMatcher
 import ilab.iptv.player.core.epg.EpgProvider
 import ilab.iptv.player.core.epg.XmltvStream
 import ilab.iptv.player.core.model.EpgMatchType
+import ilab.iptv.player.core.model.EpgGridWindow
 import ilab.iptv.player.core.source.normalize.Keys
 import ilab.iptv.player.core.source.pipeline.PlaybackPrioritySignal
 import java.io.ByteArrayInputStream
@@ -372,20 +373,23 @@ class LoadEpgUseCaseTest {
     }
 
     @Test
-    fun `the depth is measured in the retention window, not over the whole guide`() = runBlocking<Unit> {
-        // The window is the grid's own rule (`stop_ms >= from AND start_ms <= to`), so a programme that
-        // straddles the left edge counts and one that starts after the right edge does not. The empty
-        // source is proposed LAST and must still lose: depth outranks the source order.
+    fun `the depth is measured in the grid's window, not over the whole retained guide`() = runBlocking<Unit> {
+        // BUG-20260922-018: this used to measure the `[now-6h, now+48h]` retention window, so a binding
+        // whose only programmes were 20 hours away scored as "deep" while its grid row stayed blank. The
+        // window is now `EpgGridWindow`'s — the six hours the grid draws — so a programme that straddles
+        // its left edge counts and one that starts after its right edge does not. The empty source is
+        // proposed LAST and must still lose: depth outranks the source order.
+        val grid = EpgGridWindow.of(now)
         val channelId = channel("CCTV-1 综合", tvgId = null)
         val straddling = programme(
-            now - 7 * 3_600_000L,
-            now - 5 * 3_600_000L,
+            grid.fromMs - 30 * 60_000L,
+            grid.fromMs + 30 * 60_000L,
             "跨左边界",
             epgChannel = "straddle.cn",
         )
         val tooLate = programme(
-            now + 72 * 3_600_000L,
-            now + 73 * 3_600_000L,
+            grid.toMs + 3_600_000L,
+            grid.toMs + 2 * 3_600_000L,
             "太晚",
             epgChannel = "empty.cn",
         )

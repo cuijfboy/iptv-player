@@ -2,6 +2,7 @@ package ilab.iptv.player.core.domain.refresh
 
 import ilab.iptv.player.core.model.EpgCoverage
 import ilab.iptv.player.core.model.EpgSourceStatus
+import ilab.iptv.player.core.model.EpgStoredGuide
 import ilab.iptv.player.core.model.RefreshTrigger
 
 /** What one EPG trigger decided to do. */
@@ -19,8 +20,9 @@ enum class EpgRefreshAction {
 
 /**
  * One trigger decision plus the [reason] it was made for. The reason is a stable token
- * (`disabled` / `fresh` / `manual` / `stale` / `playing`), not prose: it lands in `WORK_SCHEDULE` and
- * `WORK_RUN` as a field, so "why did EPG not run at 06:00?" is one grep.
+ * (`disabled` / `fresh` / `manual` / `stale` / `playing` / `catalog_empty` / `empty_guide` /
+ * `empty_backoff`), not prose: it lands in `WORK_SCHEDULE` and `WORK_RUN` as a field, so "why did EPG
+ * not run at 06:00?" is one grep.
  */
 data class EpgRefreshDecision(val action: EpgRefreshAction, val reason: String)
 
@@ -33,15 +35,25 @@ data class EpgRefreshDecision(val action: EpgRefreshAction, val reason: String)
  * panel's button all funnel into the same gate, and a trigger that finds data younger than this does
  * nothing at all. Six hours is the default because a daily-refresh cadence plus a handful of app
  * starts per day must not re-download 4.5 MiB of guides each time.
+ *
+ * [emptyRetryMs] is the other half of the same rule, and the BUG-20260922-016 fix: freshness alone is
+ * not enough when the stored guide has *nothing to show* (no channel bound, or every binding empty).
+ * Such a guide may be re-fetched after this much shorter interval instead of waiting the full
+ * [minIntervalMs], because "we fetched successfully 20 minutes ago" is not an answer to a blank TV.
  */
 data class EpgRefreshSettings(
     val enabled: Boolean = true,
     val minIntervalMs: Long = DEFAULT_MIN_INTERVAL_MS,
+    /** 30 min — see the class doc. Never longer than [minIntervalMs]; the gate clamps it. */
+    val emptyRetryMs: Long = DEFAULT_EMPTY_RETRY_MS,
 ) {
     companion object {
 
         /** 6 h — see the class doc. */
         const val DEFAULT_MIN_INTERVAL_MS: Long = 6 * 60 * 60_000L
+
+        /** 30 min — the empty-guide retry interval, the same wait a busy TV's deferral uses. */
+        const val DEFAULT_EMPTY_RETRY_MS: Long = PlaybackAvoidancePolicy.DEFER_BACKOFF_MS
     }
 }
 
@@ -53,19 +65,36 @@ data class EpgRefreshSettings(
  * THE POLICY:
  *
  * 1. `enabled = false` → `SKIP(disabled)`;
- * 2. a **user** trigger ([RefreshTrigger.MANUAL]) always `RUN`s — the user is waiting for a result,
+ * 2. no channel list yet ([EpgStoredGuide.catalogReady] is false) → `DEFER(catalog_empty)`. This is
+ *    BUG-20260922-016's first half: a cold start happens before the channel table is seeded, so the
+ *    old gate happily ran and fetched 26 s of guides into a table with nothing to bind
+ *    (`matched=0/total=0`) — *and stamped `last_fetch_at` while doing it*, which then froze the next
+ *    six hours. Waiting for the catalogue costs no network: the run is asked for again with the job's
+ *    backoff and the very same trigger succeeds once the list is there (an import, or the first boot's
+ *    seeding, both land inside that wait);
+ * 3. a **user** trigger ([RefreshTrigger.MANUAL]) always `RUN`s — the user is waiting for a result,
  *    and an explicit tap outranks both the freshness gate and a playing session;
- * 3. anything else that finds data younger than `minIntervalMs` → `SKIP(fresh)`. This is the
- *    idempotency gate: repeated cold starts inside the window cost no network and write no rows;
- * 4. a background trigger (`SCHEDULED`, the post-refresh follow-up) while a session plays and
+ * 4. anything else that finds a *usable* dataset younger than `minIntervalMs` → `SKIP(fresh)`. This is
+ *    the idempotency gate: repeated cold starts inside the window cost no network and write no rows;
+ * 5. a stored guide that is **empty** ([EpgStoredGuide.empty] — nothing bound, or every binding
+ *    blank) gets the shorter `emptyRetryMs` instead: inside it → `SKIP(empty_backoff)`, past it →
+ *    `RUN(empty_guide)`. Two things follow from that pair, and both were the bug: a blank TV is
+ *    retried instead of being locked out for six hours, and consecutive empty runs cannot loop
+ *    without end because every retry is at least `emptyRetryMs` behind the last fetch. The retry
+ *    interval is bounded on both sides — no faster than `emptyRetryMs`, no slower than
+ *    `minIntervalMs` — which is what the "退避上限" of BUG-016 asks for. (A per-attempt escalation
+ *    would need a stored counter; the database is the only persisted state this job has, so the
+ *    backoff is a floor plus a ceiling rather than a ladder. Recorded as a suggestion in
+ *    `docs/05-过程记录/46-BUG016与018修复.md`.)
+ * 6. a background trigger (`SCHEDULED`, the post-refresh follow-up) while a session plays and
  *    `respectPlayback` is on → `DEFER(playing)`, **at most [MAX_DEFERRALS] times**, exactly like
  *    `PlaybackAvoidancePolicy` does for the source refresh: a TV left on all evening still gets its
  *    guide on the fourth attempt;
- * 5. otherwise `RUN` (`manual` / `stale`).
+ * 7. otherwise `RUN` (`manual` / `stale` / `empty_guide`).
  *
  * [RefreshTrigger.FIRST_RUN] is deliberately *not* special: it is "the app started", which can happen
- * twenty times a day, and rule 3 is what keeps that cheap. Its only privilege is that it can `DEFER`
- * (rule 4 applies to every non-manual trigger) so a cold start during playback never competes.
+ * twenty times a day, and rule 4 is what keeps that cheap. Its only privilege is that it can `DEFER`
+ * (rule 6 applies to every non-manual trigger) so a cold start during playback never competes.
  */
 class EpgRefreshPolicy(private val maxDeferrals: Int = MAX_DEFERRALS) {
 
@@ -80,15 +109,24 @@ class EpgRefreshPolicy(private val maxDeferrals: Int = MAX_DEFERRALS) {
         lastFetchAtMs: Long?,
         nowMs: Long,
         settings: EpgRefreshSettings,
+        stored: EpgStoredGuide,
     ): EpgRefreshDecision {
         if (!settings.enabled) return EpgRefreshDecision(EpgRefreshAction.SKIP, REASON_DISABLED)
+        // Rule 2: there is nothing to bind yet, so do not spend a run (or a freshness stamp) on it.
+        // The answer is the waiting one, not the do-nothing one: the catalogue arrives a moment later.
+        if (!stored.catalogReady) {
+            return EpgRefreshDecision(EpgRefreshAction.DEFER, REASON_CATALOG_EMPTY)
+        }
         if (trigger != RefreshTrigger.MANUAL &&
             lastFetchAtMs != null &&
-            nowMs - lastFetchAtMs < settings.minIntervalMs
+            nowMs - lastFetchAtMs < intervalFor(stored, settings)
         ) {
-            return EpgRefreshDecision(EpgRefreshAction.SKIP, REASON_FRESH)
+            return EpgRefreshDecision(
+                EpgRefreshAction.SKIP,
+                if (stored.empty) REASON_EMPTY_BACKOFF else REASON_FRESH,
+            )
         }
-        return EpgRefreshDecision(EpgRefreshAction.RUN, runReason(trigger))
+        return EpgRefreshDecision(EpgRefreshAction.RUN, runReason(trigger, stored))
     }
 
     /**
@@ -103,8 +141,9 @@ class EpgRefreshPolicy(private val maxDeferrals: Int = MAX_DEFERRALS) {
         lastFetchAtMs: Long?,
         nowMs: Long,
         settings: EpgRefreshSettings,
+        stored: EpgStoredGuide,
     ): EpgRefreshDecision {
-        val gate = gate(trigger, lastFetchAtMs, nowMs, settings)
+        val gate = gate(trigger, lastFetchAtMs, nowMs, settings, stored)
         if (gate.action != EpgRefreshAction.RUN) return gate
         if (respectPlayback &&
             playing &&
@@ -116,8 +155,24 @@ class EpgRefreshPolicy(private val maxDeferrals: Int = MAX_DEFERRALS) {
         return gate
     }
 
-    private fun runReason(trigger: RefreshTrigger): String =
-        if (trigger == RefreshTrigger.MANUAL) REASON_MANUAL else REASON_STALE
+    /**
+     * The freshness window this stored guide earns: the normal one when it has something to show, the
+     * shorter empty-guide one when it does not. Clamped so a caller cannot configure an "empty" window
+     * that is longer than the ordinary one (that would make the empty case *more* patient, which is the
+     * bug in a different costume).
+     */
+    private fun intervalFor(stored: EpgStoredGuide, settings: EpgRefreshSettings): Long =
+        if (stored.empty) {
+            settings.emptyRetryMs.coerceIn(0L, settings.minIntervalMs)
+        } else {
+            settings.minIntervalMs
+        }
+
+    private fun runReason(trigger: RefreshTrigger, stored: EpgStoredGuide): String = when {
+        trigger == RefreshTrigger.MANUAL -> REASON_MANUAL
+        stored.empty -> REASON_EMPTY_GUIDE
+        else -> REASON_STALE
+    }
 
     companion object {
 
@@ -132,6 +187,15 @@ class EpgRefreshPolicy(private val maxDeferrals: Int = MAX_DEFERRALS) {
         const val REASON_MANUAL: String = "manual"
         const val REASON_STALE: String = "stale"
         const val REASON_PLAYING: String = "playing"
+
+        /** Nothing to bind: the channel table has not been seeded or imported yet (BUG-016). */
+        const val REASON_CATALOG_EMPTY: String = "catalog_empty"
+
+        /** The stored guide binds nothing, or every binding is blank; retry (BUG-016). */
+        const val REASON_EMPTY_GUIDE: String = "empty_guide"
+
+        /** The same, but the last fetch is still inside `emptyRetryMs` — the bounded retry backoff. */
+        const val REASON_EMPTY_BACKOFF: String = "empty_backoff"
     }
 }
 

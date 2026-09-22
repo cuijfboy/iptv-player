@@ -42,6 +42,7 @@ class EpgRefreshGatewayTest {
             policy = ilab.iptv.player.core.domain.refresh.EpgRefreshPolicy(),
             settings = settings,
             status = status,
+            guide = FakeEpgStoredGuide(),
             logger = logger,
             clock = clock,
         ),

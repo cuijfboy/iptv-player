@@ -10,7 +10,9 @@ import ilab.iptv.player.core.common.Clock
 import ilab.iptv.player.core.common.Logger
 import ilab.iptv.player.core.common.PlaybackActivity
 import ilab.iptv.player.core.data.epg.EpgSourceStatusReader
+import ilab.iptv.player.core.data.epg.EpgStoredGuideReader
 import ilab.iptv.player.core.data.epg.LoadEpgUseCase
+import ilab.iptv.player.core.data.epg.RoomEpgStoredGuideReader
 import ilab.iptv.player.core.data.epg.RoomEpgSourceStatusReader
 import ilab.iptv.player.core.domain.refresh.EpgRefreshPolicy
 import ilab.iptv.player.core.domain.refresh.EpgRefreshPort
@@ -43,6 +45,15 @@ object EpgRefreshModule {
     @Singleton
     fun provideEpgSourceStatusReader(impl: RoomEpgSourceStatusReader): EpgSourceStatusReader = impl
 
+    /**
+     * BUG-20260922-016: the gate's second input. It is a separate port from the freshness reader on
+     * purpose — "how old" and "does it show anything" are different questions with different owners,
+     * and the bug was reading only the first one.
+     */
+    @Provides
+    @Singleton
+    fun provideEpgStoredGuideReader(impl: RoomEpgStoredGuideReader): EpgStoredGuideReader = impl
+
     @Provides
     @Singleton
     fun provideEpgRunner(useCase: LoadEpgUseCase): EpgRunner = UseCaseEpgRunner(useCase)
@@ -54,6 +65,7 @@ object EpgRefreshModule {
         policy: EpgRefreshPolicy,
         settings: EpgRefreshSettings,
         status: EpgSourceStatusReader,
+        guide: EpgStoredGuideReader,
         logger: Logger,
         clock: Clock,
     ): EpgRefreshCoordinator = EpgRefreshCoordinator(
@@ -61,6 +73,7 @@ object EpgRefreshModule {
         policy = policy,
         settings = settings,
         status = status,
+        guide = guide,
         // The one place R7's signal is bound for the EPG run: the same flag `:core:source` reads for
         // the concurrency half of the source refresh.
         playback = EpgRefreshCoordinator.PlaybackProbe { PlaybackActivity.isActive() },
@@ -80,9 +93,10 @@ object EpgRefreshModule {
         policy: EpgRefreshPolicy,
         settings: EpgRefreshSettings,
         status: EpgSourceStatusReader,
+        guide: EpgStoredGuideReader,
         logger: Logger,
         clock: Clock,
-    ): EpgRefreshScheduler = EpgRefreshScheduler(enqueuer, policy, settings, status, logger, clock)
+    ): EpgRefreshScheduler = EpgRefreshScheduler(enqueuer, policy, settings, status, guide, logger, clock)
 
     @Provides
     @Singleton

@@ -2,12 +2,12 @@ package ilab.iptv.player.core.data.epg
 
 import ilab.iptv.player.core.common.Clock
 import ilab.iptv.player.core.data.mapper.PersistenceMapper
-import ilab.iptv.player.core.database.ProgrammeWindows
 import ilab.iptv.player.core.database.dao.ChannelDao
 import ilab.iptv.player.core.database.dao.ProgrammeDao
 import ilab.iptv.player.core.domain.channel.ChannelGrouping
 import ilab.iptv.player.core.domain.repository.EpgRepository
 import ilab.iptv.player.core.model.EpgCoverage
+import ilab.iptv.player.core.model.EpgGridWindow
 import ilab.iptv.player.core.model.EpgWindowQuery
 import ilab.iptv.player.core.model.NowNext
 import ilab.iptv.player.core.model.Programme
@@ -80,16 +80,21 @@ class RoomEpgRepository @Inject constructor(
 
     /**
      * §6.3's coverage, in both口径 since EPG-BIND: [EpgCoverage.matched] is "carries a guide id",
-     * [EpgCoverage.withProgrammes] is "that id has something to show inside the retention window".
+     * [EpgCoverage.withProgrammes] is "that id has something to show inside the window the grid draws".
      *
      * The second half is what a reader of the panel actually means by coverage. A guide can declare
      * `<channel id="…">` and publish no `<programme>` for it — the id points at an empty grid, and
-     * counting it made "100% covered" and "the channel list is blank" true at the same time. The
-     * window comes from the clock because the table is only *approximately* the window: it is pruned
-     * at the end of every refresh, so between refreshes it can still hold rows that have aged out.
+     * counting it made "100% covered" and "the channel list is blank" true at the same time.
+     *
+     * **The window is [EpgGridWindow], not the retention window (BUG-20260922-018).** It used to count
+     * over `[now-6h, now+48h]` — everything the table keeps — while the grid only draws six hours, so a
+     * channel could be reported as covered and render an empty row. Both producers of this口径 (this
+     * read and `LoadEpgUseCase`'s run report) take the window from the same place for exactly that
+     * reason. It still comes from the clock, because the table is only *approximately* any window: it
+     * is pruned at the end of every refresh, so between refreshes it can hold rows that have aged out.
      */
     override suspend fun coverage(): EpgCoverage {
-        val window = ProgrammeWindows.around(clock.nowMs())
+        val window = EpgGridWindow.of(clock.nowMs())
         val byGroup = channelDao.countWithEpgByGroupKey()
             .groupBy({ ChannelGrouping.classify(it.groupKey) }, { it.count })
             .mapValues { (_, counts) -> counts.sum() }

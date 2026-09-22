@@ -28,6 +28,7 @@ import ilab.iptv.player.core.epg.XmltvPullParser
 import ilab.iptv.player.core.epg.epgChannelIndex
 import ilab.iptv.player.core.source.pipeline.PlaybackPrioritySignal
 import ilab.iptv.player.core.model.EpgLoadReport
+import ilab.iptv.player.core.model.EpgGridWindow
 import ilab.iptv.player.core.model.EpgMatchType
 import ilab.iptv.player.core.model.EpgChannelRef
 import ilab.iptv.player.core.model.Programme
@@ -69,9 +70,11 @@ import kotlinx.coroutines.withContext
  * proposals and picks one per channel at the end ([EpgBindingPreference]): the guide id with the most
  * programmes inside the retention window, ties going to the later source — the arbitration the old
  * "overwrite as you go" loop produced by accident. Depth is read once, from
- * [ProgrammeDao.countByChannelInWindow], so what the pick is made from is exactly what the grid would
- * show. A proposal whose id turns out to hold nothing still wins if it is the only one; the coverage
- * report is what says the binding is empty.
+ * [ProgrammeDao.countByChannelInWindow], and the window is [EpgGridWindow]'s — the six hours the grid
+ * draws when it opens (BUG-20260922-018). It used to be the 54 h retention window, so the number the
+ * pick and the coverage report were made from was not the number the viewer could see
+ * (`programmesInWindow=84` over an empty row). A proposal whose id turns out to hold nothing still wins
+ * if it is the only one; the coverage report is what says the binding is empty.
  */
 @Singleton
 class LoadEpgUseCase @Inject constructor(
@@ -91,7 +94,11 @@ class LoadEpgUseCase @Inject constructor(
 
     suspend operator fun invoke(force: Boolean = false, respectPlayback: Boolean = true): AppResult<EpgLoadReport> {
         val startedAtMs = clock.nowMs()
+        // Two windows, two questions (docs/02 §5.1 vs §6.3): the retention window is how much guide the
+        // database keeps and what the prune trims to; the grid window is what a viewer sees, and it is
+        // the one the match depth, the binding pick and the coverage report are all measured in.
         val window = ProgrammeWindows.around(startedAtMs)
+        val gridWindow = EpgGridWindow.of(startedAtMs)
         // The match and the coverage both read channels, and both want the domain shape (`group` is
         // derived, `epg_match` is an enum), so the rows are mapped once here (docs/02 §5.2).
         val channels = channelDao.all().map { PersistenceMapper.toDomain(it) }
@@ -283,7 +290,7 @@ class LoadEpgUseCase @Inject constructor(
         // the pure preference picks per channel. Reading the count here (rather than trusting the parse
         // order) is what makes the choice a rule instead of a race.
         val programmesInWindow: Map<String, Int> = withContext(dispatchers.default) {
-            programmeDao.countByChannelInWindow(window.fromMs, window.toMs)
+            programmeDao.countByChannelInWindow(gridWindow.fromMs, gridWindow.toMs)
                 .associate { row -> row.epgChannelId to row.count }
         }
         val depthOf: (String) -> Int = { id -> programmesInWindow[id] ?: 0 }

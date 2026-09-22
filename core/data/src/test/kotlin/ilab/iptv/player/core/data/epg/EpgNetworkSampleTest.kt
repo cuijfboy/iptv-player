@@ -14,6 +14,7 @@ import ilab.iptv.player.core.data.store.RoomCatalogWriter
 import ilab.iptv.player.core.database.IptvDatabase
 import ilab.iptv.player.core.database.ProgrammeWindows
 import ilab.iptv.player.core.domain.channel.ChannelGrouping
+import ilab.iptv.player.core.model.EpgGridWindow
 import ilab.iptv.player.core.epg.BuiltInEpgSources
 import ilab.iptv.player.core.epg.EpgAliases
 import ilab.iptv.player.core.epg.EpgCoverageCalculator
@@ -178,6 +179,9 @@ class EpgNetworkSampleTest {
         )
         println("coverage-uncovered: " + uncoveredSummary(database))
         println("coverage-empty-binding: " + emptyBindingSummary(database, clock))
+        // BUG-20260922-018: the same database, asked the old way (retention window) and the new way (the
+        // six hours the grid draws). The two numbers are the口径 fix's evidence on the real fixtures.
+        println("coverage-window-alignment: " + windowAlignment(database, clock))
         println("coverage-competition: " + competitionSummary(database, logger))
         println("coverage-spotlight: " + spotlight(database))
         println("coverage-hit-tiers: " + tierSummary(logger))
@@ -216,7 +220,8 @@ class EpgNetworkSampleTest {
         database: IptvDatabase,
         clock: ilab.iptv.player.core.common.Clock,
     ): String {
-        val window = ProgrammeWindows.around(clock.nowMs())
+        // The grid's window, not the retention window: "bound but blank" has to mean blank in the app.
+        val window = EpgGridWindow.of(clock.nowMs())
         val counts = database.programmeDao().countByChannelInWindow(window.fromMs, window.toMs)
             .associate { it.epgChannelId to it.count }
         val empty = database.channelDao().all()
@@ -230,6 +235,29 @@ class EpgNetworkSampleTest {
                 "$group:${rows.size} [" +
                     rows.joinToString(",") { "${it.name}=${it.epgChannelId}" } + "]"
             }
+    }
+
+    /**
+     * "Has programmes" counted both ways, over one stored database (BUG-20260922-018).
+     *
+     * `retention` is what the run and the panel used to report — `[now-6h, now+48h]`, everything the
+     * table keeps. `grid` is the six hours the grid opens on, which is what the panel and the coverage
+     * event report now, and what `LoadEpgUseCase` picks bindings by. A large gap between the two is the
+     * bug: that many channels were "covered" on paper with nothing to draw.
+     */
+    private suspend fun windowAlignment(
+        database: IptvDatabase,
+        clock: ilab.iptv.player.core.common.Clock,
+    ): String {
+        val now = clock.nowMs()
+        val retention = ProgrammeWindows.around(now)
+        val grid = EpgGridWindow.of(now)
+        val retained = database.channelDao().countWithEpgProgrammes(retention.fromMs, retention.toMs)
+        val drawn = database.channelDao().countWithEpgProgrammes(grid.fromMs, grid.toMs)
+        val matched = database.channelDao().countWithEpg()
+        return "matched=$matched retentionWithProgrammes=$retained gridWithProgrammes=$drawn " +
+            "retentionOverCount=${retained - drawn} " +
+            "gridFrom=${grid.fromMs} gridTo=${grid.toMs} spanMs=${grid.toMs - grid.fromMs}"
     }
 
     /**

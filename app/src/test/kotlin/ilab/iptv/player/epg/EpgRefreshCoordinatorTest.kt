@@ -23,6 +23,7 @@ class EpgRefreshCoordinatorTest {
     private val clock = FakeClock()
     private val logger = RecordingLogger()
     private val status = FakeEpgSourceStatus()
+    private val guide = FakeEpgStoredGuide()
     private var playing = false
 
     private fun coordinator(
@@ -33,10 +34,27 @@ class EpgRefreshCoordinatorTest {
         policy = EpgRefreshPolicy(),
         settings = settings,
         status = status,
+        guide = guide,
         playback = EpgRefreshCoordinator.PlaybackProbe { playing },
         clock = clock,
         logger = logger,
     )
+
+    @Test
+    fun `a run with no channel list waits instead of fetching into nothing`() = runTest {
+        // BUG-20260922-016: this is the cold start that used to spend 26 s fetching guides for a table
+        // that had no channels. Now it defers — and the job's retry is what picks the catalogue up.
+        guide.set(channels = 0, matched = 0, programmed = 0)
+        val runner = FakeEpgRunner()
+
+        val result = coordinator(runner).run(RefreshTrigger.FIRST_RUN)
+
+        assertThat(result).isEqualTo(EpgRunResult.Deferred(RefreshTrigger.FIRST_RUN, deferrals = 0))
+        assertThat(runner.calls).isEqualTo(0)
+        val event = logger.fields(EventCodes.WORK_RUN)
+        assertThat(event["decision"]).isEqualTo("DEFER")
+        assertThat(event["reason"]).isEqualTo(EpgRefreshPolicy.REASON_CATALOG_EMPTY)
+    }
 
     @Test
     fun `a stale trigger runs the pipeline and reports the coverage`() = runTest {

@@ -103,6 +103,39 @@ data class EpgSourceStatus(
 )
 
 /**
+ * What the *stored* guide looks like right now, for the P3-6 trigger gate (BUG-20260922-016).
+ *
+ * The gate used to read one thing: how long ago the last fetch was. A cold start that ran against an
+ * empty channel table (`matched=0/total=0`, 26 s of fetching that could bind nothing) still stamped
+ * `last_fetch_at`, so the six-hour freshness gate then blocked every automatic trigger — the TV had no
+ * guide for six hours after a fresh install. "Fresh" has to mean "fresh **and usable**", and these
+ * three counts are what makes "usable" decidable without a second stored fact: the channel table is
+ * the catalogue, the matched count is what the last run bound, and [programmed] is how many of those
+ * bindings hold something inside the window the grid draws ([EpgGridWindow]).
+ *
+ * Read by `EpgStoredGuideReader` (`:core:data`) and consumed by the pure `EpgRefreshPolicy`
+ * (`:core:domain`), the same split as [EpgSourceStatus].
+ */
+data class EpgStoredGuide(
+    /** Rows in the channel table — 0 means the catalogue has not been seeded or imported yet. */
+    val channels: Int,
+    /** Channels carrying an `epg_channel_id`. */
+    val matched: Int,
+    /** Of those, how many hold ≥1 programme inside the grid's window. */
+    val programmed: Int,
+) {
+
+    /** Is there a channel list to bind at all? An empty catalogue makes an EPG run pointless. */
+    val catalogReady: Boolean get() = channels > 0
+
+    /**
+     * A stored guide with nothing to show: no channel bound at all, or every binding empty. Both are
+     * "the TV is blank" states, and neither may be reported as fresh (BUG-016).
+     */
+    val empty: Boolean get() = channels > 0 && (matched <= 0 || programmed <= 0)
+}
+
+/**
  * docs/02 §4.4 E5: the lookup a [ilab.iptv.player.core.model.Channel] is matched against.
  *
  * `byId` is keyed on the *source's* channel attribute (`tvg-id`), `byNameKey` on the normalized

@@ -6,6 +6,7 @@ import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.common.LogCategory
 import ilab.iptv.player.core.common.Logger
 import ilab.iptv.player.core.data.epg.EpgSourceStatusReader
+import ilab.iptv.player.core.data.epg.EpgStoredGuideReader
 import ilab.iptv.player.core.data.epg.LoadEpgUseCase
 import ilab.iptv.player.core.domain.refresh.EpgRefreshAction
 import ilab.iptv.player.core.domain.refresh.EpgRefreshBudget
@@ -64,7 +65,10 @@ sealed interface EpgRunResult {
  * THE THREE ANSWERS, IN ORDER:
  * 1. *before* starting: [EpgRefreshPolicy.decide] — off/fresh → [EpgRunResult.Skipped] (nothing is
  *    read, nothing is written: this is what makes repeated triggers idempotent), playing → `Deferred`
- *    while [EpgRefreshPolicy.MAX_DEFERRALS] allows it;
+ *    while [EpgRefreshPolicy.MAX_DEFERRALS] allows it, and no channel list yet →
+ *    `Deferred(catalog_empty)` with no attempt cap of its own, because waiting for the catalogue is
+ *    cheap (no network) and giving up on it is what left a fresh install without a guide
+ *    (BUG-20260922-016);
  * 2. *during* the run: the use case re-reads the same playback signal between sources, so a session
  *    that starts mid-run stops the remaining guides (see `LoadEpgUseCase`'s class doc);
  * 3. *around* the run: a wall-clock budget, so a stuck socket becomes a reported failure the retry
@@ -75,6 +79,7 @@ class EpgRefreshCoordinator(
     private val policy: EpgRefreshPolicy,
     private val settings: EpgRefreshSettings,
     private val status: EpgSourceStatusReader,
+    private val guide: EpgStoredGuideReader,
     private val playback: PlaybackProbe,
     private val clock: Clock,
     private val logger: Logger,
@@ -93,6 +98,7 @@ class EpgRefreshCoordinator(
         budgetMs: Long = EpgRefreshBudget.DEFAULT_BUDGET_MS,
     ): EpgRunResult {
         val playing = playback.isActive()
+        val stored = guide.read()
         val decision = policy.decide(
             trigger = trigger,
             playing = playing,
@@ -101,6 +107,7 @@ class EpgRefreshCoordinator(
             lastFetchAtMs = status.read().lastFetchAtMs,
             nowMs = clock.nowMs(),
             settings = settings,
+            stored = stored,
         )
         when (decision.action) {
             EpgRefreshAction.SKIP -> {
@@ -109,7 +116,20 @@ class EpgRefreshCoordinator(
             }
 
             EpgRefreshAction.DEFER -> {
-                log(EventCodes.WORK_RUN, "epg refresh deferred while playing", decision, trigger, playing, deferrals)
+                log(
+                    EventCodes.WORK_RUN,
+                    // Two ways to defer, one answer to WorkManager: the TV is busy, or there is no
+                    // channel list to bind yet (BUG-20260922-016). The reason field says which.
+                    if (decision.reason == EpgRefreshPolicy.REASON_PLAYING) {
+                        "epg refresh deferred while playing"
+                    } else {
+                        "epg refresh deferred until the channel list exists"
+                    },
+                    decision,
+                    trigger,
+                    playing,
+                    deferrals,
+                )
                 return EpgRunResult.Deferred(trigger = trigger, deferrals = deferrals)
             }
 

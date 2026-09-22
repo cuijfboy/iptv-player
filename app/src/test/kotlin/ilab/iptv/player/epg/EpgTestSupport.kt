@@ -2,10 +2,12 @@ package ilab.iptv.player.epg
 
 import ilab.iptv.player.core.common.AppResult
 import ilab.iptv.player.core.data.epg.EpgSourceStatusReader
+import ilab.iptv.player.core.data.epg.EpgStoredGuideReader
 import ilab.iptv.player.core.model.ChannelGroup
 import ilab.iptv.player.core.model.EpgCoverage
 import ilab.iptv.player.core.model.EpgLoadReport
 import ilab.iptv.player.core.model.EpgSourceStatus
+import ilab.iptv.player.core.model.EpgStoredGuide
 
 /** An `epg_source` table whose freshness the test chooses; nothing else is ever read from it. */
 class FakeEpgSourceStatus(
@@ -27,6 +29,28 @@ class FakeEpgSourceStatus(
 
     fun set(lastFetchAtMs: Long?, lastResult: String? = null, sources: Int = 4) {
         status = EpgSourceStatus(sources, sources, lastFetchAtMs, lastResult)
+    }
+}
+
+/**
+ * The other half of the gate's input (BUG-20260922-016): what the stored guide looks like. The default
+ * is the healthy case — channels bound and showing something — so a test only has to say so when it is
+ * testing the *empty* arm, and the freshness tests keep measuring freshness alone.
+ */
+class FakeEpgStoredGuide(
+    private var guide: EpgStoredGuide = EpgStoredGuide(channels = 571, matched = 153, programmed = 126),
+) : EpgStoredGuideReader {
+
+    var reads: Int = 0
+        private set
+
+    override suspend fun read(): EpgStoredGuide {
+        reads++
+        return guide
+    }
+
+    fun set(channels: Int, matched: Int, programmed: Int) {
+        guide = EpgStoredGuide(channels = channels, matched = matched, programmed = programmed)
     }
 }
 
