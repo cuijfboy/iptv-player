@@ -4,8 +4,10 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import ilab.iptv.player.core.common.AppScopeProvider
 import ilab.iptv.player.core.common.DispatcherProvider
 import ilab.iptv.player.core.log.AndroidDispatcherProvider
+import ilab.iptv.player.core.log.DefaultAppScopeProvider
 import javax.inject.Singleton
 
 /**
@@ -29,4 +31,13 @@ object DispatcherModule {
     @Provides
     @Singleton
     fun provideDispatcherProvider(): DispatcherProvider = AndroidDispatcherProvider()
+
+    /**
+     * The application-wide scope of §4.5 C6, on the same "platform default for a `:core:common`
+     * interface" rule. Its first consumer is P3-6's cold-start EPG trigger; nothing else may create a
+     * second one, because "app-wide" is the whole point of the interface.
+     */
+    @Provides
+    @Singleton
+    fun provideAppScopeProvider(): AppScopeProvider = DefaultAppScopeProvider()
 }

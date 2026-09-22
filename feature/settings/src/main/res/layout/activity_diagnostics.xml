@@ -64,6 +64,15 @@
             android:focusable="true"
             android:text="@string/diag_clear" />
 
+        <!-- P3-6's manual entry: the same EPG job the cold start and the daily refresh queue. -->
+        <Button
+            android:id="@+id/diag_epg_refresh"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:focusable="true"
+            android:text="@string/diag_epg_refresh" />
+
     </LinearLayout>
 
     <LinearLayout

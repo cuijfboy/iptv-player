@@ -4,6 +4,8 @@ import com.google.common.truth.Truth.assertThat
 import ilab.iptv.player.core.common.LogCategory
 import ilab.iptv.player.core.common.LogEvent
 import ilab.iptv.player.core.common.LogLevel
+import ilab.iptv.player.core.model.ChannelGroup
+import ilab.iptv.player.core.model.EpgCoverage
 import org.junit.Test
 
 /**
@@ -30,6 +32,7 @@ class DiagOverviewTest {
     private fun input(
         sources: List<DiagSourceLine> = emptyList(),
         playback: DiagPlaybackSummary = DiagPlaybackSummary(0, 0, 0, null, null, null),
+        epg: DiagEpgSummary? = null,
     ) = DiagOverviewInput(
         appVersion = "0.5.2 (5)",
         abi = "arm64-v8a",
@@ -53,7 +56,61 @@ class DiagOverviewTest {
         ringCapacity = 2000,
         fileLogSummary = "3 个 / 1.2 MB",
         lastRefresh = "2026-09-22 06:00（12 分钟前）",
+        epg = epg,
     )
+
+    @Test
+    fun `the EPG block appears last when there are EPG facts, and reports both coverage readings`() {
+        val blocks = DiagOverview.build(
+            input(
+                epg = DiagEpgSummary(
+                    lastFetch = "2026-09-22 08:12（34 分钟前）",
+                    sources = "共 4 / 启用 4 · 上次 OK:177447",
+                    mainstream = "153 / 156 = 98.1%",
+                    coverage = "209 / 658 = 31.8%",
+                    minInterval = "6 小时",
+                    enabled = true,
+                ),
+            ),
+        )
+
+        assertThat(blocks.map { it.title }).containsExactly("设备", "应用", "数据", "源健康", "播放", "EPG").inOrder()
+        assertThat(value(blocks, "EPG", "自动更新")).isEqualTo("开（间隔 6 小时）")
+        assertThat(value(blocks, "EPG", "上次拉取")).isEqualTo("2026-09-22 08:12（34 分钟前）")
+        assertThat(value(blocks, "EPG", "主流覆盖")).isEqualTo("153 / 156 = 98.1%")
+    }
+
+    @Test
+    fun `the no-EPG case keeps the page exactly as it was`() {
+        assertThat(DiagOverview.build(input()).map { it.title })
+            .containsExactly("设备", "应用", "数据", "源健康", "播放").inOrder()
+    }
+
+    @Test
+    fun `the mainstream slice is 央视 + 卫视 + 港澳台, not every non-local group`() {
+        val coverage = EpgCoverage(
+            matched = 209,
+            total = 658,
+            byGroup = mapOf(
+                ChannelGroup.CCTV to 80,
+                ChannelGroup.SATELLITE to 69,
+                ChannelGroup.HK_MO_TW to 4,
+                ChannelGroup.LOCAL to 55,
+                ChannelGroup.OTHER to 1,
+            ),
+            byGroupTotal = mapOf(
+                ChannelGroup.CCTV to 80,
+                ChannelGroup.SATELLITE to 69,
+                ChannelGroup.HK_MO_TW to 7,
+                ChannelGroup.LOCAL to 500,
+                ChannelGroup.OTHER to 2,
+            ),
+        )
+
+        assertThat(DiagOverview.mainstreamOf(coverage)).isEqualTo(153 to 156)
+        assertThat(DiagOverview.MAINSTREAM_GROUPS)
+            .containsExactly(ChannelGroup.CCTV, ChannelGroup.SATELLITE, ChannelGroup.HK_MO_TW)
+    }
 
     @Test
     fun `the overview covers every block docs 03 section 7_1 asks for`() {

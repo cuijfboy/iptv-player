@@ -22,6 +22,7 @@ import ilab.iptv.player.core.epg.EpgSourceRow
 import ilab.iptv.player.core.epg.XmltvChannel
 import ilab.iptv.player.core.epg.XmltvPullParser
 import ilab.iptv.player.core.epg.epgChannelIndex
+import ilab.iptv.player.core.source.pipeline.PlaybackPrioritySignal
 import ilab.iptv.player.core.model.EpgLoadReport
 import ilab.iptv.player.core.model.EpgMatchType
 import ilab.iptv.player.core.model.Programme
@@ -48,6 +49,16 @@ import kotlinx.coroutines.withContext
  *
  * **Degradation** (§6.3): a provider that fails is logged, skipped, and the previously stored
  * programmes stay. A refresh that matched nothing does not delete what it had.
+ *
+ * **Playback avoidance (P3-6, the run-time half of R7).** The scheduling half lives in
+ * `:app`'s `EpgRefreshPolicy`: while a session plays, a *background* trigger is deferred rather than
+ * started. That policy cannot help once a run is under way, so the loop below re-reads the same
+ * process-wide signal ([PlaybackPrioritySignal]) **before each additional source**: the guide being
+ * fetched right now finishes (one bounded streaming GET, and killing it mid-parse is worse than
+ * letting it land), and the remaining sources are left for the next run. The first source always
+ * runs — the decision to start was already taken, and a user-triggered run must produce something.
+ * The run reports itself as [EpgLoadReport.interrupted] = `playback_priority` so the caller can tell
+ * "stopped by design" from "failed".
  */
 @Singleton
 class LoadEpgUseCase @Inject constructor(
@@ -59,10 +70,11 @@ class LoadEpgUseCase @Inject constructor(
     private val clock: Clock,
     private val logger: Logger,
     private val dispatchers: DispatcherProvider,
+    private val playback: PlaybackPrioritySignal = PlaybackPrioritySignal { false },
     private val parser: XmltvPullParser = XmltvPullParser(),
 ) {
 
-    suspend operator fun invoke(force: Boolean = false): AppResult<EpgLoadReport> {
+    suspend operator fun invoke(force: Boolean = false, respectPlayback: Boolean = true): AppResult<EpgLoadReport> {
         val startedAtMs = clock.nowMs()
         val window = ProgrammeWindows.around(startedAtMs)
         // The match and the coverage both read channels, and both want the domain shape (`group` is
@@ -75,10 +87,27 @@ class LoadEpgUseCase @Inject constructor(
         var channelsSeen = 0
         var providersRun = 0
         var malformed = false
+        var interrupted: String? = null
         val bindings = LinkedHashMap<Long, EpgBinding>()
         val matchedIds = HashSet<Long>()
 
-        for (source in sources) {
+        for ((sourceIndex, source) in sources.withIndex()) {
+            // R7, run half: every source after the first is optional work, so a session that started
+            // playing meanwhile wins. See the class doc for why the in-flight guide is not killed.
+            if (respectPlayback && providersRun > 0 && playback.isPlaybackActive()) {
+                interrupted = PLAYBACK_PRIORITY
+                logger.i(
+                    LogCategory.EPG,
+                    EventCodes.EPG_FETCH_OK,
+                    "epg run stopped early while playing",
+                    mapOf(
+                        "providers" to providersRun,
+                        "remainingSources" to (sources.size - sourceIndex),
+                        "interrupted" to PLAYBACK_PRIORITY,
+                    ),
+                )
+                break
+            }
             val provider = providers.firstOrNull { it.id == source.id }
             if (provider == null) {
                 // The table names a source this build has no provider for (a P2-6 edit, or a row from a
@@ -272,6 +301,7 @@ class LoadEpgUseCase @Inject constructor(
             "pruned" to pruned,
             "malformed" to malformed,
             "elapsedMs" to elapsedMs,
+            "interrupted" to interrupted,
         )
 
         // The alert is a log event, not a notification (§6.3 "不打扰用户"): same registered code as the
@@ -296,6 +326,7 @@ class LoadEpgUseCase @Inject constructor(
                 skipped = skipped,
                 coverage = coverage,
                 elapsedMs = elapsedMs,
+                interrupted = interrupted,
             ),
         )
     }
@@ -333,6 +364,9 @@ class LoadEpgUseCase @Inject constructor(
         const val MAINSTREAM_TARGET = 0.60
 
         const val COVERAGE_BELOW_TARGET = "coverage_below_target"
+
+        /** The only interruption this use case produces today; see the class doc. */
+        const val PLAYBACK_PRIORITY = "playback_priority"
 
         fun ratioText(ratio: Double): String = String.format(java.util.Locale.US, "%.3f", ratio)
     }

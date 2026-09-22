@@ -44,6 +44,11 @@ data class EpgWindowQuery(
  * What one EPG refresh did (docs/02 §4.2). `skipped` counts `<programme>` entries the parser dropped
  * (malformed dates, no title, outside the retention window) — a number worth reporting, because a
  * source that suddenly skips half its rows is broken, not "empty".
+ *
+ * [interrupted] is set when the run stopped early on purpose instead of failing: the only such reason
+ * today is `playback_priority` (P3-6's run-time half of R7 — a session started playing while the
+ * guides were being pulled, so the remaining sources were left for the next run). The rows already
+ * written stay; §6.3's degradation rule makes that a valid partial result.
  */
 data class EpgLoadReport(
     val providers: Int,
@@ -52,6 +57,24 @@ data class EpgLoadReport(
     val skipped: Int,
     val coverage: EpgCoverage,
     val elapsedMs: Long,
+    val interrupted: String? = null,
+)
+
+/**
+ * What the `epg_source` table says about EPG right now (P3-6). The diagnostics panel reads it to
+ * answer "when did EPG last run, and did it work"; the P3-6 trigger gate reads [lastFetchAtMs] to
+ * answer "is what we have still fresh enough to skip a wake-up".
+ *
+ * Read-only status columns docs/02 §5.1 already keeps on `epg_source` (`last_fetch_at` /
+ * `last_result`); nothing new is stored for it.
+ */
+data class EpgSourceStatus(
+    val sources: Int,
+    val enabledSources: Int,
+    /** Newest `last_fetch_at` across the rows, null when nothing ever ran. */
+    val lastFetchAtMs: Long?,
+    /** The `last_result` of that newest row, e.g. `OK:25234` or `FAIL:TIMEOUT`. */
+    val lastResult: String?,
 )
 
 /**

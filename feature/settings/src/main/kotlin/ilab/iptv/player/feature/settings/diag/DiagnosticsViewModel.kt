@@ -14,6 +14,9 @@ import ilab.iptv.player.core.common.LogLevel
 import ilab.iptv.player.core.common.Logger
 import ilab.iptv.player.core.common.Redactor
 import ilab.iptv.player.core.domain.refresh.RefreshScheduleSettings
+import ilab.iptv.player.core.domain.refresh.EpgRefreshPort
+import ilab.iptv.player.core.domain.refresh.EpgRefreshRequest
+import ilab.iptv.player.core.domain.refresh.EpgRefreshStatus
 import ilab.iptv.player.core.domain.repository.ChannelRepository
 import ilab.iptv.player.core.domain.source.SourceManagementPort
 import ilab.iptv.player.core.log.DeviceInfo
@@ -57,6 +60,7 @@ class DiagnosticsViewModel @Inject constructor(
     private val channels: ChannelRepository,
     private val sources: SourceManagementPort,
     private val refreshSettings: RefreshScheduleSettings,
+    private val epg: EpgRefreshPort,
 ) : ViewModel() {
 
     private val _blocks = MutableStateFlow<List<DiagBlock>>(emptyList())
@@ -110,8 +114,41 @@ class DiagnosticsViewModel @Inject constructor(
             ringCapacity = ring.capacity,
             fileLogSummary = fileSummary(status),
             lastRefresh = lastRefreshText(managed.mapNotNull { it.lastFetchAtMs }.maxOrNull(), managed.size),
+            epg = epgSummary(epg.status()),
         )
         _blocks.value = DiagOverview.build(input)
+    }
+
+    /**
+     * P3-6's manual entry: the same "立即更新" the settings page would offer, on the panel that already
+     * exists. It queues the real job (manual trigger, no freshness gate) and returns what happened so
+     * the screen can say it out loud; the work itself logs `EPG_COVERAGE` when it lands.
+     */
+    suspend fun refreshEpgNow(): EpgRefreshRequest = epg.requestNow()
+
+    /** `349` → `349 分钟` is unreadable; hours are how the interval is set and how it is read. */
+    private fun intervalText(ms: Long): String =
+        if (ms % 3_600_000L == 0L) "${ms / 3_600_000L} 小时" else "${ms / 60_000L} 分钟"
+
+    private fun epgSummary(status: EpgRefreshStatus): DiagEpgSummary {
+        val coverage = status.coverage
+        val (mainMatched, mainTotal) = DiagOverview.mainstreamOf(coverage)
+        return DiagEpgSummary(
+            lastFetch = status.sources.lastFetchAtMs?.let {
+                "${localTime(it)}（${(clock.nowMs() - it) / 60_000L} 分钟前）"
+            } ?: "还没拉取过",
+            sources = "共 ${status.sources.sources} / 启用 ${status.sources.enabledSources}" +
+                (status.sources.lastResult?.let { " · 上次 $it" } ?: ""),
+            mainstream = coverageText(mainMatched, mainTotal),
+            coverage = coverageText(coverage.matched, coverage.total),
+            minInterval = intervalText(status.settings.minIntervalMs),
+            enabled = status.enabled,
+        )
+    }
+
+    private fun coverageText(matched: Int, total: Int): String {
+        val ratio = if (total <= 0) 0.0 else matched.toDouble() / total
+        return "$matched / $total = ${"%.1f".format(java.util.Locale.US, ratio * 100)}%"
     }
 
     /** The panel's live tail: the ring's contents, filtered (no second buffer — dispatch item 2). */

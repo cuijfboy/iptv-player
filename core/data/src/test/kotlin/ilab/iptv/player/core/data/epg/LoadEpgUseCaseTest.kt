@@ -19,6 +19,7 @@ import ilab.iptv.player.core.epg.EpgProvider
 import ilab.iptv.player.core.epg.XmltvStream
 import ilab.iptv.player.core.model.EpgMatchType
 import ilab.iptv.player.core.source.normalize.Keys
+import ilab.iptv.player.core.source.pipeline.PlaybackPrioritySignal
 import java.io.ByteArrayInputStream
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -88,7 +89,10 @@ class LoadEpgUseCaseTest {
      * real app reaches them: the table is the configuration and the provider set is the code. A test
      * that wants the seeding/disable path itself writes the rows first (see the enable/disable test).
      */
-    private suspend fun buildUseCase(vararg providers: EpgProvider): LoadEpgUseCase {
+    private suspend fun buildUseCase(
+        vararg providers: EpgProvider,
+        playback: PlaybackPrioritySignal = PlaybackPrioritySignal { false },
+    ): LoadEpgUseCase {
         providers.forEach { provider ->
             if (database.epgSourceDao().all().none { it.id == provider.id }) {
                 database.epgSourceDao().upsert(
@@ -112,6 +116,7 @@ class LoadEpgUseCaseTest {
             clock = clock,
             logger = logger,
             dispatchers = TestDispatcherProvider(),
+            playback = playback,
         )
     }
 
@@ -119,12 +124,15 @@ class LoadEpgUseCaseTest {
         override val id: String,
         private val body: String?,
         private val failure: AppError? = null,
+        /** Runs before the body is handed back, so a test can flip the playback signal mid-run. */
+        private val onFetch: (() -> Unit)? = null,
     ) : EpgProvider {
         override val label: String = id
         var fetches: Int = 0
 
         override suspend fun fetch(clock: Clock): AppResult<XmltvStream> {
             fetches++
+            onFetch?.invoke()
             if (failure != null) return AppResult.Err(failure)
             val bytes = body!!.toByteArray()
             return AppResult.Ok(
@@ -399,5 +407,74 @@ class LoadEpgUseCaseTest {
         assertThat(logger.codes).contains(EventCodes.EPG_FETCH_FAIL)
         assertThat(database.epgSourceDao().all().first { it.id == "ghost.source" }.lastResult)
             .isEqualTo("NO_PROVIDER")
+    }
+
+    @Test
+    fun `a session that starts playing stops the remaining sources but keeps what already landed`() =
+        runBlocking<Unit> {
+            // P3-6, the run-time half of R7: the guide being fetched finishes, the next one is not
+            // started. The first provider flips the process-wide signal as it returns.
+            val channelId = channel("CCTV-1 综合", tvgId = "CCTV1.cn")
+            var playing = false
+            val first = FakeProvider(
+                id = "first",
+                body = guide(programme(now, now + 30 * 60_000L, "第一个源")),
+                onFetch = { playing = true },
+            )
+            val second = FakeProvider("second", body = guide(programme(now, now + 30 * 60_000L, "第二个源")))
+            useCase = buildUseCase(first, second, playback = PlaybackPrioritySignal { playing })
+
+            val report = (useCase() as AppResult.Ok).value
+
+            assertThat(report.providers).isEqualTo(1)
+            assertThat(report.interrupted).isEqualTo("playback_priority")
+            assertThat(first.fetches).isEqualTo(1)
+            assertThat(second.fetches).isEqualTo(0)
+            // What the one source wrote is kept (docs/02 §6.3: a partial run degrades, it does not roll back).
+            assertThat(database.programmeDao().countForChannel("CCTV1.cn")).isEqualTo(1)
+            assertThat(repository.nowNext(channelId, now)!!.now?.title).isEqualTo("第一个源")
+            val event = logger.events.last { it.code == EventCodes.EPG_COVERAGE }
+            assertThat(event.fields["interrupted"]).isEqualTo("playback_priority")
+            assertThat(event.fields["providers"]).isEqualTo(1)
+        }
+
+    @Test
+    fun `with avoidance off both sources run even while playing`() = runBlocking<Unit> {
+        channel("CCTV-1 综合", tvgId = "CCTV1.cn")
+        val second = FakeProvider("second", body = guide(programme(now, now + 30 * 60_000L, "第二个源")))
+        useCase = buildUseCase(
+            FakeProvider("first", body = guide(programme(now, now + 30 * 60_000L, "第一个源"))),
+            second,
+            playback = PlaybackPrioritySignal { true },
+        )
+
+        val report = (useCase(respectPlayback = false) as AppResult.Ok).value
+
+        assertThat(report.providers).isEqualTo(2)
+        assertThat(report.interrupted).isNull()
+        assertThat(second.fetches).isEqualTo(1)
+    }
+
+    @Test
+    fun `re-running the same guide updates the same slots instead of adding rows`() = runBlocking<Unit> {
+        // P3-6's idempotency promise at the storage level: §5.1's UNIQUE(epg_channel_id, start_ms) plus
+        // INSERT OR REPLACE, so a second trigger over the same slot is an update, not a duplicate.
+        val channelId = channel("CCTV-1 综合", tvgId = "CCTV1.cn")
+        useCase = buildUseCase(
+            FakeProvider("test", body = guide(programme(now, now + 30 * 60_000L, "第一版"))),
+        )
+        val firstRun = (useCase() as AppResult.Ok).value
+        val firstCount = database.programmeDao().countForChannel("CCTV1.cn")
+
+        useCase = buildUseCase(
+            FakeProvider("test", body = guide(programme(now, now + 30 * 60_000L, "第二版"))),
+        )
+        val secondRun = (useCase() as AppResult.Ok).value
+
+        assertThat(firstCount).isEqualTo(1)
+        assertThat(database.programmeDao().countForChannel("CCTV1.cn")).isEqualTo(1)
+        assertThat(secondRun.programmes).isEqualTo(firstRun.programmes)
+        // Same slot, new content: the row was replaced, so now/next shows the newer title.
+        assertThat(repository.nowNext(channelId, now)!!.now?.title).isEqualTo("第二版")
     }
 }

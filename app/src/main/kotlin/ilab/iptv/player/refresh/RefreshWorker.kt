@@ -14,6 +14,7 @@ import ilab.iptv.player.core.common.LogCategory
 import ilab.iptv.player.core.common.Logger
 import ilab.iptv.player.core.common.PlaybackActivity
 import ilab.iptv.player.core.model.RefreshTrigger
+import ilab.iptv.player.epg.EpgRefreshScheduler
 
 /**
  * The scheduled refresh, as a WorkManager long-running worker (docs/04 P2-5 items 1, 2, 5).
@@ -30,6 +31,12 @@ import ilab.iptv.player.core.model.RefreshTrigger
  * - `WORK_RUN` three times per attempt: start, and then the conclusion (`result=success|retry|give_up`,
  *   `phase`, `attempt`, `elapsedMs`). `WORK_SCHEDULE` is logged by [RefreshScheduler] when the job is
  *   queued, so "scheduled → ran → what happened" reads off one filtered log.
+ *
+ * P3-6 hangs the EPG follow-up off the end of a completed run: after the sources are refreshed the
+ * worker asks [EpgRefreshScheduler] for one EPG refresh (`trigger=SCHEDULED`), which is how
+ * "每日刷新源之后拉 EPG" happens without a second schedule. It is fire-and-forget on purpose — the
+ * EPG decision has its own gate (freshness, playback) and its own retry policy, and a guide that
+ * cannot be fetched must never change what this worker reports about the source refresh.
  */
 class RefreshWorker(
     appContext: Context,
@@ -50,6 +57,8 @@ class RefreshWorker(
         fun clock(): Clock
 
         fun refreshRunCoordinator(): RefreshRunCoordinator
+
+        fun epgRefreshScheduler(): EpgRefreshScheduler
     }
 
     override suspend fun doWork(): Result {
@@ -85,12 +94,36 @@ class RefreshWorker(
             postForeground(RefreshNotificationContent.of(progress))
         }
 
+        if (result is RefreshRunResult.Completed) {
+            requestEpgFollowUp(deps, trigger)
+        }
+
         logConclusion(logger, result, trigger, deps.clock().nowMs() - startedAtMs)
         return RefreshWorkOutcome.toResult(
             result = result,
             runAttempt = runAttemptCount,
             maxAttempts = RefreshWorkSpec.MAX_ATTEMPTS,
         )
+    }
+
+    /**
+     * The P3-6 follow-up. Deliberately wrapped in a catch: this runs after the refresh has already
+     * succeeded, and an EPG booking failure (WorkManager unavailable, a locked table) is not a reason
+     * to report the refresh as failed. The next trigger — the next app start, the next refresh, or the
+     * panel's button — will ask again.
+     */
+    private suspend fun requestEpgFollowUp(deps: RefreshEntryPoint, trigger: RefreshTrigger) {
+        try {
+            deps.epgRefreshScheduler().request(RefreshTrigger.SCHEDULED)
+        } catch (e: Throwable) {
+            deps.logger().w(
+                LogCategory.WORK,
+                EventCodes.WORK_SCHEDULE,
+                "epg follow-up could not be requested",
+                mapOf("job" to "epg", "trigger" to RefreshTrigger.SCHEDULED.name, "afterTrigger" to trigger.name),
+                e,
+            )
+        }
     }
 
     /**

@@ -12,6 +12,7 @@ import ilab.iptv.player.core.epg.BuiltInEpgSources
 import ilab.iptv.player.core.epg.EpgAliases
 import ilab.iptv.player.core.epg.EpgMatcher
 import ilab.iptv.player.core.epg.EpgProvider
+import ilab.iptv.player.core.epg.XmltvPullParser
 import ilab.iptv.player.core.epg.XmltvHttpEpgProvider
 import ilab.iptv.player.core.network.StreamingHttpFetcher
 import ilab.iptv.player.core.source.normalize.Keys
@@ -44,6 +45,17 @@ object EpgModule {
         nameKey = Keys::nameKey,
         aliases = EpgAliases.BUILT_IN,
     )
+
+    /**
+     * The streaming parser the refresh uses. It is stateless — one instance parses one guide at a time
+     * — and it had a no-arg default until P3-6 wired the pipeline into the production graph: until then
+     * nothing injected `LoadEpgUseCase` at all, so Dagger never had to satisfy its constructor. Binding
+     * it here (rather than in `:core:epg`, which has no Hilt module) keeps "one parser per process"
+     * explicit now that the use case is reachable.
+     */
+    @Provides
+    @Singleton
+    fun provideXmltvPullParser(): XmltvPullParser = XmltvPullParser()
 
     @Provides
     @IntoSet

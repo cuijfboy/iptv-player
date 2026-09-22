@@ -2,6 +2,8 @@ package ilab.iptv.player.feature.settings.diag
 
 import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.common.LogEvent
+import ilab.iptv.player.core.model.ChannelGroup
+import ilab.iptv.player.core.model.EpgCoverage
 
 /** One `标签：值` line of the 运行概览 (docs/03 §7.1). */
 data class DiagFact(val label: String, val value: String)
@@ -35,6 +37,25 @@ data class DiagPlaybackSummary(
 )
 
 /**
+ * The EPG block's facts (P3-6), already formatted by the panel. Plain strings for the same reason the
+ * rest of the overview uses them: the block is a rendering of facts gathered elsewhere, and keeping
+ * the gathering out of here is what makes [DiagOverview.build] testable.
+ */
+data class DiagEpgSummary(
+    /** `2026-09-22 08:12（34 分钟前）`, or "还没拉取过". */
+    val lastFetch: String,
+    /** `共 4 / 启用 4 · 上次 OK:25234`. */
+    val sources: String,
+    /** `153 / 156 = 98.1%` over the mainstream slice (央视 + 卫视 + 港澳台). */
+    val mainstream: String,
+    /** `209 / 658 = 31.8%` over every channel. */
+    val coverage: String,
+    /** The refresh interval the trigger is honouring, e.g. `6 小时`. */
+    val minInterval: String,
+    val enabled: Boolean,
+)
+
+/**
  * Every input the overview needs, already gathered from the existing repositories, the injected
  * `FileSink`/`LogBus` and the platform. Keeping this a plain data class is what makes
  * [DiagOverview.build] unit-testable — the panel itself only formats.
@@ -62,6 +83,8 @@ data class DiagOverviewInput(
     val ringCapacity: Int,
     val fileLogSummary: String,
     val lastRefresh: String,
+    /** Null when the caller has no EPG facts to show (older tests, or EPG not wired). */
+    val epg: DiagEpgSummary? = null,
 )
 
 /**
@@ -71,7 +94,12 @@ data class DiagOverviewInput(
  */
 object DiagOverview {
 
-    fun build(input: DiagOverviewInput): List<DiagBlock> = listOf(
+    fun build(input: DiagOverviewInput): List<DiagBlock> = buildList {
+        addAll(pageBlocks(input))
+        input.epg?.let { add(epgBlock(it)) }
+    }
+
+    private fun pageBlocks(input: DiagOverviewInput): List<DiagBlock> = listOf(
         DiagBlock(
             title = "设备",
             facts = listOf(
@@ -126,6 +154,38 @@ object DiagOverview {
             ),
         ),
     )
+
+    /**
+     * The EPG block (P3-6). It is last on purpose: it is the newest section and the one a tester looks
+     * for *after* the device/app/data facts, and its first line answers "did it ever run".
+     */
+    private fun epgBlock(summary: DiagEpgSummary): DiagBlock = DiagBlock(
+        title = "EPG",
+        facts = listOf(
+            DiagFact("自动更新", if (summary.enabled) "开（间隔 ${summary.minInterval}）" else "关"),
+            DiagFact("上次拉取", summary.lastFetch),
+            DiagFact("源", summary.sources),
+            DiagFact("主流覆盖", summary.mainstream),
+            DiagFact("全量覆盖", summary.coverage),
+        ),
+    )
+
+    /**
+     * The mainstream slice of docs/04's P3-5 exit — 央视 + 卫视 + 港澳台 — recomputed here from the
+     * coverage the port returns. `EpgCoverageCalculator` owns the same rule inside `:core:epg`, which a
+     * feature may not see (§3.2 rule 2); the three groups are named, not looped over "everything that
+     * is not local", so a new group cannot silently join the slice.
+     */
+    fun mainstreamOf(coverage: EpgCoverage): Pair<Int, Int> {
+        val groups = MAINSTREAM_GROUPS
+        val matched = groups.sumOf { coverage.byGroup[it] ?: 0 }
+        val total = groups.sumOf { coverage.byGroupTotal[it] ?: 0 }
+        return matched to total
+    }
+
+    /** `央视 + 卫视 + 港澳台`, the slice docs/04 P3-5 measures (kept in this order for the doc trail). */
+    val MAINSTREAM_GROUPS: List<ChannelGroup> =
+        listOf(ChannelGroup.CCTV, ChannelGroup.SATELLITE, ChannelGroup.HK_MO_TW)
 
     /**
      * Reads the playback facts out of the ring (docs/03 §3.3.1 播放/故障转移路径): the four codes the

@@ -61,6 +61,7 @@ class DiagnosticsActivity : ComponentActivity() {
     private lateinit var pauseButton: Button
     private lateinit var exportButton: Button
     private lateinit var progress: ProgressBar
+    private lateinit var epgButton: Button
 
     private val handler = Handler(Looper.getMainLooper())
     private var tick = 0
@@ -87,6 +88,7 @@ class DiagnosticsActivity : ComponentActivity() {
         pauseButton = findViewById(R.id.diag_pause)
         exportButton = findViewById(R.id.diag_export)
         progress = findViewById(R.id.diag_progress)
+        epgButton = findViewById(R.id.diag_epg_refresh)
 
         val searchField = findViewById<EditText>(R.id.diag_search_field)
         levelButton.setOnClickListener {
@@ -111,6 +113,7 @@ class DiagnosticsActivity : ComponentActivity() {
             render()
         }
         exportButton.setOnClickListener { runExport() }
+        epgButton.setOnClickListener { requestEpg() }
 
         lifecycleScope.launch { viewModel.progress.collect { step -> progressStep = step; render() } }
         lifecycleScope.launch { viewModel.blocks.collect { render() } }
@@ -160,6 +163,28 @@ class DiagnosticsActivity : ComponentActivity() {
             AlertDialog.Builder(this@DiagnosticsActivity)
                 .setTitle(R.string.diag_export)
                 .setMessage(message)
+                .setPositiveButton(R.string.diag_export_close, null)
+                .show()
+        }
+    }
+
+    /**
+     * P3-6's manual trigger. The button is disabled until the request returns so a second tap cannot
+     * queue a second job, and the answer is shown as a dialog — the job itself is queued, not run
+     * here, so "accepted" is the honest thing to report.
+     */
+    private fun requestEpg() {
+        epgButton.isEnabled = false
+        lifecycleScope.launch {
+            val result = viewModel.refreshEpgNow()
+            epgButton.isEnabled = true
+            AlertDialog.Builder(this@DiagnosticsActivity)
+                .setTitle(R.string.diag_epg_refresh)
+                .setMessage(
+                    getString(
+                        if (result.accepted) R.string.diag_epg_requested else R.string.diag_epg_off,
+                    ),
+                )
                 .setPositiveButton(R.string.diag_export_close, null)
                 .show()
         }
