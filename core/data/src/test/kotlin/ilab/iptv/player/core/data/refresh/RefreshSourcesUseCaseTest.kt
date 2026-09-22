@@ -43,6 +43,7 @@ class RefreshSourcesUseCaseTest {
         validators = validators.toSet(),
         streamRepository = streams,
         channelRepository = FakeChannelRepository(store),
+        catalogSink = store,
         scorer = DefaultScorer(),
         selector = DefaultStreamSelector(),
         device = DeviceProfile(

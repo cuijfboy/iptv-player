@@ -54,6 +54,7 @@ class RefreshBackHalfTest {
         validators = validators.toSet(),
         streamRepository = streams,
         channelRepository = channels,
+        catalogSink = store,
         scorer = DefaultScorer(),
         selector = DefaultStreamSelector(),
         device = device,
@@ -172,7 +173,19 @@ class RefreshBackHalfTest {
     fun `a channel with no usable stream stays in the catalogue, marked unavailable`() {
         // The catalogue entry itself comes from the loader/import (docs/02 §5.2); the refresh must
         // never remove it. Seeding it here is what "stays visible" is measured against.
-        store.replaceAll(channels = listOf(channelRow(1, "CCTV-1", 0)), streams = emptyList())
+        // The stored row carries the §5.1 identity keys (`name_key`, `group_key`), the way the loader
+        // or an import writes it. The refresh resolves its own "CCTV-1" (group "Group") onto this row
+        // through those keys (卡 REFRESH-PERSIST-1), so the row is the one it keeps — and it must,
+        // because "a refresh never removes a channel" is the other half of what this test measures.
+        store.replaceAll(
+            channels = listOf(
+                channelRow(1, "CCTV-1", 0).copy(
+                    nameKey = ilab.iptv.player.core.source.normalize.Keys.nameKey("CCTV-1"),
+                    groupKey = ilab.iptv.player.core.source.normalize.Keys.groupKey("Group"),
+                ),
+            ),
+            streams = emptyList(),
+        )
         val useCase = useCase(
             providers = listOf(
                 FakeSourceProvider(

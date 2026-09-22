@@ -112,6 +112,56 @@ class RoomCatalogWriter @Inject constructor(
         return channelsWritten + streamsWritten
     }
 
+    /**
+     * The refresh half of the seam (卡 REFRESH-PERSIST-1): upsert the catalog's channels — additively,
+     * keyed on `(name_key, group_key)` so an existing row keeps its id and its user-owned columns —
+     * and hand back `in-memory channel id -> stored channel id`.
+     *
+     * This is the piece the refresh pipeline was missing: `ChannelMapper` mints channel ids per load,
+     * and the pipeline wrote `stream` rows against those ids, so every row tripped the
+     * `stream.channel_id -> channel.id` foreign key and the whole batch rolled back
+     * (`DB_FAIL FOREIGN KEY constraint failed … written:0`). Writing the channels first and pointing
+     * the streams at the ids the store returned fixes it, without the replace semantics of [write] —
+     * a refresh must not delete the channels the user is looking at (they came from the last import /
+     * the bundled snapshot), only make sure the ones it is about to attach streams to exist.
+     *
+     * A storage failure degrades (docs/02 §11): it returns an empty map and logs `DB_FAIL` rather than
+     * throwing, so the caller drops the streams it cannot legally write and the previous catalog stands.
+     */
+    override suspend fun upsertChannels(catalog: MappedCatalog, nowMs: Long): Map<Long, Long> {
+        if (catalog.channels.isEmpty()) return emptyMap()
+        val ids = HashMap<Long, Long>(catalog.channels.size)
+        try {
+            catalog.channels.chunked(BATCH_SIZE).forEach { batch ->
+                val stored = database.withTransaction {
+                    channelDao.upsertAll(batch.map { PersistenceMapper.toEntity(it, nowMs) })
+                }
+                batch.forEachIndexed { index, channel ->
+                    // `upsertAll` returns one id per input row, in order.
+                    ids[channel.id] = stored[index]
+                }
+            }
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logger.w(
+                category = LogCategory.APP,
+                code = EventCodes.DB_FAIL,
+                message = "channel upsert failed",
+                fields = mapOf("channels" to catalog.channels.size, "written" to ids.size, "err" to e.message),
+                error = e,
+            )
+            return emptyMap()
+        }
+        logger.d(
+            category = LogCategory.SOURCE,
+            code = EventCodes.DB_UPSERT,
+            message = "refresh channels persisted",
+            fields = mapOf("table" to "channel", "rows" to ids.size, "batch" to BATCH_SIZE),
+        )
+        return ids
+    }
+
     /** Deletes every stored channel whose id is not in [kept]; returns how many channels were removed. */
     private suspend fun pruneChannelsNotIn(kept: Set<Long>): Int {
         val stale = channelDao.allIds().filterNot { it in kept }

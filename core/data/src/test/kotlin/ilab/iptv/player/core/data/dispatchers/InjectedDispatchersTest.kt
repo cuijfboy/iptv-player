@@ -113,6 +113,7 @@ class InjectedDispatchersTest {
             validators = emptySet(),
             streamRepository = InMemoryStreamRepository(store),
             channelRepository = InMemoryChannelRepository(store, NoopBootstrapper),
+            catalogSink = store,
             scorer = DefaultScorer(),
             selector = DefaultStreamSelector(),
             device = DeviceProfile(

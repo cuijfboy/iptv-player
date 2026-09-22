@@ -57,6 +57,47 @@ class ChannelStore : CatalogSink {
         _streams.value = streams.toList()
     }
 
+    /**
+     * The refresh half of the seam, mirroring [RoomCatalogWriter.upsertChannels]: add the channels that
+     * are not here yet (identity = `(nameKey, groupKey)`, fresh ids for new rows, existing rows keep
+     * theirs) and hand back `catalog id -> stored id`. Nothing is removed, so the in-memory path keeps
+     * the same "a refresh does not touch the channel table" rule the Room path does.
+     *
+     * The off-device tests drive the pipeline through this store; before the seam carried this method
+     * they could not see the bug it fixes, because a `StateFlow` has no foreign key to violate.
+     */
+    override suspend fun upsertChannels(catalog: MappedCatalog, nowMs: Long): Map<Long, Long> {
+        if (catalog.channels.isEmpty()) return emptyMap()
+        var mapping: Map<Long, Long> = emptyMap()
+        _channels.update { current ->
+            val rows = current.toMutableList()
+            val indexByKey = HashMap<Pair<String, String>, Int>(rows.size + catalog.channels.size)
+            rows.forEachIndexed { index, channel ->
+                val existingKey = channel.nameKey to channel.groupKey
+                // Not `putIfAbsent`: that is API 24 and the app's minSdk is 21 (lint NewApi).
+                if (!indexByKey.containsKey(existingKey)) indexByKey[existingKey] = index
+            }
+            var nextId = (rows.maxOfOrNull { it.id } ?: 0L) + 1
+            val resolved = HashMap<Long, Long>(catalog.channels.size)
+            catalog.channels.forEach { incoming ->
+                val key = incoming.nameKey to incoming.groupKey
+                val existing = indexByKey[key]
+                if (existing != null) {
+                    resolved[incoming.id] = rows[existing].id
+                } else {
+                    val row = incoming.copy(id = nextId)
+                    indexByKey[key] = rows.size
+                    rows += row
+                    resolved[incoming.id] = nextId
+                    nextId += 1
+                }
+            }
+            mapping = resolved
+            rows
+        }
+        return mapping
+    }
+
     /** Applies [transform] to one channel; returns false when the id is unknown. */
     fun updateChannel(id: Long, transform: (Channel) -> Channel): Boolean {
         var found = false

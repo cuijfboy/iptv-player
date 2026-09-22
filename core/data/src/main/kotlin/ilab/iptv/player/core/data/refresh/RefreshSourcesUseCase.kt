@@ -11,6 +11,7 @@ import ilab.iptv.player.core.common.Logger
 import ilab.iptv.player.core.common.SessionIdFactory
 import ilab.iptv.player.core.data.mapper.ChannelMapper
 import ilab.iptv.player.core.data.mapper.MappedCatalog
+import ilab.iptv.player.core.data.store.CatalogSink
 import ilab.iptv.player.core.domain.repository.ChannelRepository
 import ilab.iptv.player.core.domain.repository.StreamRepository
 import ilab.iptv.player.core.domain.scoring.Scorer
@@ -96,6 +97,7 @@ class RefreshSourcesUseCase @Inject constructor(
     private val validators: Set<@JvmSuppressWildcards StreamValidator>,
     private val streamRepository: StreamRepository,
     private val channelRepository: ChannelRepository,
+    private val catalogSink: CatalogSink,
     private val scorer: Scorer,
     private val selector: StreamSelector,
     private val device: DeviceProfile,
@@ -193,8 +195,11 @@ class RefreshSourcesUseCase @Inject constructor(
         val capped = capCandidates(normalized, limits.capCandidates)
 
         // --- Persist the candidate set so every shallow verdict lands on a stable stream id ---
-        val mapped = ChannelMapper.toDomain(capped)
-        val persisted = persistMergingHealth(mapped)
+        // The ids `ChannelMapper` mints are per-load, so they are resolved against the write seam
+        // first: the channels land in the store and the streams are pointed at the ids it returned,
+        // which is what keeps `stream.channel_id -> channel.id` satisfiable (卡 REFRESH-PERSIST-1).
+        val resolved = resolveStreamChannelIds(ChannelMapper.toDomain(capped))
+        val persisted = persistMergingHealth(resolved)
 
         // --- Shallow reachability (parallel, budget-gated, resume-aware) ---
         val shallow = shallowValidate(persisted, budget, governor)
@@ -213,7 +218,7 @@ class RefreshSourcesUseCase @Inject constructor(
 
         // --- Deep → Score → Select → Persist ---
         val back = runBackHalf(
-            channelIndex = mapped.channels.associateBy { it.id },
+            channelIndex = resolved.channels.associateBy { it.id },
             candidates = persisted,
             shallowFailed = shallow.failedIds,
             freshIds = shallow.skippedIds,
@@ -575,6 +580,34 @@ class RefreshSourcesUseCase @Inject constructor(
     }
 
     // --- Persist (merge prior health so a re-run does not wipe the checkpoint) ---------------------
+
+    /**
+     * Points the mapped catalog at stored channel rows (卡 REFRESH-PERSIST-1). The pipeline writes
+     * `stream` rows whose `channel_id` is a foreign key (docs/02 §5.1), and [ChannelMapper] ids are
+     * minted per load — they are *not* database ids. So the channels go through the write seam first
+     * ([CatalogSink.upsertChannels], which upserts on `(name_key, group_key)` and returns the stored
+     * ids), and every stream is rewritten to the id its channel now has. A stream whose channel the
+     * seam did not return is dropped: with no channel row the foreign key would reject it, and
+     * attaching it to some other channel would be worse.
+     *
+     * Nothing is deleted, and a channel that already existed keeps its row and its user-owned columns,
+     * so this is the additive half of the seam — an import still owns "replace". If the store rejects
+     * the channel write (a storage failure, already logged as `DB_FAIL`), the seam returns an empty map
+     * and this yields an empty catalog, so the run reports the channels it found but writes nothing
+     * rather than failing every stream against a missing channel.
+     */
+    private suspend fun resolveStreamChannelIds(mapped: MappedCatalog): MappedCatalog {
+        if (mapped.channels.isEmpty()) return mapped
+        val storedIds = catalogSink.upsertChannels(mapped, clock.nowMs())
+        if (storedIds.isEmpty()) return MappedCatalog(channels = emptyList(), streams = emptyList())
+        val channels = mapped.channels.mapNotNull { channel ->
+            storedIds[channel.id]?.let { channel.copy(id = it) }
+        }
+        val streams = mapped.streams.mapNotNull { stream ->
+            storedIds[stream.channelId]?.let { stream.copy(channelId = it) }
+        }
+        return MappedCatalog(channels = channels, streams = streams)
+    }
 
     private suspend fun persistMergingHealth(mapped: MappedCatalog): List<Stream> {
         val existing = HashMap<Pair<Long, String>, Stream>()
