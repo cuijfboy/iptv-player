@@ -38,7 +38,13 @@ sealed interface ChannelListRow {
         val name: String,
         val logoUrl: String?,
         val streamCount: Int,
+        /** The source's group title as shown in the row's meta line. */
         val groupTitle: String?,
+        /** `channel.group_key` — the identity a reorder moves inside (P2-2). */
+        val groupKey: String,
+        /** P2-2 list actions read these to show the current state and to toggle it. */
+        val favorite: Boolean = false,
+        val hidden: Boolean = false,
     ) : ChannelListRow {
         override val key: String get() = "channel:$channelId"
 
@@ -79,6 +85,9 @@ object ChannelListRows {
                     logoUrl = channel.logoUrl,
                     streamCount = channel.streamCount,
                     groupTitle = channel.groupTitle,
+                    groupKey = channel.groupKey,
+                    favorite = channel.favorite,
+                    hidden = channel.hidden,
                 )
             }
         }

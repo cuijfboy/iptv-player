@@ -1,10 +1,17 @@
 package ilab.iptv.player.core.domain.channel
 
 import com.google.common.truth.Truth.assertThat
-import ilab.iptv.player.core.domain.channel.ChannelGroupingTest.Companion.channel
+import ilab.iptv.player.core.model.Channel
+import ilab.iptv.player.core.model.EpgMatchType
 import org.junit.Test
 
-/** Pins the display order: classification → group_key → channel number (nulls last) → name → id. */
+/**
+ * Pins the display order: classification → group_key → manual order → channel number (nulls last) →
+ * name → id. The manual order moved ahead of the number in P2-2 (the P1-2 record left the sort key
+ * open: "列表排序键…P2-2 可改一处"): if the number won, a channel the user moved would snap back to
+ * its numbered slot on the next list build. Every row defaults to `sort_order = 0`, so with no
+ * manual order the number still decides and the default look is unchanged.
+ */
 class ChannelSorterTest {
 
     @Test
@@ -22,7 +29,7 @@ class ChannelSorterTest {
     }
 
     @Test
-    fun `a channel number sorts before the manual order and the name`() {
+    fun `without a manual order the channel number decides and nulls sort last`() {
         val sorted = ChannelSorter.sort(
             listOf(
                 channel(1, "zeta", groupTitle = "央视", channelNo = 9),
@@ -32,6 +39,18 @@ class ChannelSorterTest {
         )
 
         assertThat(sorted.map { it.name }).containsExactly("alpha", "zeta", "beta").inOrder()
+    }
+
+    @Test
+    fun `a manual order outranks the channel number inside its section`() {
+        val sorted = ChannelSorter.sort(
+            listOf(
+                channel(1, "numbered-first", groupTitle = "央视", channelNo = 1, sortOrder = 5),
+                channel(2, "moved-above", groupTitle = "央视", channelNo = 9, sortOrder = 0),
+            ),
+        )
+
+        assertThat(sorted.map { it.name }).containsExactly("moved-above", "numbered-first").inOrder()
     }
 
     @Test
@@ -46,4 +65,28 @@ class ChannelSorterTest {
 
         assertThat(sorted.map { it.id }).containsExactly(5L, 3L, 7L).inOrder()
     }
+
+    private fun channel(
+        id: Long,
+        name: String,
+        groupTitle: String,
+        channelNo: Int? = null,
+        sortOrder: Int = 0,
+    ): Channel = Channel(
+        id = id,
+        name = name,
+        tvgId = null,
+        group = ChannelGrouping.classify(groupTitle),
+        logoUrl = null,
+        channelNo = channelNo,
+        favorite = false,
+        hidden = false,
+        sortOrder = sortOrder,
+        epgChannelId = null,
+        epgMatch = EpgMatchType.NONE,
+        streamCount = 1,
+        nameKey = ChannelGrouping.normalizeKey(name),
+        groupKey = ChannelGrouping.groupKey(groupTitle),
+        groupTitle = groupTitle,
+    )
 }

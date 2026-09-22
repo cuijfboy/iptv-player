@@ -76,4 +76,48 @@ class ChannelNumberAssignerTest {
             .containsExactly(ChannelNumberSource.AUTO, ChannelNumberSource.AUTO)
             .inOrder()
     }
+
+    @Test
+    fun `the three tiers resolve in order and each is labelled`() {
+        val assigned = ChannelNumberAssigner.assign(
+            listOf(
+                channel(1, "edited", channelNo = 30),  // a user edit outranks the source's 30
+                channel(2, "source", channelNo = 12),
+                channel(3, "auto"),
+            ),
+            userEdits = mapOf(1L to 88),
+        )
+
+        assertThat(assigned.map { it.number }).containsExactly(88, 12, 1).inOrder()
+        assertThat(assigned.map { it.source }).containsExactly(
+            ChannelNumberSource.USER_EDIT,
+            ChannelNumberSource.SOURCE_TVG_CHNO,
+            ChannelNumberSource.AUTO,
+        ).inOrder()
+    }
+
+    @Test
+    fun `removing the user edit falls back to the source number, then to auto`() {
+        val withSource = channel(1, "has-source", channelNo = 12)
+        val withoutSource = channel(2, "no-source")
+
+        // Both are user-edited to begin with: the edit owns the number for both.
+        val edited = ChannelNumberAssigner.assign(
+            listOf(withSource, withoutSource),
+            userEdits = mapOf(1L to 88, 2L to 77),
+        )
+        assertThat(edited.map { it.number }).containsExactly(88, 77).inOrder()
+        assertThat(edited.map { it.source })
+            .containsExactly(ChannelNumberSource.USER_EDIT, ChannelNumberSource.USER_EDIT)
+            .inOrder()
+
+        // The edits are dropped (docs/01 D12 "删除编辑后回落"): the channel that has a source number
+        // falls back to it, the one that never had one falls back to automatic numbering.
+        val cleared = ChannelNumberAssigner.assign(listOf(withSource, withoutSource))
+        assertThat(cleared.map { it.number }).containsExactly(12, 1).inOrder()
+        assertThat(cleared.map { it.source }).containsExactly(
+            ChannelNumberSource.SOURCE_TVG_CHNO,
+            ChannelNumberSource.AUTO,
+        ).inOrder()
+    }
 }

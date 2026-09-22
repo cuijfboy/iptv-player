@@ -18,4 +18,24 @@
     <string name="browse_import_done">已导入 %1$s：%2$d 个频道 / %3$d 条流（%4$s）</string>
     <string name="browse_import_close">知道了</string>
     <string name="browse_import_cancel">取消</string>
+
+    <!-- P2-2 频道管理：列表页操作入口与两个过滤开关（docs/01 F5） -->
+    <string name="browse_filter_favorites_off">只看收藏</string>
+    <string name="browse_filter_favorites_on">只看收藏：开</string>
+    <string name="browse_filter_hidden_hidden">显示隐藏</string>
+    <string name="browse_filter_hidden_shown">显示隐藏：开</string>
+    <string name="browse_action_title">%1$d %2$s</string>
+    <string name="browse_action_favorite">加入收藏</string>
+    <string name="browse_action_unfavorite">取消收藏</string>
+    <string name="browse_action_hide">隐藏此频道</string>
+    <string name="browse_action_unhide">取消隐藏</string>
+    <string name="browse_action_move_up">上移</string>
+    <string name="browse_action_move_down">下移</string>
+    <string name="browse_action_edit_number">编辑频道号</string>
+    <string name="browse_action_clear_number">清除频道号</string>
+    <string name="browse_action_edit_number_title">编辑 %1$s 的频道号</string>
+    <string name="browse_action_number_hint">频道号</string>
+    <string name="browse_action_number_ok">保存</string>
+    <string name="browse_action_number_invalid">请输入大于 0 的整数</string>
+    <string name="browse_action_cancel">取消</string>
 </resources>

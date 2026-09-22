@@ -29,16 +29,33 @@
         android:textSize="22sp"
         tools:text="12" />
 
-    <!-- Logo *placeholder* (docs/04 P1-2). Real logo loading is not part of this stage. -->
-    <TextView
-        android:id="@+id/channel_logo"
+    <!--
+      P2-3: the placeholder (the channel's initial in a box) stays the bottom layer; Coil paints the
+      real logo into the ImageView above it. On a failed fetch the ImageView is cleared, so whatever
+      the user sees is the placeholder — no crash, no blank hole (docs/04 P2-3 "无网络不崩").
+    -->
+    <FrameLayout
         android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:background="@drawable/bg_logo_placeholder"
-        android:gravity="center"
-        android:textColor="#FFE6E6E6"
-        android:textSize="20sp"
-        tools:text="C" />
+        android:layout_height="48dp">
+
+        <TextView
+            android:id="@+id/channel_logo_initial"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/bg_logo_placeholder"
+            android:gravity="center"
+            android:textColor="#FFE6E6E6"
+            android:textSize="20sp"
+            tools:text="C" />
+
+        <ImageView
+            android:id="@+id/channel_logo"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@null"
+            android:scaleType="fitCenter" />
+
+    </FrameLayout>
 
     <LinearLayout
         android:layout_width="0dp"
@@ -68,6 +85,15 @@
             tools:text="央视 · 2 路流" />
 
     </LinearLayout>
+
+    <TextView
+        android:id="@+id/channel_flags"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:textColor="#FFF0C674"
+        android:textSize="16sp"
+        tools:text="★" />
 
     <TextView
         android:id="@+id/channel_number_source"

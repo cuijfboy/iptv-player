@@ -1,8 +1,10 @@
 package ilab.iptv.player.feature.channels
 
 import android.view.LayoutInflater
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
@@ -22,6 +24,8 @@ import ilab.iptv.player.core.domain.channel.ChannelNumberSource
 class ChannelListAdapter(
     private val onChannelFocused: (ChannelListRow.ChannelItem) -> Unit = {},
     private val onChannelSelected: (ChannelListRow.ChannelItem) -> Unit = {},
+    private val onChannelAction: (ChannelListRow.ChannelItem) -> Unit = {},
+    private val onLogoError: (String, Throwable?) -> Unit = { _, _ -> },
 ) : ListAdapter<ChannelListRow, RecyclerView.ViewHolder>(Diff) {
 
     init {
@@ -44,6 +48,8 @@ class ChannelListAdapter(
                 inflater.inflate(R.layout.item_channel, parent, false),
                 onChannelFocused,
                 onChannelSelected,
+                onChannelAction,
+                onLogoError,
             )
         }
     }
@@ -71,12 +77,16 @@ class ChannelListAdapter(
         view: View,
         private val onFocused: (ChannelListRow.ChannelItem) -> Unit,
         private val onSelected: (ChannelListRow.ChannelItem) -> Unit,
+        private val onAction: (ChannelListRow.ChannelItem) -> Unit,
+        private val onLogoError: (String, Throwable?) -> Unit,
     ) : RecyclerView.ViewHolder(view) {
 
         private val number: TextView = view.findViewById(R.id.channel_number)
-        private val logo: TextView = view.findViewById(R.id.channel_logo)
+        private val logoInitial: TextView = view.findViewById(R.id.channel_logo_initial)
+        private val logo: ImageView = view.findViewById(R.id.channel_logo)
         private val name: TextView = view.findViewById(R.id.channel_name)
         private val meta: TextView = view.findViewById(R.id.channel_meta)
+        private val flags: TextView = view.findViewById(R.id.channel_flags)
         private val origin: TextView = view.findViewById(R.id.channel_number_source)
         private var row: ChannelListRow.ChannelItem? = null
 
@@ -87,6 +97,24 @@ class ChannelListAdapter(
             // receives KEYCODE_DPAD_CENTER/ENTER as a click, so this is the whole remote path — no
             // key listener of our own, and the same code runs for a tap on a phone.
             itemView.setOnClickListener { row?.let(onSelected) }
+            // docs/02 §8.2: the remote's MENU key (and a held OK/Enter) opens the P2-2 actions for
+            // the focused row. The dialog it opens is focusable by D-pad, so the whole path stays
+            // remote-only; a plain tap on a row still plays (below).
+            itemView.setOnLongClickListener {
+                row?.let(onAction)
+                true
+            }
+            // The remote's MENU key is the second way in (a held OK/Enter is the first). Handled on
+            // the row rather than the activity: the focused row is what receives the key, and
+            // overriding Activity.dispatchKeyEvent trips lint's RestrictedApi check on ComponentActivity.
+            itemView.setOnKeyListener { _, keyCode, event ->
+                if (keyCode == KeyEvent.KEYCODE_MENU && event.action == KeyEvent.ACTION_DOWN) {
+                    row?.let(onAction)
+                    true
+                } else {
+                    false
+                }
+            }
             // docs/02 §8.2: the default highlight is disabled in XML; this is the "highlight + scale"
             // half (the selector background is the other half).
             itemView.setOnFocusChangeListener { focusedView, hasFocus ->
@@ -102,14 +130,26 @@ class ChannelListAdapter(
         fun bind(item: ChannelListRow.ChannelItem) {
             row = item
             number.text = item.number.toString()
-            logo.text = item.initial
-            logo.background = logo.resources.getDrawable(
+            // The placeholder is the layer *behind* the logo (the initial in a box). The logo image
+            // is cleared here and repopulated by Coil; on a failed fetch it stays cleared, so the
+            // placeholder shows through (P2-3: "失败回退占位"). Rebase the box so a real logo is
+            // drawn on the quieter "remote" plate and a placeholder keeps the default plate.
+            logoInitial.text = item.initial
+            logoInitial.background = logoInitial.resources.getDrawable(
                 if (item.logoUrl != null) R.drawable.bg_logo_placeholder_remote else R.drawable.bg_logo_placeholder,
                 null,
             )
+            ChannelLogoLoader.bind(logo, item.logoUrl, onLogoError)
             name.text = item.name
             meta.text = metaText(item)
+            flags.text = flagsText(item)
             origin.text = originText(item)
+        }
+
+        /** P2-2: the two user-set states the remote can change, shown as tags, blank when neither set. */
+        private fun flagsText(item: ChannelListRow.ChannelItem): String = buildString {
+            if (item.favorite) append('★')
+            if (item.hidden) append(if (isEmpty()) "" else " ").append("隐")
         }
 
         private fun metaText(item: ChannelListRow.ChannelItem): String = buildString {

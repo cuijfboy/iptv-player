@@ -42,6 +42,24 @@
             android:layout_marginStart="12dp"
             android:text="@string/browse_sources_action" />
 
+        <!--
+          P2-2: the two list-wide filters. They live next to import/sources so DPAD_UP from the first
+          row reaches them, and so hiding a channel is reversible without a manager screen (P3-4).
+        -->
+        <Button
+            android:id="@+id/filter_favorites"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:text="@string/browse_filter_favorites_off" />
+
+        <Button
+            android:id="@+id/filter_hidden"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:text="@string/browse_filter_hidden_hidden" />
+
     </LinearLayout>
 
     <!-- clipChildren=false: a focused row scales up and must not be clipped at the list edges. -->

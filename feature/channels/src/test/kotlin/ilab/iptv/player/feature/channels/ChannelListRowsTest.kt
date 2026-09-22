@@ -105,16 +105,56 @@ class ChannelListRowsTest {
         assertThat((rows[1] as ChannelListRow.ChannelItem).initial).isEqualTo("?")
     }
 
-    private fun channel(id: Long, name: String, groupTitle: String, channelNo: Int? = null) = Channel(
+    @Test
+    fun `a row carries the group key and the two user states (P2-2 actions read them)`() {
+        val rows = ChannelListRows.build(
+            listOf(
+                channel(1, "CCTV1", "央视", favorite = true, hidden = true),
+                channel(2, "CCTV2", "央视"),
+            ),
+        )
+
+        val first = rows.filterIsInstance<ChannelListRow.ChannelItem>().first { it.channelId == 1L }
+        assertThat(first.groupKey).isEqualTo("央视")
+        assertThat(first.favorite).isTrue()
+        assertThat(first.hidden).isTrue()
+        val second = rows.filterIsInstance<ChannelListRow.ChannelItem>().first { it.channelId == 2L }
+        assertThat(second.favorite).isFalse()
+        assertThat(second.hidden).isFalse()
+    }
+
+    @Test
+    fun `a manual order moves a channel above a lower-numbered one`() {
+        val rows = ChannelListRows.build(
+            listOf(
+                channel(1, "numbered-first", "央视", channelNo = 1, sortOrder = 5),
+                channel(2, "moved-above", "央视", channelNo = 9, sortOrder = 0),
+            ),
+        )
+
+        assertThat(rows.filterIsInstance<ChannelListRow.ChannelItem>().map { it.name })
+            .containsExactly("moved-above", "numbered-first")
+            .inOrder()
+    }
+
+    private fun channel(
+        id: Long,
+        name: String,
+        groupTitle: String,
+        channelNo: Int? = null,
+        sortOrder: Int = 0,
+        favorite: Boolean = false,
+        hidden: Boolean = false,
+    ) = Channel(
         id = id,
         name = name,
         tvgId = null,
         group = ChannelGrouping.classify(groupTitle),
         logoUrl = null,
         channelNo = channelNo,
-        favorite = false,
-        hidden = false,
-        sortOrder = 0,
+        favorite = favorite,
+        hidden = hidden,
+        sortOrder = sortOrder,
         epgChannelId = null,
         epgMatch = EpgMatchType.NONE,
         streamCount = 1,

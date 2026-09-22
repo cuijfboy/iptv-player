@@ -1,8 +1,11 @@
 package ilab.iptv.player.feature.channels
 
+import android.app.AlertDialog
 import android.os.Bundle
 import android.content.ActivityNotFoundException
+import android.text.InputType
 import android.widget.Button
+import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -59,6 +62,8 @@ class BrowseActivity : ComponentActivity() {
     private lateinit var header: TextView
     private lateinit var importButton: Button
     private lateinit var sourcesButton: Button
+    private lateinit var favoritesButton: Button
+    private lateinit var hiddenButton: Button
     private lateinit var adapter: ChannelListAdapter
 
     /**
@@ -129,9 +134,28 @@ class BrowseActivity : ComponentActivity() {
             // dependency out (docs/02 §3.2), same trick as PlayerContract.
             startActivity(SettingsContract.sourceManagementIntent(this))
         }
+        // P2-2: the two list-wide filters. "隐藏" would otherwise be a one-way door — a hidden row
+        // leaves the list (includeHidden=false), so there has to be a way back to it.
+        favoritesButton = findViewById(R.id.filter_favorites)
+        favoritesButton.setOnClickListener { viewModel.toggleFavoritesOnly() }
+        hiddenButton = findViewById(R.id.filter_hidden)
+        hiddenButton.setOnClickListener { viewModel.toggleIncludeHidden() }
         adapter = ChannelListAdapter(
             onChannelFocused = { item -> onChannelFocused(item) },
             onChannelSelected = { item -> openPlayer(item) },
+            onChannelAction = { item -> showChannelActions(item) },
+            onLogoError = { url, error ->
+                // docs/03 §3.3: NET_REQ_FAIL is the registered code for "a fetch did not come back".
+                // `kind=logo` separates an image miss from a playlist fetch in the troubleshooting
+                // manual; a dedicated UI_LOGO_* code is a docs/03 registry change (reported, not made).
+                logger.w(
+                    category = LogCategory.NET,
+                    code = EventCodes.NET_REQ_FAIL,
+                    message = "channel logo did not load",
+                    fields = mapOf("kind" to "logo", "screen" to SCREEN_NAME, "url" to url),
+                    error = error,
+                )
+            },
         )
         list.layoutManager = LinearLayoutManager(this)
         list.adapter = adapter
@@ -154,6 +178,7 @@ class BrowseActivity : ComponentActivity() {
                         list.post { list.getChildAt(0)?.requestFocus() }
                     }
                 }
+                renderFilters(state)
                 renderHeader()
             }
         }
@@ -283,6 +308,75 @@ class BrowseActivity : ComponentActivity() {
     /** OK/Enter on a row (P1-4 item 1: "列表项 OK/Enter 打开播放"). */
     private fun openPlayer(item: ChannelListRow.ChannelItem) {
         playerLauncher.launch(PlayerContract.intent(this, channelId = item.channelId))
+    }
+
+    /** Pressed state + label for the two P2-2 filter toggles. */
+    private fun renderFilters(state: ChannelListUiState) {
+        favoritesButton.isSelected = state.favoritesOnly
+        favoritesButton.text = getString(
+            if (state.favoritesOnly) R.string.browse_filter_favorites_on else R.string.browse_filter_favorites_off,
+        )
+        hiddenButton.isSelected = state.includeHidden
+        hiddenButton.text = getString(
+            if (state.includeHidden) R.string.browse_filter_hidden_shown else R.string.browse_filter_hidden_hidden,
+        )
+    }
+
+    /**
+     * The P2-2 action menu for one channel (docs/01 F5: 分组/收藏/隐藏/排序/频道号). One dialog for
+     * all five edits keeps the remote path short: MENU (or held OK) → one item → done. Multi-select
+     * and rename are deliberately P3-4 (the card's boundary), so this is single-channel only.
+     */
+    private fun showChannelActions(item: ChannelListRow.ChannelItem) {
+        val actions = arrayOf(
+            getString(if (item.favorite) R.string.browse_action_unfavorite else R.string.browse_action_favorite),
+            getString(if (item.hidden) R.string.browse_action_unhide else R.string.browse_action_hide),
+            getString(R.string.browse_action_move_up),
+            getString(R.string.browse_action_move_down),
+            getString(R.string.browse_action_edit_number),
+            getString(R.string.browse_action_clear_number),
+        )
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.browse_action_title, item.number, item.name))
+            .setItems(actions) { _, which ->
+                when (which) {
+                    0 -> viewModel.toggleFavorite(item)
+                    1 -> viewModel.setHidden(item, !item.hidden)
+                    2 -> viewModel.move(item, -1)
+                    3 -> viewModel.move(item, +1)
+                    4 -> showEditNumberDialog(item)
+                    5 -> viewModel.setChannelNo(item, null)
+                }
+            }
+            .setNegativeButton(R.string.browse_action_cancel, null)
+            .show()
+    }
+
+    /**
+     * docs/01 D12: the user types the number. A non-numeric or non-positive entry is rejected with a
+     * message instead of silently writing a bogus number; "清除" (the menu's last item) is the
+     * documented way to drop the edit.
+     */
+    private fun showEditNumberDialog(item: ChannelListRow.ChannelItem) {
+        val input = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER
+            setText(item.number.toString())
+            setSelectAllOnFocus(true)
+            hint = getString(R.string.browse_action_number_hint)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.browse_action_edit_number_title, item.name))
+            .setView(input)
+            .setPositiveButton(R.string.browse_action_number_ok) { _, _ ->
+                val value = input.text?.toString()?.trim()?.toIntOrNull()
+                if (value != null && value > 0) {
+                    viewModel.setChannelNo(item, value)
+                } else {
+                    Toast.makeText(this, R.string.browse_action_number_invalid, Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton(R.string.browse_action_cancel, null)
+            .show()
     }
 
     /**
