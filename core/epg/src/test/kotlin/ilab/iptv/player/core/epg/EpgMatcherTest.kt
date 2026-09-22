@@ -7,10 +7,11 @@ import ilab.iptv.player.core.model.EpgMatchType
 import org.junit.Test
 
 /**
- * The three tiers of docs/02 §6.3 that P2-7 owns: `tvg-id` exact → normalized name → alias table, plus
- * the miss and the manual binding that must survive all three. Each test also checks the *explanation*
- * (`type` + `matchedOn`), because that is what `EPG_MATCH_HIT` logs and what makes a wrong match
- * debuggable without re-running the chain.
+ * The tiers of docs/02 §6.3 that P2-7 + P3-5 own: `tvg-id` exact → normalized name → feed/punctuation
+ * folded name → alias table, plus the miss and the manual binding that must survive all of them. Each
+ * test also checks the *explanation* (`type` + `matchedOn`, and the `guideKey` of a folded hit),
+ * because that is what `EPG_MATCH_HIT` logs and what makes a wrong match debuggable without re-running
+ * the chain.
  */
 class EpgMatcherTest {
 
@@ -74,14 +75,73 @@ class EpgMatcherTest {
     }
 
     @Test
-    fun `an alias whose target is a display name resolves through the name index`() {
+    fun `a feed marker is folded before the alias table is consulted`() {
+        // `湖南卫视-高清` used to need an alias entry; P3-5's tier 3 folds it to `湖南卫视` first, and
+        // the hit still says exactly which fold was used (`matchedOn` = the variant, `guideKey` = the
+        // guide name it landed on).
         val report = matcher.match(
             listOf(channel(id = 9, name = "湖南卫视-高清", group = ChannelGroup.SATELLITE)),
             index,
         )
         val hit = report.hits.single()
-        assertThat(hit.type).isEqualTo(EpgMatchType.ALIAS)
+        assertThat(hit.type).isEqualTo(EpgMatchType.NAME_FUZZY)
         assertThat(hit.epgChannelId).isEqualTo("hunan.cn")
+        assertThat(hit.matchedOn).isEqualTo("湖南卫视")
+        assertThat(hit.guideKey).isEqualTo("湖南卫视")
+    }
+
+    @Test
+    fun `an alias whose target is a display name resolves through the name index`() {
+        // `央视新闻` is CCTV-13 by knowledge, not by spelling, so it lives in the alias table; its
+        // target is a guide *name* (the public guide's ids are per-source numbers).
+        val report = matcher.match(
+            listOf(channel(id = 9, name = "央视新闻", group = ChannelGroup.CCTV)),
+            index.copy(byNameKey = index.byNameKey + ("cctv-13新闻" to "CCTV13.cn")),
+        )
+        val hit = report.hits.single()
+        assertThat(hit.type).isEqualTo(EpgMatchType.ALIAS)
+        assertThat(hit.epgChannelId).isEqualTo("CCTV13.cn")
+        assertThat(hit.matchedOn).isEqualTo("央视新闻")
+        assertThat(hit.guideKey).isEqualTo("cctv-13新闻")
+    }
+
+    @Test
+    fun `an alias entry also catches the name with a feed marker attached`() {
+        // `福建东南卫视 高清` must not lose the `福建东南卫视` entry just because the source added a
+        // marker; the alias lookup runs on the tier-3 variant keys too.
+        val report = matcher.match(
+            listOf(channel(id = 11, name = "福建东南卫视 高清", group = ChannelGroup.SATELLITE)),
+            index.copy(
+                byNameKey = index.byNameKey + ("东南卫视" to "dndw.cn"),
+                byId = index.byId + ("dndw.cn" to "dndw.cn"),
+            ),
+        )
+        val hit = report.hits.single()
+        assertThat(hit.type).isEqualTo(EpgMatchType.ALIAS)
+        assertThat(hit.epgChannelId).isEqualTo("dndw.cn")
+        assertThat(hit.matchedOn).isEqualTo("福建东南卫视")
+    }
+
+    @Test
+    fun `a plus channel is not folded into its plain neighbour`() {
+        // The safety property of the whole round: `CCTV5+` (a different channel) must never take
+        // `CCTV5`'s guide, and `CCTV5` must never take `CCTV5+`'s.
+        val index = EpgChannelIndex(
+            byId = emptyMap(),
+            byNameKey = mapOf("cctv5" to "cctv5.id", "cctv5plus" to "cctv5plus.id"),
+        )
+        val report = matcher.match(
+            listOf(
+                channel(id = 1, name = "CCTV5", group = ChannelGroup.CCTV),
+                channel(id = 2, name = "CCTV5+", group = ChannelGroup.CCTV),
+                channel(id = 3, name = "CCTV4K", group = ChannelGroup.CCTV),
+            ),
+            index,
+        )
+        assertThat(report.hits.single { it.channelId == 1L }.epgChannelId).isEqualTo("cctv5.id")
+        assertThat(report.hits.single { it.channelId == 2L }.epgChannelId).isEqualTo("cctv5plus.id")
+        // Nothing in the guide is called CCTV4K → it is a miss, not a silent bind to `cctv5`.
+        assertThat(report.misses.map { it.channelId }).containsExactly(3L)
     }
 
     @Test
@@ -150,8 +210,10 @@ class EpgMatcherTest {
         assertThat(aliases.targetFor("ＣＣＴＶ－1　综合")).isEqualTo("CCTV1")
         assertThat(aliases.targetFor("cctv-1综合")).isEqualTo("CCTV1")
         assertThat(aliases.targetFor("something else")).isNull()
-        // P3-5 owns the large table; the seed exists to make the tier real and testable.
-        assertThat(EpgAliases.BUILT_IN.size).isAtMost(20)
+        // P3-5 filled the table from real misses, so the bound moved up — but it stays a bound: growth
+        // is a decision (a missing normalization rule is the usual cause), not a drift.
+        assertThat(EpgAliases.BUILT_IN.size).isAtMost(40)
+        assertThat(EpgAliases.BUILT_IN.size).isAtLeast(20)
     }
 
     @Test
@@ -169,6 +231,11 @@ class EpgMatcherTest {
             ChannelGroup.CCTV, 1,
             ChannelGroup.SATELLITE, 1,
         )
+        assertThat(coverage.byGroupTotal).containsExactly(
+            ChannelGroup.CCTV, 2,
+            ChannelGroup.SATELLITE, 1,
+            ChannelGroup.LOCAL, 1,
+        )
         assertThat(coverage.ratio).isEqualTo(0.5)
     }
 
@@ -176,5 +243,34 @@ class EpgMatcherTest {
     fun `a guide with no channels reports zero coverage without dividing by zero`() {
         val coverage = EpgCoverageCalculator.of(emptyList(), emptySet())
         assertThat(coverage.ratio).isEqualTo(0.0)
+    }
+
+    @Test
+    fun `the mainstream slice excludes the local long tail`() {
+        val channels = listOf(
+            channel(id = 1, name = "CCTV-1", group = ChannelGroup.CCTV),
+            channel(id = 2, name = "CCTV-2", group = ChannelGroup.CCTV),
+            channel(id = 3, name = "湖南卫视", group = ChannelGroup.SATELLITE),
+            channel(id = 4, name = "凤凰中文", group = ChannelGroup.HK_MO_TW),
+            channel(id = 5, name = "河北新闻综合", group = ChannelGroup.LOCAL),
+            channel(id = 6, name = "导视资讯", group = ChannelGroup.OTHER),
+        )
+        val coverage = EpgCoverageCalculator.of(channels, matchedChannelIds = setOf(1, 3, 5, 6))
+        val mainstream = EpgCoverageCalculator.mainstream(coverage)
+        // 2 of the 4 mainstream channels are covered (CCTV-1, 湖南卫视) — the local hit does not count.
+        assertThat(mainstream.matched).isEqualTo(2)
+        assertThat(mainstream.total).isEqualTo(4)
+        assertThat(mainstream.ratio).isEqualTo(0.5)
+        // Overall is higher here precisely because the local tail is small in this fixture.
+        assertThat(coverage.ratio).isEqualTo(4.0 / 6.0)
+    }
+
+    @Test
+    fun `a list with no mainstream channels reports a zero slice instead of dividing by zero`() {
+        val channels = listOf(channel(id = 1, name = "本地台", group = ChannelGroup.LOCAL))
+        val coverage = EpgCoverageCalculator.of(channels, matchedChannelIds = setOf(1))
+        val mainstream = EpgCoverageCalculator.mainstream(coverage)
+        assertThat(mainstream.total).isEqualTo(0)
+        assertThat(mainstream.ratio).isEqualTo(0.0)
     }
 }

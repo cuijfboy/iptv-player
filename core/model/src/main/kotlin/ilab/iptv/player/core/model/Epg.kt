@@ -17,6 +17,13 @@ data class EpgCoverage(
     val matched: Int,
     val total: Int,
     val byGroup: Map<ChannelGroup, Int>,
+    /**
+     * How many channels each group *has*, so [byGroup] can be read as `42/80 央视` instead of a bare
+     * numerator. P3-5 added it: docs/04's P3-5 exit is "≥60%（主流频道）", and a per-group ratio is
+     * not computable from the matched counts alone. Defaults to empty for producers that only know the
+     * matched side (older tests, a partial index).
+     */
+    val byGroupTotal: Map<ChannelGroup, Int> = emptyMap(),
 ) {
     /** Share of channels with a programme table, 0..1; 0 when there is nothing to cover. */
     val ratio: Double get() = if (total <= 0) 0.0 else matched.toDouble() / total

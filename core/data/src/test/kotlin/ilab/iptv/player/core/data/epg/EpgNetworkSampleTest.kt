@@ -12,8 +12,10 @@ import ilab.iptv.player.core.data.catalog.ChannelCatalog
 import ilab.iptv.player.core.data.dispatchers.TestDispatcherProvider
 import ilab.iptv.player.core.data.store.RoomCatalogWriter
 import ilab.iptv.player.core.database.IptvDatabase
+import ilab.iptv.player.core.domain.channel.ChannelGrouping
 import ilab.iptv.player.core.epg.BuiltInEpgSources
 import ilab.iptv.player.core.epg.EpgAliases
+import ilab.iptv.player.core.epg.EpgCoverageCalculator
 import ilab.iptv.player.core.epg.EpgMatcher
 import ilab.iptv.player.core.epg.EpgProvider
 import ilab.iptv.player.core.epg.XmltvHttpEpgProvider
@@ -42,9 +44,12 @@ class EpgNetworkSampleTest {
 
     private class PrintingLogger : Logger {
         val codes = mutableListOf<String>()
+        /** Same events, with fields, so the sample can turn the DEBUG match log into a miss report. */
+        val events = mutableListOf<Pair<String, Map<String, Any?>>>()
 
         private fun record(category: LogCategory, code: String, message: String, fields: Map<String, Any?>) {
             codes += code
+            events += code to fields
             if (code != "EPG_MATCH_HIT" && code != "EPG_MATCH_MISS") {
                 println("  [$code] $message $fields")
             }
@@ -145,6 +150,18 @@ class EpgNetworkSampleTest {
             "coverage: matched=${report.coverage.matched} total=${report.coverage.total} " +
                 "ratio=${report.coverage.ratio} byGroup=${report.coverage.byGroup}",
         )
+        val mainstream = EpgCoverageCalculator.mainstream(report.coverage)
+        println(
+            "coverage-by-group: " + report.coverage.byGroupTotal.entries.joinToString(" ") { (group, total) ->
+                "${group.key}=${report.coverage.byGroup[group] ?: 0}/$total"
+            },
+        )
+        println(
+            "coverage-mainstream: matched=${mainstream.matched} total=${mainstream.total} " +
+                "ratio=${mainstream.ratio} (docs/04 P3-5 target = 0.60)",
+        )
+        println("coverage-uncovered: " + uncoveredSummary(database))
+        println("coverage-hit-tiers: " + tierSummary(logger))
         println("elapsedReportedMs=${report.elapsedMs} wallMs=$wallMs")
         println("programmeRows=${database.programmeDao().count()} epgChannels=${database.programmeDao().channelCount()}")
         println(
@@ -160,6 +177,37 @@ class EpgNetworkSampleTest {
         // The sample asserts only that the run happened and produced something; the numbers are the point.
         assertThat(report.coverage.total).isEqualTo(load.channels)
         assertThat(LogLevel.DEBUG).isNotNull()
+    }
+
+    /**
+     * The channels that are *still* without a guide after every source has been tried — not the
+     * per-source `EPG_MATCH_MISS` count, which includes every channel that merely lost to an earlier
+     * source's spelling. This is the list an alias-table entry is supposed to come from (P3-5
+     * maintenance rule 1), grouped the way the coverage report groups them, biggest group first.
+     */
+    private suspend fun uncoveredSummary(database: IptvDatabase): String {
+        val uncovered = database.channelDao().all()
+            .filter { it.epgChannelId.isNullOrBlank() }
+            .map { ChannelGrouping.classify(it.groupTitle) to it.name }
+        return uncovered.groupBy({ it.first }, { it.second })
+            .entries
+            .sortedByDescending { it.value.size }
+            .joinToString(" | ") { (group, names) ->
+                "${group.key}:${names.size} top=[${names.take(8).joinToString(",")}]"
+            }
+    }
+
+    /** How many channels each match tier bound, per source attempt — the "why did it match" summary. */
+    private fun tierSummary(logger: PrintingLogger): String {
+        val tiers = logger.events
+            .filter { (code, _) -> code == "EPG_MATCH_HIT" }
+            .mapNotNull { (_, fields) -> fields["strategy"] as? String }
+            .groupingBy { it }
+            .eachCount()
+            .entries
+            .sortedByDescending { it.value }
+            .joinToString(" ") { "${it.key}=${it.value}" }
+        return tiers.ifEmpty { "(none)" }
     }
 
     /**

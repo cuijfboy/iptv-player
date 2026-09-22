@@ -35,15 +35,21 @@ data class EpgSourceRow(
 object BuiltInEpgSources {
 
     const val EPG_PW_CN = "epg.pw.cn"
+    const val EPG_PW_HK = "epg.pw.hk"
+    const val EPG_PW_TW = "epg.pw.tw"
     const val EPGSHARE01_HK = "epgshare01.hk"
 
     /**
-     * Two independent public guides, deliberately from different projects: one source having a bad
-     * day (or dropping a country) is normal, and a single-source EPG is a single point of failure.
-     * Both are plain XMLTV; the fetcher sniffing gzip means a `.xml.gz` upstream keeps working.
+     * Four public guides. Two projects (epg.pw, epgshare01) so one having a bad day is not a single
+     * point of failure, and four guides because each covers a different slice: mainland (CN), Hong
+     * Kong (epgshare01 HK + epg.pw HK), Taiwan (TW); the fixture's 港澳台 channels are only complete
+     * once the HK/TW guides are in. All are plain XMLTV; the fetcher sniffs gzip by magic bytes, so a
+     * `.xml.gz` upstream keeps working without a per-source flag — and where the same guide is served
+     * both ways the `.gz` address is listed, because it is the same document 20× smaller
+     * (`epg_CN.xml` 6.3 MB → `epg_CN.xml.gz` 307 KB, measured 2026-09-22).
      *
-     * Both addresses were reached from this machine on 2026-09-22 (the sample run in
-     * `docs/05-过程记录/27-P2-7EPG验证.md` reports what came back). The iptv-org guide host that the
+     * Every address was reached from this machine on 2026-09-22 (the sample run in
+     * `docs/05-过程记录/37-P3-5EPG覆盖率.md` reports what came back). The iptv-org guide host that the
      * docs' F6 sketch implies is **gone** (`https://iptv-org.github.io/epg/guides/cn.xml` → 404), so
      * it is not listed: a built-in catalogue is a promise that the address works.
      */
@@ -51,7 +57,19 @@ object BuiltInEpgSources {
         EpgSourceDescriptor(
             id = EPG_PW_CN,
             label = "epg.pw (CN)",
-            url = "https://epg.pw/xmltv/epg_CN.xml",
+            url = "https://epg.pw/xmltv/epg_CN.xml.gz",
+            gzipLikely = true,
+        ),
+        EpgSourceDescriptor(
+            id = EPG_PW_HK,
+            label = "epg.pw (HK)",
+            url = "https://epg.pw/xmltv/epg_HK.xml.gz",
+            gzipLikely = true,
+        ),
+        EpgSourceDescriptor(
+            id = EPG_PW_TW,
+            label = "epg.pw (TW)",
+            url = "https://epg.pw/xmltv/epg_TW.xml.gz",
             gzipLikely = true,
         ),
         EpgSourceDescriptor(

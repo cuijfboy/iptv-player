@@ -6,6 +6,7 @@ import ilab.iptv.player.core.common.AppError
 import ilab.iptv.player.core.common.AppResult
 import ilab.iptv.player.core.common.Clock
 import ilab.iptv.player.core.common.EventCodes
+import ilab.iptv.player.core.common.LogLevel
 import ilab.iptv.player.core.data.RoomFixtures
 import ilab.iptv.player.core.data.dispatchers.TestDispatcherProvider
 import ilab.iptv.player.core.data.mapper.PersistenceMapper
@@ -195,6 +196,43 @@ class LoadEpgUseCaseTest {
         assertThat(logger.codes).contains(EventCodes.EPG_PARSE_OK)
         assertThat(logger.codes).contains(EventCodes.EPG_MATCH_HIT)
     }
+
+    @Test
+    fun `the coverage event carries the group dimension and the mainstream slice`() = runBlocking<Unit> {
+        channel("CCTV-1 综合", tvgId = "CCTV1.cn")
+        useCase = buildUseCase(FakeProvider("test", body = guide(programme(now, now + 30 * 60_000L, "x"))))
+
+        useCase()
+
+        val event = logger.events.last { it.code == EventCodes.EPG_COVERAGE }
+        assertThat(event.level).isEqualTo(LogLevel.INFO)
+        assertThat(event.fields["byGroup"]).isEqualTo(mapOf("cctv" to 1))
+        assertThat(event.fields["byGroupTotal"]).isEqualTo(mapOf("cctv" to 1))
+        assertThat(event.fields["mainstreamMatched"]).isEqualTo(1)
+        assertThat(event.fields["mainstreamTotal"]).isEqualTo(1)
+        assertThat(event.fields["mainstreamRatio"]).isEqualTo("1.000")
+        assertThat(event.fields["target"]).isEqualTo("0.600")
+        // Nothing to warn about: a fully covered mainstream list must not raise the alert field.
+        assertThat(event.fields).doesNotContainKey("alert")
+    }
+
+    @Test
+    fun `a mainstream list below the target raises the coverage alert as an event, not a notification`() =
+        runBlocking<Unit> {
+            // The list has a mainstream channel and the guide cannot cover it → 0/1 < 0.60. The alert is
+            // the coverage event at WARN with a tag: docs/03 §3.3 has no `EPG_COVERAGE_LOW` code yet.
+            channel("某个不存在的台", tvgId = "stale.id")
+            useCase = buildUseCase(FakeProvider("test", body = guide(programme(now, now + 30 * 60_000L, "x"))))
+
+            useCase()
+
+            val event = logger.events.last { it.code == EventCodes.EPG_COVERAGE }
+            assertThat(event.level).isEqualTo(LogLevel.WARN)
+            assertThat(event.fields["alert"]).isEqualTo("coverage_below_target")
+            assertThat(event.fields["mainstreamMatched"]).isEqualTo(0)
+            assertThat(event.fields["mainstreamTotal"]).isEqualTo(1)
+            assertThat(event.fields["mainstreamRatio"]).isEqualTo("0.000")
+        }
 
     @Test
     fun `rows outside the retention window are counted as skipped and never stored`() = runBlocking<Unit> {

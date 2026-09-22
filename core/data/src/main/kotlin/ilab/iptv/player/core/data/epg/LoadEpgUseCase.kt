@@ -212,6 +212,9 @@ class LoadEpgUseCase @Inject constructor(
                         "strategy" to hit.type.name,
                         "epgId" to hit.epgChannelId,
                         "matchedOn" to hit.matchedOn,
+                        // The guide-side key of a name-based hit, so a folded match shows both sides
+                        // (`matchedOn=cctv1高清` vs `guideKey=cctv1`) and the fold is auditable.
+                        "guideKey" to hit.guideKey,
                         "provider" to source.id,
                     ),
                 )
@@ -226,7 +229,7 @@ class LoadEpgUseCase @Inject constructor(
                         "nameKey" to miss.nameKey,
                         "tvgId" to miss.triedTvgId,
                         "provider" to source.id,
-                        "strategies" to THREE_TIERS,
+                        "strategies" to MATCH_TIERS,
                     ),
                 )
             }
@@ -243,27 +246,47 @@ class LoadEpgUseCase @Inject constructor(
 
         val pruned = repository.prune(window.fromMs, window.toMs)
         val coverage = EpgCoverageCalculator.of(channels, matchedIds)
+        val mainstream = EpgCoverageCalculator.mainstream(coverage)
         val elapsedMs = clock.nowMs() - startedAtMs
 
-        logger.i(
-            LogCategory.EPG,
-            EventCodes.EPG_COVERAGE,
-            "epg coverage",
-            mapOf(
-                "matched" to coverage.matched,
-                "total" to coverage.total,
-                "ratio" to String.format(java.util.Locale.US, "%.3f", coverage.ratio),
-                "byGroup" to coverage.byGroup.mapKeys { (group, _) -> group.key },
-                "providers" to providersRun,
-                "sources" to sources.size,
-                "channels" to channelsSeen,
-                "programmes" to programmes,
-                "skipped" to skipped,
-                "pruned" to pruned,
-                "malformed" to malformed,
-                "elapsedMs" to elapsedMs,
-            ),
+        val belowTarget = mainstream.total > 0 && mainstream.ratio < MAINSTREAM_TARGET
+        val coverageFields = mapOf(
+            "matched" to coverage.matched,
+            "total" to coverage.total,
+            "ratio" to ratioText(coverage.ratio),
+            // P3-5: group dimension with both halves, so "42/80 央视" is readable straight from the
+            // event instead of joining it against the catalogue.
+            "byGroup" to coverage.byGroup.mapKeys { (group, _) -> group.key },
+            "byGroupTotal" to coverage.byGroupTotal.mapKeys { (group, _) -> group.key },
+            // docs/04's P3-5 exit is measured on 主流频道 (see MAINSTREAM_GROUPS); both ratios are
+            // reported because docs/01–04 never define the word (a口径 question for god/arch).
+            "mainstreamMatched" to mainstream.matched,
+            "mainstreamTotal" to mainstream.total,
+            "mainstreamRatio" to ratioText(mainstream.ratio),
+            "target" to ratioText(MAINSTREAM_TARGET),
+            "providers" to providersRun,
+            "sources" to sources.size,
+            "channels" to channelsSeen,
+            "programmes" to programmes,
+            "skipped" to skipped,
+            "pruned" to pruned,
+            "malformed" to malformed,
+            "elapsedMs" to elapsedMs,
         )
+
+        // The alert is a log event, not a notification (§6.3 "不打扰用户"): same registered code as the
+        // plain report, raised to WARN and tagged, because docs/03 §3.3 is frozen at 50 codes and a new
+        // `EPG_COVERAGE_LOW` would need a docs/03 write-back (proposed, see the P3-5 record §7).
+        if (belowTarget) {
+            logger.w(
+                LogCategory.EPG,
+                EventCodes.EPG_COVERAGE,
+                "epg coverage below target",
+                coverageFields + mapOf("alert" to COVERAGE_BELOW_TARGET),
+            )
+        } else {
+            logger.i(LogCategory.EPG, EventCodes.EPG_COVERAGE, "epg coverage", coverageFields)
+        }
 
         return AppResult.Ok(
             EpgLoadReport(
@@ -304,7 +327,14 @@ class LoadEpgUseCase @Inject constructor(
         const val INITIAL_CHANNEL_INDEX = 256
 
         /** Logged with every miss so the reader knows which tiers were tried, not just that none hit. */
-        const val THREE_TIERS = "TVG_ID,NAME_EXACT,ALIAS"
+        const val MATCH_TIERS = "TVG_ID,NAME_EXACT,NAME_FUZZY,ALIAS"
+
+        /** docs/04 P3-5: "≥60%（主流频道）". The gate is on the mainstream slice, not the whole list. */
+        const val MAINSTREAM_TARGET = 0.60
+
+        const val COVERAGE_BELOW_TARGET = "coverage_below_target"
+
+        fun ratioText(ratio: Double): String = String.format(java.util.Locale.US, "%.3f", ratio)
     }
 }
 

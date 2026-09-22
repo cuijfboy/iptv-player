@@ -54,6 +54,18 @@ object EpgModule {
     @Provides
     @IntoSet
     @Singleton
+    fun provideEpgPwHkEpg(fetcher: StreamingHttpFetcher, logger: Logger): EpgProvider =
+        providerFor(BuiltInEpgSources.EPG_PW_HK, fetcher, logger)
+
+    @Provides
+    @IntoSet
+    @Singleton
+    fun provideEpgPwTwEpg(fetcher: StreamingHttpFetcher, logger: Logger): EpgProvider =
+        providerFor(BuiltInEpgSources.EPG_PW_TW, fetcher, logger)
+
+    @Provides
+    @IntoSet
+    @Singleton
     fun provideEpgShare01Epg(fetcher: StreamingHttpFetcher, logger: Logger): EpgProvider =
         providerFor(BuiltInEpgSources.EPGSHARE01_HK, fetcher, logger)
 
