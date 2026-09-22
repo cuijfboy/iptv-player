@@ -33,5 +33,12 @@
             android:exported="true"
             android:configChanges="orientation|screenSize|keyboardHidden|navigation"
             android:screenOrientation="landscape" />
+
+        <!-- Snapshot inclusion probe: first frame <= timeout AND no stall during the hold window. -->
+        <activity
+            android:name=".HoldProbeActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|navigation"
+            android:screenOrientation="landscape" />
     </application>
 </manifest>

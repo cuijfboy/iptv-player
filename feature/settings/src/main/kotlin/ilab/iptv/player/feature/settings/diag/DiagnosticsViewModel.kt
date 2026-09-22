@@ -369,7 +369,7 @@ class DiagnosticsViewModel @Inject constructor(
         }
 
     private fun lastRefreshText(lastRefreshAtMs: Long?, sourceCount: Int): String = when {
-        sourceCount == 0 -> "没有订阅（当前是内置示例表）"
+        sourceCount == 0 -> "没有订阅（当前是内置快照）"
         lastRefreshAtMs == null -> "还没刷新过（等每日 06:00 或手动刷新）"
         else -> "${localTime(lastRefreshAtMs)}（${(clock.nowMs() - lastRefreshAtMs) / 60_000L} 分钟前）"
     }

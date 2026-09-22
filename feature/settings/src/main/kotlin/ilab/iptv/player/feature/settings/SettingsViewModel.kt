@@ -88,7 +88,7 @@ class SettingsViewModel @Inject constructor(
     )
 
     private fun lastRefreshSummary(noSources: Boolean, lastFetchAtMs: Long?, entries: Int?): String = when {
-        noSources -> "没有订阅（当前是内置示例表）"
+        noSources -> "没有订阅（当前是内置快照）"
         lastFetchAtMs == null -> "还没刷新过"
         else -> "最近 ${localTime(lastFetchAtMs)} · ${entries?.let { "$it 条" } ?: "无结果"}"
     }
