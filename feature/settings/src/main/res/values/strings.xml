@@ -45,4 +45,63 @@
     <string name="source_import_empty">投放目录里没有可用文件：%1$s</string>
     <string name="source_import_close">知道了</string>
     <string name="source_open_failed">没有找到可用的文件选择器，请改用投放目录</string>
+
+    <!-- P2-8 设置页骨架（docs/04 P2-8 item 1） -->
+    <string name="settings_title">设置</string>
+    <string name="settings_header">%1$s｜%2$s</string>
+    <string name="settings_hint_back_browse">返回键回到浏览页（docs/02 §8.1 返回键层级）</string>
+    <string name="settings_hint_back_settings">返回键回到设置页</string>
+    <string name="settings_group_source">源</string>
+    <string name="settings_group_playback">播放</string>
+    <string name="settings_group_refresh">刷新</string>
+    <string name="settings_group_diagnostics">诊断</string>
+    <string name="settings_group_about">关于</string>
+
+    <string name="settings_source_manage">订阅源管理</string>
+    <string name="settings_source_manage_summary">共 %1$d 个订阅，启用 %2$d 个</string>
+    <string name="settings_source_refresh">最近刷新</string>
+    <string name="settings_source_refresh_summary">%1$s</string>
+    <string name="settings_playback_avoidance">播放避让（P2-5 定时刷新）</string>
+    <string name="settings_playback_avoidance_on">开：在播时定时刷新最多顺延 3 次（每次退避 30 分钟）</string>
+    <string name="settings_playback_avoidance_off">关</string>
+    <string name="settings_refresh_schedule">每日定时刷新</string>
+    <string name="settings_refresh_schedule_summary">每天 %1$s（P2-5 默认；改时间待后续）</string>
+    <string name="settings_diag_panel">诊断面板</string>
+    <string name="settings_diag_panel_summary">运行概览 + 实时日志 + 一键导出诊断包</string>
+    <string name="settings_diag_console">日志与设备</string>
+    <string name="settings_diag_console_summary">P0-6/P1-8 的设备信息与落盘日志页（原页面，不重复实现）</string>
+    <string name="settings_diag_level">记录级别（LogBus）</string>
+    <string name="settings_diag_level_summary">当前 %1$s（按确定轮换 INFO → DEBUG → VERBOSE）</string>
+    <string name="settings_diag_file">写入日志文件</string>
+    <string name="settings_diag_file_on">开（docs/03 §14 文件出口）</string>
+    <string name="settings_diag_file_off">关（省 IO）</string>
+    <string name="settings_about_version">应用版本</string>
+    <string name="settings_about_version_summary">%1$s</string>
+    <string name="settings_about_device">设备</string>
+    <string name="settings_about_device_summary">%1$s</string>
+
+    <!-- P2-8 诊断面板（docs/03 §7/§8） -->
+    <string name="diag_title">诊断面板</string>
+    <string name="diag_overview_title">运行概览</string>
+    <string name="diag_log_title">实时日志（内存环）</string>
+    <string name="diag_level">级别 %1$s</string>
+    <string name="diag_category">分类 %1$s</string>
+    <string name="diag_category_all">全部</string>
+    <string name="diag_pause">暂停</string>
+    <string name="diag_resume">继续</string>
+    <string name="diag_export">导出诊断包</string>
+    <string name="diag_export_how">取出方式：\n%1$s</string>
+    <string name="diag_export_done">已导出：%1$s\n%2$d 个文件 / %3$d 行日志 / %4$s\n\n%5$s</string>
+    <string name="diag_export_failed">导出失败：%1$s</string>
+    <string name="diag_export_close">知道了</string>
+    <string name="diag_copy">复制日志</string>
+    <string name="diag_copied">已复制 %1$d 行日志到剪贴板</string>
+    <string name="diag_clear">清理内存环</string>
+    <string name="diag_cleared">已清理内存环</string>
+    <string name="diag_search_hint">关键字 / 事件码</string>
+    <string name="diag_search">搜索</string>
+    <string name="diag_empty">内存环里没有符合条件的日志。\n按「级别」「分类」放宽，或到设置里把记录级别调成 DEBUG。</string>
+    <string name="diag_header">%1$s｜%2$s｜显示 %3$d 行｜记录级别 %4$s\n%5$s</string>
+    <string name="diag_recording">记录级别 %1$s</string>
+    <string name="diag_exporting">导出中…%1$s</string>
 </resources>

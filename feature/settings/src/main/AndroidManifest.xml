@@ -14,7 +14,40 @@
         android:name="android.hardware.touchscreen"
         android:required="false" />
 
+    <!--
+      P2-8: the diagnostics panel reports the active network's transport (docs/03 §7.1 设备/网络 block).
+      Lint reads a library manifest on its own, so the permission the app module already declares
+      (`:app`'s manifest) has to be repeated here — the same reasoning as the two `uses-feature` lines
+      above. The merged manifest still ends up with a single declaration.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <application>
+
+        <!--
+          P2-8: the settings page (docs/02 §8.1's `SettingsActivity`). Like the source-management page
+          below, it is opened by the browse screen through `SettingsContract.ACTION_SETTINGS` (action +
+          setPackage), which is why the filter is declared and the activity is exported.
+        -->
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="true"
+            android:screenOrientation="landscape">
+            <intent-filter>
+                <action android:name="ilab.iptv.player.action.SETTINGS" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!--
+          P2-8: the diagnostics panel (docs/03 §7). Its only entry point is the settings page in this
+          same module, so it needs no filter and stays unexported.
+        -->
+        <activity
+            android:name=".diag.DiagnosticsActivity"
+            android:exported="false"
+            android:screenOrientation="landscape" />
 
         <!--
           P2-6 正篇 item 4: the source-management screen (docs/02 §8.1's `SettingsActivity` level).

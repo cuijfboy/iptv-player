@@ -59,6 +59,23 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="12dp"
             android:text="@string/browse_filter_hidden_hidden" />
+        <!-- P2-8: the settings level itself (docs/02 §8.1 `SettingsActivity`). -->
+        <Button
+            android:id="@+id/open_settings"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:text="@string/browse_settings_action" />
+        <!--
+          P3-1: the EPG grid. Same contract trick as the settings button — an action string in
+          :core:ui, so this module never depends on :feature:epg (docs/02 §3.2).
+        -->
+        <Button
+            android:id="@+id/open_epg"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:text="@string/browse_epg_action" />
 
     </LinearLayout>
 

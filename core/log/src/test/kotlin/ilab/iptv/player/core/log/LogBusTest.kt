@@ -239,7 +239,9 @@ class LogBusTest {
         bus.flush(TIMEOUT_MS)
 
         assertThat(sink.events).hasSize(1)
-        assertThat(sink.events.single().message).isEqualTo("http://cdn/x.m3u8?token=***")
+        // docs/03 §11: the secret is masked *and* the path is replaced by its hash, before the event
+        // reaches any sink (the bus is the single redaction entry).
+        assertThat(sink.events.single().message).matches("""http://cdn/[0-9a-f]{8}\?token=\*\*\*""")
         assertThat(bus.filteredCount).isEqualTo(1)
     }
 
@@ -257,8 +259,8 @@ class LogBusTest {
         bus.flush(TIMEOUT_MS)
 
         val event = sink.events.single()
-        assertThat(event.message).isEqualTo("failed http://cdn/x?token=***&id=3")
-        assertThat(event.fields).containsEntry("url", "http://cdn/y?secret=***")
+        assertThat(event.message).matches("""failed http://cdn/[0-9a-f]{8}\?token=\*\*\*&id=3""")
+        assertThat(event.fields["url"] as String).matches("""http://cdn/[0-9a-f]{8}\?secret=\*\*\*""")
         assertThat(event.fields).containsEntry("status", 403)
     }
 

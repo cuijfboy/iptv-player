@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The one focus style the settings page and the diagnostics panel share (docs/02 §8.2: the focus
+  state must be visible from across the room — scale alone is not enough on a TV, so the focused row
+  gets a border *and* a lighter fill).
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item android:state_focused="true">
+        <shape>
+            <solid android:color="#FF2B2B3C" />
+            <stroke
+                android:width="2dp"
+                android:color="#FF7AC7FF" />
+            <corners android:radius="6dp" />
+        </shape>
+    </item>
+
+    <item android:state_pressed="true">
+        <shape>
+            <solid android:color="#FF35354A" />
+            <corners android:radius="6dp" />
+        </shape>
+    </item>
+
+    <item>
+        <shape>
+            <solid android:color="#FF17171E" />
+            <corners android:radius="6dp" />
+        </shape>
+    </item>
+
+</selector>

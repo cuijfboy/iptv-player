@@ -14,8 +14,18 @@ import android.content.Intent
  */
 object SettingsContract {
 
+    /**
+     * P2-8: the settings page itself (docs/02 §8.1's `BrowseActivity → SettingsActivity`). The browse
+     * screen opens it with this action; the source-management page below is one of its entries.
+     */
+    const val ACTION_SETTINGS = "ilab.iptv.player.action.SETTINGS"
+
     /** Explicit action (no class reference) so the browse screen can open source management. */
     const val ACTION_SOURCE_MANAGEMENT = "ilab.iptv.player.action.SOURCE_MANAGEMENT"
+
+    /** `setPackage` keeps the implicit intent inside our own package. */
+    fun settingsIntent(context: Context): Intent =
+        Intent(ACTION_SETTINGS).setPackage(context.packageName)
 
     /** `setPackage` keeps the implicit intent inside our own package (no exported filter needed). */
     fun sourceManagementIntent(context: Context): Intent =

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="epg_loading">正在加载频道表…</string>
+    <string name="epg_header">节目单：%1$d 个频道 / 已载入 %2$d / %3$s</string>
+    <string name="epg_focus">焦点：%1$s</string>
+    <string name="epg_placeholder_no_data">无节目单</string>
+    <string name="epg_placeholder_loading">载入中…</string>
+    <string name="epg_now">现在</string>
+    <string name="epg_detail_no_programme">该时段无节目</string>
+    <string name="epg_detail_next_day">次日</string>
+    <string name="epg_detail_watch">切台</string>
+    <string name="epg_detail_close">关闭</string>
+</resources>

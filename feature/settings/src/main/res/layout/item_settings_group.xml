@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A non-focusable group caption, so UP/DOWN never stops on a header (docs/02 §8.2). -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/settings_group_title"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="24dp"
+    android:layout_marginTop="14dp"
+    android:layout_marginBottom="4dp"
+    android:focusable="false"
+    android:textColor="#FF7AC7FF"
+    android:textSize="16sp"
+    android:textStyle="bold" />

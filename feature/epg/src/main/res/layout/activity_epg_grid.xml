@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  P3-1: the EPG time grid (docs/02 §8.3). The grid is one self-drawn view — rows, blocks, the sticky
+  channel column, the sticky ruler and the now line are all Canvas output, not a view hierarchy.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FF101014"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/epg_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#FF17171E"
+        android:paddingHorizontal="24dp"
+        android:paddingVertical="12dp"
+        android:text="@string/epg_loading"
+        android:textColor="#FFB9B9C6"
+        android:textSize="16sp" />
+
+    <ilab.iptv.player.feature.epg.EpgGridView
+        android:id="@+id/epg_grid"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:focusable="true" />
+
+</LinearLayout>

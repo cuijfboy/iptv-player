@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="MissingLeanbackLauncher">
+
+    <!--
+      Same library-manifest caveat as :feature:channels / :feature:player: lint reads a library that ships
+      an activity as if it were the whole app, so the TV hardware story is repeated here. The only
+      LEANBACK_LAUNCHER stays on :app's MainActivity.
+    -->
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+
+    <application>
+
+        <!--
+          The P3-1 EPG grid (docs/02 §8.1). Started through EpgContract's action rather than by class
+          name, so :feature:channels never needs this module on its compile path (docs/02 §3.2).
+          `exported="true"` is here for the device proof (`adb shell am start -a
+          ilab.iptv.player.action.SHOW_EPG`), like BrowseActivity; tighten it once QA drives the screen
+          from the browse list only.
+        -->
+        <activity
+            android:name=".EpgGridActivity"
+            android:exported="true"
+            android:screenOrientation="landscape">
+            <intent-filter>
+                <action android:name="ilab.iptv.player.action.SHOW_EPG" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+</manifest>

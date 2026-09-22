@@ -25,6 +25,7 @@ import ilab.iptv.player.core.ui.import.ImportEntrance
 import ilab.iptv.player.core.ui.import.ImportPickContent
 import ilab.iptv.player.core.ui.import.ImportPickerDialog
 import ilab.iptv.player.core.ui.import.ImportPickerModel
+import ilab.iptv.player.core.ui.epg.EpgContract
 import ilab.iptv.player.core.ui.player.PlayerContract
 import ilab.iptv.player.core.ui.settings.SettingsContract
 import kotlinx.coroutines.launch
@@ -64,6 +65,8 @@ class BrowseActivity : ComponentActivity() {
     private lateinit var sourcesButton: Button
     private lateinit var favoritesButton: Button
     private lateinit var hiddenButton: Button
+    private lateinit var settingsButton: Button
+    private lateinit var epgButton: Button
     private lateinit var adapter: ChannelListAdapter
 
     /**
@@ -140,6 +143,17 @@ class BrowseActivity : ComponentActivity() {
         favoritesButton.setOnClickListener { viewModel.toggleFavoritesOnly() }
         hiddenButton = findViewById(R.id.filter_hidden)
         hiddenButton.setOnClickListener { viewModel.toggleIncludeHidden() }
+        settingsButton = findViewById(R.id.open_settings)
+        settingsButton.setOnClickListener {
+            // P2-8: the settings level (docs/02 §8.1). Same contract-as-action trick as above; the
+            // source-management button above stays as the one-hop shortcut P2-6 added.
+            startActivity(SettingsContract.settingsIntent(this))
+        }
+        epgButton = findViewById(R.id.open_epg)
+        epgButton.setOnClickListener {
+            // P3-1: the EPG grid, opened on the focused row so the remote's place is kept.
+            startActivity(EpgContract.intent(this, focused?.channelId))
+        }
         adapter = ChannelListAdapter(
             onChannelFocused = { item -> onChannelFocused(item) },
             onChannelSelected = { item -> openPlayer(item) },

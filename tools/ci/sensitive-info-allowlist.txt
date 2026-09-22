@@ -14,6 +14,7 @@
 ^core/log/src/test/kotlin/ilab/iptv/player/core/log/UrlRedactorTest\.kt:	脱敏单测的输入与期望：`?token=abc123`、`?key=zzz`、`10.0.0.9` 是喂给 UrlRedactor 的夹具值，断言它们被掩成 `***`（主机保留）；没有真实凭据或设备地址。
 ^core/log/src/test/kotlin/ilab/iptv/player/core/log/LogBusTest\.kt:	同上：`?token=secret`、`?secret=zzz` 是 LogBus 脱敏分支的输入，断言落盘/落环里是 `token=***`。
 ^core/log/src/test/kotlin/ilab/iptv/player/core/log/file/	FileSink/LogJsonLine 端到端单测的假口令（`token=SECRET`、`token=SECRETn`），用来证明「脱敏先于落盘」；断言里出现的是 `token=***`。
+^feature/settings/src/test/kotlin/ilab/iptv/player/feature/settings/diag/	P2-8 导出包脱敏单测的假口令（`token=SECRET1`/`token=SECRET2`）：它们是喂给生产 `UrlRedactor` 的夹具值，断言导出 zip 里只剩 `token=***` 且路径变成 hash；同文件里的 `token=***` 是断言文本本身。
 #
 # --- 夹具/探针地址 / fixture and probe addresses ------------------------------------------------
 10\.0\.0\.9	明显的夹具地址：单元测试与 QA 样例里的占位主机（私有网段的 10.0.0.9 常被当作文档示例），不对应任何真实服务。

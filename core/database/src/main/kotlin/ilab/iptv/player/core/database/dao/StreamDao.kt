@@ -15,6 +15,18 @@ data class ChannelStreamCountRow(
 )
 
 /**
+ * One stored stream's identity — what the replace write (`RoomCatalogWriter`) diffs against the
+ * incoming catalog. `url_hash` is the §5.1 identity column (`UNIQUE(channel_id, url_hash)`), so the
+ * diff uses the same key the upsert does: a stream survives the write exactly when its key is present
+ * in the new catalog.
+ */
+data class StreamIdentityRow(
+    @ColumnInfo(name = "id") val id: Long,
+    @ColumnInfo(name = "channel_id") val channelId: Long,
+    @ColumnInfo(name = "url_hash") val urlHash: String,
+)
+
+/**
  * `play_history` aggregate behind [StreamDao.healthCounts] (see its KDoc for the definition).
  *
  * `failures` is nullable because SQLite's `SUM()` over an empty set is `NULL`, not `0` — a stream with
@@ -58,6 +70,16 @@ abstract class StreamDao {
 
     @Query("SELECT channel_id, COUNT(*) AS count FROM stream GROUP BY channel_id")
     abstract suspend fun countByChannel(): List<ChannelStreamCountRow>
+
+    /**
+     * Every stored stream's `(id, channel_id, url_hash)` — the replace write diffs this against the
+     * incoming catalog to find the rows to delete. One query per write instead of one per channel:
+     * the diff runs over ~5k rows (docs/02 §5.1 数据量估算), and doing it in Kotlin keeps the delete
+     * statements free of a variable-length `NOT IN (...)` list, which would hit SQLite's bound-parameter
+     * ceiling on a wide playlist.
+     */
+    @Query("SELECT id, channel_id, url_hash FROM stream")
+    abstract suspend fun allIdentities(): List<StreamIdentityRow>
 
     @Query("SELECT id FROM stream WHERE channel_id = :channelId AND url_hash = :urlHash LIMIT 1")
     abstract suspend fun findIdByChannelAndHash(channelId: Long, urlHash: String): Long?

@@ -29,9 +29,13 @@ import javax.inject.Singleton
  *   favourites, sort order and `play_history` rows that point at them. The domain ids produced by
  *   `ChannelMapper` for one in-memory load are *not* used as database ids.
  * - **replace, not merge** (the [CatalogSink] contract). After the upsert, the channels that are not
- *   part of this catalog are deleted, so an import does not leave the previous playlist behind — the
- *   same semantics the memory path's `replaceAll` has. `stream.channel_id -> channel.id ON DELETE
- *   CASCADE` takes their streams with them.
+ *   part of this catalog are deleted **and** the streams of the channels that *are* kept are trimmed
+ *   to the incoming set, so an import does not leave the previous playlist behind — the same
+ *   semantics the memory path's `replaceAll` has. Channel pruning leans on `stream.channel_id ->
+ *   channel.id ON DELETE CASCADE`; the stream trim is a separate step because a channel survives on
+ *   its `(name_key, group_key)` **identity**, and keeping the row would otherwise keep every stream
+ *   the previous playlist had hung on it (卡 BUG-STALE-STREAM: 8 频道 / 10 流 的清单导入后界面显示
+ *   「流 22」，同一行 3–4 路流——旧清单同名频道下的死源成了备胎).
  * - **no partial catalog.** The channel→id resolution and its streams are written per batch inside a
  *   transaction, so a failure leaves the previously stored catalog intact (docs/02 §11: a failed write
  *   must not destroy existing data).
@@ -60,12 +64,19 @@ class RoomCatalogWriter @Inject constructor(
             channelsWritten += batch.size
         }
 
+        // The new stream set, keyed by *database* channel id: the stream trim below deletes exactly
+        // the stored rows whose `(channel_id, url_hash)` key is not in here. A kept channel with no
+        // stream in this catalog gets no entry, which is what makes its stored streams stale.
+        val keptHashes = HashMap<Long, MutableSet<String>>(catalog.channels.size)
+
         var streamsWritten = 0
         // Drop streams whose channel was not part of this write: a stream without its channel would
         // trip the foreign key, and silently attaching it to another channel would be worse.
         val mapped = catalog.streams.mapNotNull { stream ->
             val channelId = databaseId[stream.channelId] ?: return@mapNotNull null
-            PersistenceMapper.toEntity(stream.copy(channelId = channelId))
+            val entity = PersistenceMapper.toEntity(stream.copy(channelId = channelId))
+            keptHashes.getOrPut(channelId) { HashSet() } += entity.urlHash
+            entity
         }
         mapped.chunked(BATCH_SIZE).forEach { batch ->
             streamsWritten += database.withTransaction { streamDao.upsertAll(batch) }
@@ -75,7 +86,15 @@ class RoomCatalogWriter @Inject constructor(
         // Without this, an import would merge with the 658-channel fixture instead of replacing it —
         // exactly the "the list shows channels that are not in my playlist" surprise the P2-6 record
         // (docs/05-过程记录/19 §2) chose "导入即替换" to avoid. The cascade removes their streams.
-        val removed = pruneChannelsNotIn(databaseId.values.toHashSet())
+        val removedChannels = pruneChannelsNotIn(databaseId.values.toHashSet())
+
+        // …and the channels that *are* kept are replaced too, stream set included. A channel row
+        // survives on its `(name_key, group_key)` identity so the user keeps it (favourites, hidden
+        // flag, sort order, channel number, EPG binding — `ChannelDao.upsertAll`'s column split), but
+        // the streams hanging on it belong to the *playlist*, not to the user: leaving the previous
+        // playlist's rows there is the bug this step closes (same-name channel → its stale URL stays
+        // as a fail-over candidate, and the screen's 流 count is bigger than the playlist).
+        val removedStreams = pruneStreamsNotIn(keptHashes, databaseId.values.toHashSet())
 
         logger.i(
             category = LogCategory.SOURCE,
@@ -84,7 +103,8 @@ class RoomCatalogWriter @Inject constructor(
             fields = mapOf(
                 "channels" to channelsWritten,
                 "streams" to streamsWritten,
-                "removed" to removed,
+                "removed" to removedChannels,
+                "streamsRemoved" to removedStreams,
                 "dropped" to (catalog.streams.size - mapped.size),
                 "batch" to BATCH_SIZE,
             ),
@@ -101,6 +121,30 @@ class RoomCatalogWriter @Inject constructor(
         // programme pruning does the same, docs/02 §5.1). One chunk = one transaction.
         stale.chunked(DELETE_BATCH_SIZE).forEach { chunk ->
             removed += database.withTransaction { channelDao.deleteByIds(chunk) }
+        }
+        return removed
+    }
+
+    /**
+     * Deletes every stored stream that this catalog does not carry: a stream of a kept [keptChannels]
+     * channel whose `url_hash` is absent from [keptHashes] for that channel. Streams of channels that
+     * were themselves pruned are already gone (the foreign key cascade), so they are not counted here.
+     *
+     * The diff is computed in Kotlin ([ChannelDao.allIds] style, one read + chunked deletes) rather
+     * than SQL, because `url_hash NOT IN (...)` would carry one bound parameter per stream of a
+     * channel and SQLite's ceiling is 999. Returns how many streams were removed.
+     */
+    private suspend fun pruneStreamsNotIn(
+        keptHashes: Map<Long, Set<String>>,
+        keptChannels: Set<Long>,
+    ): Int {
+        val stale = streamDao.allIdentities()
+            .filter { it.channelId in keptChannels && it.urlHash !in keptHashes[it.channelId].orEmpty() }
+            .map { it.id }
+        if (stale.isEmpty()) return 0
+        var removed = 0
+        stale.chunked(DELETE_BATCH_SIZE).forEach { chunk ->
+            removed += database.withTransaction { streamDao.deleteByIds(chunk) }
         }
         return removed
     }

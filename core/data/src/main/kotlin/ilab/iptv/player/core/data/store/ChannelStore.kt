@@ -35,6 +35,16 @@ class ChannelStore : CatalogSink {
     /**
      * [CatalogSink] over the snapshot: a whole-catalog replace, exactly like [replaceAll]. The
      * timestamp is ignored — a `StateFlow` has no `updated_at` column to stamp.
+     *
+     * Same contract as [RoomCatalogWriter] (卡 BUG-STALE-STREAM): the incoming catalog is the whole
+     * table, so a channel that survives by name does **not** keep the previous playlist's streams.
+     * A snapshot replace gets that for free — the Room writer has to trim the surviving channel's
+     * streams explicitly, because it upserts on `(name_key, group_key)` and keeps the row.
+     *
+     * The two sinks differ past the streams, and on purpose: a `StateFlow` has no ids to preserve, so
+     * this one also drops the user-owned columns (favourite / hidden / sort order / channel number)
+     * that the Room writer carries over from the stored row. It is the test double, not the
+     * production path (see the class KDoc).
      */
     override suspend fun write(catalog: MappedCatalog, nowMs: Long): Int {
         replaceAll(catalog.channels, catalog.streams)
