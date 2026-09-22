@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.ServiceInfo
 import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.work.ForegroundInfo
 import ilab.iptv.player.R
@@ -27,6 +28,14 @@ import ilab.iptv.player.R
  * background-started `Service.startForeground` is forbidden from API 31 on, while WorkManager's
  * long-running-worker path is the supported way to ask for exactly this notification. See the
  * verification file for the reasoning and the manifest entries.
+ *
+ * WHY [ensureChannel] IS CALLED BY THE WORKER AND NOT BY A STARTUP HOOK (NEW-20260922-003): the
+ * channel must exist *before* anything asks the platform for the foreground state, and the three
+ * ways a refresh starts (first-run wizard, manual, 06:00 schedule) all converge on
+ * [RefreshWorker.doWork] — so one call there covers every entry, and it covers "user cleared app
+ * data" / "channel deleted in settings" without depending on which process happened to start first.
+ * The same shape as the playback side, where [PlaybackService] ensures its channel in `onCreate`
+ * immediately before it goes foreground.
  */
 object RefreshNotifications {
 
@@ -35,23 +44,82 @@ object RefreshNotifications {
     /** Stable id: one notification, updated in place, removed with the foreground state. */
     const val NOTIFICATION_ID = 0x2EF7
 
-    fun ensureChannel(context: Context) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        val manager = context.getSystemService(NotificationManager::class.java) ?: return
-        if (manager.getNotificationChannel(CHANNEL_ID) != null) return
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            context.getString(R.string.refresh_channel_name),
-            // LOW: a scheduled refresh is background housekeeping; it must never interrupt the TV.
-            NotificationManager.IMPORTANCE_LOW,
-        ).apply {
-            description = context.getString(R.string.refresh_channel_description)
-            setShowBadge(false)
-            setSound(null, null)
-            enableVibration(false)
-            lockscreenVisibility = Notification.VISIBILITY_SECRET
+    /**
+     * The only two things this object needs from `NotificationManager`.
+     *
+     * It exists so the *decision* below ("create it if it is missing, then report whether it is
+     * there") can be unit-tested: `NotificationManager` cannot be constructed in a JVM test without
+     * Robolectric, and the half that can break is the decision, not the two binder calls. Same
+     * trade-off as [WorkEnqueuer] on the scheduling side.
+     */
+    interface ChannelSink {
+
+        /** `NotificationManager.getNotificationChannel(CHANNEL_ID) != null`. */
+        fun channelExists(): Boolean
+
+        /** `NotificationManager.createNotificationChannel(...)` with the 不打扰 settings. */
+        fun createChannel(id: String, name: String, description: String)
+    }
+
+    /**
+     * Make sure the `refresh` channel exists, and report whether a `refresh` notification may be
+     * posted. `false` means "the platform would refuse the notification": the caller must then log the
+     * failure and run **without** the foreground state, because an unpostable notification is a
+     * process crash (`RemoteServiceException: Bad notification for startForeground`), not a warning.
+     *
+     * Below API 26 there are no channels, so a notification is valid without one — `true`.
+     */
+    fun ensureChannel(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return true
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return false
+        return ensureChannel(
+            sink = AndroidChannelSink(manager),
+            name = context.getString(R.string.refresh_channel_name),
+            description = context.getString(R.string.refresh_channel_description),
+        )
+    }
+
+    /**
+     * The decision, free of `Context` and `NotificationManager`.
+     *
+     * `createChannel` is allowed to throw (an OEM build can refuse the channel): the failure is the
+     * answer, not an exception to propagate — the re-read below decides, so the caller gets a plain
+     * boolean to act on and the run never dies here.
+     */
+    internal fun ensureChannel(sink: ChannelSink, name: String, description: String): Boolean {
+        if (!sink.channelExists()) {
+            runCatching { sink.createChannel(CHANNEL_ID, name, description) }
         }
-        manager.createNotificationChannel(channel)
+        return sink.channelExists()
+    }
+
+    /**
+     * The production sink: the two `NotificationManager` calls this file is allowed to make.
+     *
+     * `@RequiresApi(O)` rather than an API check inside: the caller ([ensureChannel]) already
+     * returned early on older platforms, and the annotation is what tells lint that the calls below
+     * are unreachable on API 21–25.
+     */
+    @RequiresApi(Build.VERSION_CODES.O)
+    private class AndroidChannelSink(private val manager: NotificationManager) : ChannelSink {
+
+        override fun channelExists(): Boolean = manager.getNotificationChannel(CHANNEL_ID) != null
+
+        override fun createChannel(id: String, name: String, description: String) {
+            val channel = NotificationChannel(
+                id,
+                name,
+                // LOW: a scheduled refresh is background housekeeping; it must never interrupt the TV.
+                NotificationManager.IMPORTANCE_LOW,
+            ).apply {
+                this.description = description
+                setShowBadge(false)
+                setSound(null, null)
+                enableVibration(false)
+                lockscreenVisibility = Notification.VISIBILITY_SECRET
+            }
+            manager.createNotificationChannel(channel)
+        }
     }
 
     /** The `ForegroundInfo` WorkManager needs to put the worker in the foreground. */

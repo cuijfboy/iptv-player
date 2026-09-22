@@ -41,6 +41,17 @@ jobs:
       - name: TV 焦点静态自测 (tv focus audit)
         run: bash tools/ci/tv-focus-audit.sh
 
+      # 通知渠道守护 (NEW-20260922-003, docs/05-过程记录/53-NEW3通知渠道崩溃修复.md): the S1 that
+      # crashed every refresh was a channel that was **defined and never created** — no compiler, no
+      # lint and no build check can see that. This gate does: every ensurer must be called from
+      # another main source file, every constructed channel must be registered, and every file that
+      # asks for the foreground state must ensure the channel first. Its self-test plants all three
+      # shapes. Needs no JDK either, so it runs with the other guards.
+      - name: 通知渠道静态审计 (notification channel audit)
+        run: |
+          bash tools/ci/notification-channel-audit.sh
+          bash tools/ci/notification-channel-audit.test.sh
+
       # AGP 8.11.1 checks `JavaVersion.current().isCompatibleWith(VERSION_17)`, so 17 is its floor —
       # but the whole local verification pass (dev-A rounds 2–3, 5 commands green) ran on Android
       # Studio's JBR 21.0.10, so CI uses 21 to match the toolchain that was actually verified.

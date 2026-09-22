@@ -81,18 +81,15 @@ class RefreshWorker(
             ),
         )
 
-        postForeground(RefreshNotificationContent.starting())
-        logger.i(
-            LogCategory.SERVICE,
-            EventCodes.SERVICE_REFRESH_START,
-            "refresh foreground service started",
-            mapOf("notificationId" to RefreshNotifications.NOTIFICATION_ID, "trigger" to trigger.name),
-        )
+        // The channel has to exist before the first `setForeground`: the platform answers an
+        // unpostable notification with `RemoteServiceException: Bad notification for startForeground`
+        // on the main thread, which no try/catch here can catch (NEW-20260922-003).
+        val notificationReady = startForegroundState(logger, trigger)
 
         val result = deps.refreshRunCoordinator().run(trigger = trigger, deferrals = runAttemptCount) { progress ->
             // The notification is the progress display: one update per pipeline phase (deep/score/select
             // emit their own), which is also how "阶段" reaches the user (docs/04 P2-5 item 2).
-            postForeground(RefreshNotificationContent.of(progress))
+            if (notificationReady) postForeground(RefreshNotificationContent.of(progress))
             // P2-9: the same frame, published to WorkManager so a screen can render the run instead
             // of only the notification (the wizard's 更新 step observes it). Purely additive: it
             // writes progress data and changes neither the run nor what this worker answers.
@@ -155,23 +152,77 @@ class RefreshWorker(
     }
 
     /**
-     * Post (or update) the foreground notification.
+     * Establish the foreground state for this run and report the outcome exactly once
+     * (`SERVICE_REFRESH_START`, docs/03 §3.3 — the same code the playback side uses for "did the
+     * foreground state actually take", with `result=ok|failed`).
+     *
+     * RETURNS WHETHER THIS RUN MAY POST PROGRESS NOTIFICATIONS. `false` (the channel could not be
+     * established) means the run continues with no notification at all: the refresh is what matters,
+     * and the alternative — asking for the foreground state anyway — is the crash this round fixes.
+     */
+    private suspend fun startForegroundState(logger: Logger, trigger: RefreshTrigger): Boolean {
+        if (!RefreshNotifications.ensureChannel(applicationContext)) {
+            logger.w(
+                LogCategory.SERVICE,
+                EventCodes.SERVICE_REFRESH_START,
+                "refresh foreground notification unavailable",
+                mapOf(
+                    "notificationId" to RefreshNotifications.NOTIFICATION_ID,
+                    "trigger" to trigger.name,
+                    "result" to "failed",
+                    "reason" to "channel_unavailable",
+                ),
+            )
+            return false
+        }
+        val posted = postForeground(RefreshNotificationContent.starting())
+        val fields = mutableMapOf<String, Any?>(
+            "notificationId" to RefreshNotifications.NOTIFICATION_ID,
+            "trigger" to trigger.name,
+            "result" to if (posted) "ok" else "failed",
+        )
+        if (posted) {
+            logger.i(
+                LogCategory.SERVICE,
+                EventCodes.SERVICE_REFRESH_START,
+                "refresh foreground service started",
+                fields,
+            )
+        } else {
+            fields["reason"] = "set_foreground"
+            logger.w(
+                LogCategory.SERVICE,
+                EventCodes.SERVICE_REFRESH_START,
+                "refresh foreground notification was refused by the platform",
+                fields,
+            )
+        }
+        // The channel exists from here on, so the per-phase updates below are safe to attempt even if
+        // this first ask was refused (one refused ask is not a reason to stop showing progress).
+        return true
+    }
+
+    /**
+     * Post (or update) the foreground notification; `true` when the platform accepted it.
      *
      * FAILING TO GO FOREGROUND IS NOT FATAL: on devices where the user disabled the notification or
      * the OS refuses the type, `setForeground` throws; a refresh that then runs without a notification
-     * is still a refresh, and killing the job would be worse. The failure is logged, not swallowed.
+     * is still a refresh, and killing the job would be worse. The *catchable* half of that is handled
+     * here and reported by [startForegroundState]; the uncatchable half (an unpostable notification)
+     * is prevented upstream by [startForegroundState]'s channel check.
      */
-    private suspend fun postForeground(content: RefreshNotificationContent) {
+    private suspend fun postForeground(content: RefreshNotificationContent): Boolean =
         try {
             setForeground(RefreshNotifications.foregroundInfo(applicationContext, content))
+            true
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {
             throw e
         } catch (e: Throwable) {
-            // Nothing to log with here (the logger is not in scope); WorkManager records the failure
-            // and the run continues notification-less. See the verification file's 未做项.
+            // WorkManager records the failure and the run continues notification-less; the caller
+            // turns this into one `SERVICE_REFRESH_START{result=failed}` event when it is the first ask.
             android.util.Log.w(TAG, "refresh foreground notification failed", e)
+            false
         }
-    }
 
     private fun logConclusion(
         logger: Logger,
