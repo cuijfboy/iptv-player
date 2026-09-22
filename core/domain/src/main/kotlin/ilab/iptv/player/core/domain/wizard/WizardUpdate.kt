@@ -146,6 +146,35 @@ object WizardUpdateReading {
         return (snapshot.done * 100 / snapshot.total).coerceIn(0, 100)
     }
 
+    /**
+     * Does *entering* the 更新 step start a round? (卡 WIZARD-BACK-1)
+     *
+     * [WizardUpdateState.NotStarted] cannot answer this on its own: it is also what the screen holds
+     * before the port has been read at all, and that is exactly the moment a screen that resumes on
+     * 更新 asks (the wizard remembers its step, NEW-1). A caller that trusts it enqueues a second full
+     * run for a round that is already on the queue or already finished — on the device that was two
+     * `SRC_REFRESH_DONE`s of ≈152 s each, the second produced by walking BACK onto this step (G7-1
+     * §6②). So the caller reads the port first and asks this instead:
+     *
+     * - [WizardUpdateRun.NONE] — nothing on record: the "新用户 3 步内看到画面" auto-start.
+     * - [WizardUpdateRun.QUEUED] with [WizardUpdateWait.RETRY_AFTER_INTERRUPTION] — the previous
+     *   attempt was killed and sits in WorkManager's backoff: re-asking is how that run is reclaimed
+     *   (NEW-004), and it cannot double-run because the queue is not empty.
+     * - everything else — a round that already exists (running, queued normally, or finished as
+     *   success, failure or cancellation): entering the step again must not put another one on the
+     *   queue. A finished-and-failed or cancelled round is re-started only by the user's own button.
+     */
+    fun startsOnEntry(snapshot: WizardUpdateSnapshot): Boolean = when (snapshot.run) {
+        WizardUpdateRun.NONE -> true
+        WizardUpdateRun.QUEUED -> snapshot.wait == WizardUpdateWait.RETRY_AFTER_INTERRUPTION
+
+        WizardUpdateRun.RUNNING,
+        WizardUpdateRun.SUCCEEDED,
+        WizardUpdateRun.FAILED,
+        WizardUpdateRun.CANCELLED,
+        -> false
+    }
+
     private fun succeeded(snapshot: WizardUpdateSnapshot): WizardUpdateState = when (snapshot.result) {
         // The job says success because a failed *periodic* worker would take the daily schedule with
         // it (P2-5). The wizard still has to call it a failure: nothing arrived.

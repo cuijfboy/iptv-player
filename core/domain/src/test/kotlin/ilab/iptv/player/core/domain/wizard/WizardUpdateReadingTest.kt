@@ -163,4 +163,48 @@ class WizardUpdateReadingTest {
         assertThat(WizardUpdateReading.of(snapshot(run = WizardUpdateRun.CANCELLED)))
             .isEqualTo(WizardUpdateState.Cancelled)
     }
+
+    // ---- 卡 WIZARD-BACK-1: what entering 更新 may start ----
+
+    @Test
+    fun `entering 更新 starts a round only when nothing is on record`() {
+        assertThat(WizardUpdateReading.startsOnEntry(snapshot())).isTrue()
+    }
+
+    @Test
+    fun `a round that already exists is never started again by entering the step`() {
+        // The G7-1 symptom, as a table: every one of these is a round that is already somewhere —
+        // running, queued, or finished as success, failure or cancellation. BACK onto 更新 must not
+        // turn any of them into a second ≈152 s run (the manual job is `REPLACE`-able, so re-asking
+        // is a real second run, not a no-op).
+        val alreadyThere = listOf(
+            snapshot(run = WizardUpdateRun.QUEUED),
+            snapshot(run = WizardUpdateRun.RUNNING),
+            snapshot(run = WizardUpdateRun.SUCCEEDED, result = WizardUpdateResult.COMPLETED, ok = 9),
+            snapshot(run = WizardUpdateRun.SUCCEEDED, result = WizardUpdateResult.GAVE_UP),
+            snapshot(run = WizardUpdateRun.FAILED, detail = "IOException"),
+            snapshot(run = WizardUpdateRun.CANCELLED),
+        )
+
+        alreadyThere.forEach { reading ->
+            assertThat(WizardUpdateReading.startsOnEntry(reading)).isFalse()
+        }
+    }
+
+    @Test
+    fun `a queued attempt that follows an interruption is re-asked, so the killed run is reclaimed`() {
+        // NEW-004: the run the process death left behind is ENQUEUED behind its own backoff, and the
+        // wizard's entry is one of the two places that re-ask so `enqueueNow` can reclaim it. The two
+        // waits are different questions even though they are the same WorkManager state.
+        assertThat(
+            WizardUpdateReading.startsOnEntry(
+                snapshot(run = WizardUpdateRun.QUEUED, wait = WizardUpdateWait.RETRY_AFTER_INTERRUPTION),
+            ),
+        ).isTrue()
+        assertThat(
+            WizardUpdateReading.startsOnEntry(
+                snapshot(run = WizardUpdateRun.QUEUED, wait = WizardUpdateWait.AWAITING_CONSTRAINTS),
+            ),
+        ).isFalse()
+    }
 }

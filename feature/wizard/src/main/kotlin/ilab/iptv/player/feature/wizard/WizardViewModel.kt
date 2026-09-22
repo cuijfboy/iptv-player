@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -209,15 +210,34 @@ class WizardViewModel @Inject constructor(
     }
 
     /**
-     * Auto-start, but only the first time the step is entered. Going BACK from 开看 to 更新 must not
-     * re-enqueue a run that already finished (the manual job is `KEEP`, so a re-enqueue would start a
-     * fresh one), and a run the user cancelled stays cancelled until they ask for it again.
+     * Auto-start — once per wizard session, and only for a round that is not already on record.
+     *
+     * WHY NOT `updateState.value == NotStarted` (卡 WIZARD-BACK-1): that value is the *initial* value
+     * of an eagerly-started flow, so it also means "the port has not been read yet". A screen that
+     * comes onto 更新 — the wizard resumes on the step it was left on (NEW-1), and BACK from 开看 lands
+     * here too — can ask before the port's first reading has landed, read "nothing asked for yet" for a
+     * round that is already queued or already finished, and enqueue a second full run. On the device
+     * that was two `SRC_REFRESH_DONE`s of ≈152 s each (G7-1 §6②).
+     *
+     * So the decision comes from a **fresh reading of the port** ([WizardUpdateReading.startsOnEntry])
+     * and is remembered in [updateEntryAsked]: the ask happens at most once per session, which keeps it
+     * idempotent even if the port has no record left to show (WorkManager prunes finished work). The
+     * 开始更新 / 重试更新 button is untouched — an explicit request still starts a run every time.
      */
+    private var updateEntryAsked = false
+
     private fun maybeStartUpdate(state: WizardState) {
         if (state.step != WizardStep.UPDATE) return
         if (WizardStep.UPDATE in state.skipped) return
-        if (updateState.value != WizardUpdateState.NotStarted) return
-        startUpdate()
+        if (updateEntryAsked) return
+        // Set before the first suspension, so two entries into the step cannot both get past it.
+        updateEntryAsked = true
+        viewModelScope.launch {
+            // A read that fails is "no reading", never "start it anyway": the step still offers the
+            // button, so a failure costs the user one tap instead of a surprise 152-second run.
+            val reading = runCatching { update.observe().first() }.getOrNull() ?: return@launch
+            if (WizardUpdateReading.startsOnEntry(reading)) startUpdate()
+        }
     }
 
     // ---- 选源 ----
