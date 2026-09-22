@@ -161,6 +161,7 @@ class EpgNetworkSampleTest {
                 "ratio=${mainstream.ratio} (docs/04 P3-5 target = 0.60)",
         )
         println("coverage-uncovered: " + uncoveredSummary(database))
+        println("coverage-spotlight: " + spotlight(database))
         println("coverage-hit-tiers: " + tierSummary(logger))
         println("elapsedReportedMs=${report.elapsedMs} wallMs=$wallMs")
         println("programmeRows=${database.programmeDao().count()} epgChannels=${database.programmeDao().channelCount()}")
@@ -195,6 +196,36 @@ class EpgNetworkSampleTest {
             .joinToString(" | ") { (group, names) ->
                 "${group.key}:${names.size} top=[${names.take(8).joinToString(",")}]"
             }
+    }
+
+    /**
+     * The channels a script fold touches, one by one: which guide id the channel ended up bound to,
+     * through which tier, and how many programmes that id actually holds. Three of these are the gaps
+     * P3-5 could not close (`TVB星河频道`, `澳视澳门`, `中天新闻`); the others show what the fold
+     * changes — not *whether* a channel is covered but **which guide serves it**, because the last
+     * source that matches a channel owns its binding, and the Hong Kong guide is far deeper than the
+     * mainland one for the Hong Kong/Shenzhen channels it carries (a channel bound to an id with no
+     * programmes is covered on paper and blank in the app).
+     */
+    private suspend fun spotlight(database: IptvDatabase): String {
+        val names = listOf(
+            "凤凰卫视中文台", "凤凰卫视资讯台", "翡翠台", "明珠台",
+            "TVB星河频道", "澳视澳门", "中天新闻",
+            "三沙卫视", "深圳卫视", "深圳卫视 高清",
+        )
+        val channels = database.channelDao().all().associateBy { it.name }
+        val parts = ArrayList<String>(names.size)
+        for (name in names) {
+            val row = channels[name]
+            if (row == null) {
+                parts += "$name=(absent)"
+                continue
+            }
+            val epgChannelId = row.epgChannelId
+            val rows = if (epgChannelId.isNullOrBlank()) 0 else database.programmeDao().countForChannel(epgChannelId)
+            parts += "$name=${epgChannelId ?: "null"}:${row.epgMatch}:rows=$rows"
+        }
+        return parts.joinToString(" | ")
     }
 
     /** How many channels each match tier bound, per source attempt — the "why did it match" summary. */

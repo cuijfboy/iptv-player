@@ -17,15 +17,16 @@ data class EpgMatchResult(
     val type: EpgMatchType,
     /**
      * The value on the **channel** side that matched: the `tvg-id`, the normalized name key, the
-     * variant key of [EpgNameVariants], or the alias key. This is what `EPG_MATCH_HIT` logs and what
-     * makes "why is this channel on the wrong guide?" answerable without re-running the match
-     * (docs/02 §6.3 "匹配结果要能解释").
+     * variant key of [EpgNameVariants] (a script/feed/punctuation fold), or the alias key. This is
+     * what `EPG_MATCH_HIT` logs and what makes "why is this channel on the wrong guide?" answerable
+     * without re-running the match (docs/02 §6.3 "匹配结果要能解释").
      */
     val matchedOn: String,
     /**
      * The guide-side key the hit resolved to, when it came through the name index (`NAME_EXACT` /
      * `NAME_FUZZY` / a name-shaped alias target). Null for a `tvg-id` hit or a numeric alias target.
-     * Logged next to [matchedOn] so a fuzzy hit shows *both* sides of the fold.
+     * Logged next to [matchedOn] so a fuzzy hit shows *both* sides of the fold — including a
+     * Traditional guide key, which is never rewritten (folding is a lookup key, not a display name).
      */
     val guideKey: String? = null,
 )
@@ -59,9 +60,10 @@ data class EpgMatchReport(
  * 2. **normalized name exact** — `EpgNameKey.key(channel.name)` equals the key of an XMLTV
  *    `<display-name>`. Catches the very common "same channel, different id" case (`CCTV1` vs `CCTV-1`
  *    folds to the same key once width/space/case are normalized).
- * 3. **normalized name, feed/punctuation-folded** — [EpgNameVariants], P3-5's addition: `CCTV1 高清`,
- *    `CCTV-1综合`, `CCTV5+` (guide: `CCTV-5+ 体育赛事`) are the same channel as their plain forms.
- *    Still an equality test on both sides, so it cannot bind a channel to a *neighbouring* channel.
+ * 3. **normalized name, folded** — [EpgNameVariants]: script ([EpgTraditionalFold], `澳視澳門` vs
+ *    `澳视澳门`), feed markers (`CCTV1 高清`), punctuation (`CCTV-1综合`) and `+` (`CCTV5+`, guide:
+ *    `CCTV-5+ 体育赛事`) are the same channel as their plain forms, in that rule order. Still an
+ *    equality test on both sides, so it cannot bind a channel to a *neighbouring* channel.
  * 4. **alias table** — [EpgAliases], for the names normalization cannot bridge (`央视新闻` →
  *    `CCTV-13 新闻`, `凤凰卫视中文台` → the guide's `凤凰中文`). Alias lookups also try the tier-3
  *    variant keys, so `福建东南卫视 高清` reaches the `福建东南卫视` entry.

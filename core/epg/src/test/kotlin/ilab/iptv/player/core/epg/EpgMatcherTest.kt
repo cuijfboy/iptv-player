@@ -123,6 +123,92 @@ class EpgMatcherTest {
     }
 
     @Test
+    fun `a traditional guide name binds a simplified playlist name with no alias entry`() {
+        // The 港澳台 shape of the shipped fixture: the guide spells 澳視澳門, the playlist 澳视澳门.
+        // With an empty alias table this is a tier-3 hit, and the explanation names both spellings —
+        // `matchedOn` is the folded channel-side key, `guideKey` the guide's own (Traditional) one.
+        val traditional = EpgMatcher(aliases = EpgAliases.EMPTY)
+        val report = traditional.match(
+            listOf(channel(id = 21, name = "澳视澳门", group = ChannelGroup.HK_MO_TW)),
+            EpgChannelIndex(byId = emptyMap(), byNameKey = mapOf("澳視澳門" to "mo.id")),
+        )
+        val hit = report.hits.single()
+        assertThat(hit.type).isEqualTo(EpgMatchType.NAME_FUZZY)
+        assertThat(hit.epgChannelId).isEqualTo("mo.id")
+        assertThat(hit.matchedOn).isEqualTo("澳视澳门")
+        assertThat(hit.guideKey).isEqualTo("澳視澳門")
+        assertThat(report.misses).isEmpty()
+    }
+
+    @Test
+    fun `the script rule answers the cases the 凤凰 alias entries were written for`() {
+        // P3-5 bridged these two by table entry because a name comparison cannot cross scripts. The
+        // rule now does it with an empty alias table, which is the point of preferring a rule.
+        val index = EpgChannelIndex(
+            byId = emptyMap(),
+            byNameKey = mapOf("鳳凰衛視中文台" to "phoenix.cn", "鳳凰衛視資訊台" to "phoenix.info"),
+        )
+        val report = EpgMatcher(aliases = EpgAliases.EMPTY).match(
+            listOf(
+                channel(id = 31, name = "凤凰卫视中文台", group = ChannelGroup.HK_MO_TW),
+                channel(id = 32, name = "凤凰卫视资讯台", group = ChannelGroup.HK_MO_TW),
+            ),
+            index,
+        )
+        assertThat(report.hits.map { it.channelId to it.epgChannelId }).containsExactly(
+            31L to "phoenix.cn",
+            32L to "phoenix.info",
+        )
+        assertThat(report.hits.map { it.type }).containsExactly(
+            EpgMatchType.NAME_FUZZY,
+            EpgMatchType.NAME_FUZZY,
+        )
+        // With the shipped table the same channels still resolve, and still through tier 3 — the alias
+        // entries are now redundant rather than load-bearing (P3-5's rule 5: a big table means a
+        // missing rule).
+        val withAliases = matcher.match(
+            listOf(channel(id = 31, name = "凤凰卫视中文台", group = ChannelGroup.HK_MO_TW)),
+            index,
+        ).hits.single()
+        assertThat(withAliases.type).isEqualTo(EpgMatchType.NAME_FUZZY)
+        assertThat(withAliases.matchedOn).isEqualTo("凤凰卫视中文台")
+    }
+
+    @Test
+    fun `folding a script never binds a channel to a different one in the same family`() {
+        // The counter-example the fold has to survive: a guide that carries 中天綜合台 / 中天娛樂台 /
+        // 中天亞洲台 (and, measured on 2026-09-22, no 中天新聞 at all) must not hand 中天新闻 the
+        // programmes of a sibling, and the siblings must not swallow each other.
+        val guide = EpgChannelIndex(
+            byId = emptyMap(),
+            byNameKey = mapOf(
+                "中天綜合台" to "cti.zh",
+                "中天娛樂台" to "cti.yl",
+                "中天亞洲台" to "cti.yz",
+                "黃金翡翠台" to "tvb.gold",
+                "翡翠台" to "tvb.jade",
+            ),
+        )
+        val report = matcher.match(
+            listOf(
+                channel(id = 41, name = "中天综合台", group = ChannelGroup.HK_MO_TW),
+                channel(id = 42, name = "中天娱乐台", group = ChannelGroup.HK_MO_TW),
+                channel(id = 43, name = "中天新闻", group = ChannelGroup.HK_MO_TW),
+                channel(id = 44, name = "翡翠台", group = ChannelGroup.HK_MO_TW),
+            ),
+            guide,
+        )
+        assertThat(report.hits.map { it.channelId to it.epgChannelId }).containsExactly(
+            41L to "cti.zh",
+            42L to "cti.yl",
+            44L to "tvb.jade",
+        )
+        // 中天新闻 is a miss — the guide simply has no such channel, and neither folding nor the alias
+        // table may invent one out of its siblings.
+        assertThat(report.misses.map { it.channelId }).containsExactly(43L)
+    }
+
+    @Test
     fun `a plus channel is not folded into its plain neighbour`() {
         // The safety property of the whole round: `CCTV5+` (a different channel) must never take
         // `CCTV5`'s guide, and `CCTV5` must never take `CCTV5+`'s.

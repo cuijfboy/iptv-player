@@ -1,8 +1,9 @@
 package ilab.iptv.player.core.epg
 
 /**
- * P3-5's addition to docs/02 §6.3's match chain: the **mechanical** differences between how a
- * playlist spells a channel and how a guide spells the same channel.
+ * The **mechanical** differences of docs/02 §6.3's match chain between how a playlist spells a
+ * channel and how a guide spells the same channel: added by P3-5 (feed markers, punctuation, `+`) and
+ * extended by the 繁简折叠 round (`docs/05-过程记录/39-EPG繁简折叠.md`).
  *
  * The P2-7 chain compared `EpgNameKey.key(name)` for equality, which only bridges width/space/case.
  * Real playlists and real guides also disagree about:
@@ -12,6 +13,9 @@ package ilab.iptv.player.core.epg
  * - **punctuation**: `CCTV-1 综合` vs `CCTV1综合`, `CCTV-13新闻` vs `CCTV-13 新闻`,
  *   `凤凰卫视-中文台` vs `凤凰卫视中文台`;
  * - **the `+` in CCTV-5+**, which guides write as `CCTV-5+`, `CCTV5+` or `CCTV5PLUS`.
+ * - **script**: Hong Kong and Taiwan guides write Traditional (`鳳凰衛視中文台`, `澳視澳門`,
+ *   `無綫新聞台`) while mainland playlists write Simplified — the fold is [EpgTraditionalFold], a
+ *   character table, applied to both sides like every other rule here.
  *
  * Each rule is applied to **both** sides (a guide name is expanded into the same variant set), so
  * the tier is still an equality test — it is not the "前缀/包含模糊" of §6.3 tier ③, which P2-7
@@ -24,6 +28,17 @@ package ilab.iptv.player.core.epg
  * two different channels; folding them would bind a channel to its neighbour's programmes). This is
  * the "错配比不匹配更糟" rule of §6.3, and it has a unit test
  * (`EpgNameVariantsTest.a quality marker that identifies a different channel is never stripped`).
+ *
+ * **The order the rules run in** (part of the contract, not an implementation detail — the reported
+ * `matchedOn` is the *first* variant that hits, so the order decides how a hit is explained):
+ *
+ * 1. **[EpgTraditionalFold]** — script first. It is a per-character substitution, so it neither
+ *    depends on nor interferes with the other three, and running it first means a marker written the
+ *    Traditional way (`標清`) is already `标清` when rule 4 looks for suffixes.
+ * 2. **`+` → `plus`** — before punctuation removal, and `+` is deliberately not *in* the punctuation
+ *    set, so the marker survives as a word instead of vanishing (`CCTV5+` must not become `CCTV5`).
+ * 3. **punctuation removal** — hyphens, spaces-that-look-like-punctuation, brackets, quotes.
+ * 4. **feed-marker stripping** — repeatedly, longest suffix first (see [QUALITY_SUFFIXES]).
  */
 object EpgNameVariants {
 
@@ -47,31 +62,34 @@ object EpgNameVariants {
 
     /**
      * The most aggressive form: punctuation removed, `+` folded to `plus`, feed markers stripped,
-     * applied repeatedly. Two keys with the same canonical form are the same channel as far as this
-     * round can tell.
+     * all of it on top of the Traditional→Simplified fold, applied in the order documented on this
+     * object. Two keys with the same canonical form are the same channel as far as this round can tell.
      */
-    fun canonical(key: String): String = stripQuality(stripPunctuation(foldPlus(key)))
+    fun canonical(key: String): String =
+        stripQuality(stripPunctuation(foldPlus(EpgTraditionalFold.fold(key))))
 
     /**
      * Every form of `key` the matcher is allowed to look up, least-mutated first (so the reported
      * `matchedOn` is the smallest change that explains the hit). Empty return for an empty key.
+     *
+     * The set is every subset of the four rules, applied in the order documented on this object
+     * (script → `+` → punctuation → feed marker), enumerated with the script fold as the **highest**
+     * bit: all non-script forms keep the position they had before the fold existed, so a name with no
+     * Traditional character produces exactly the variants it produced in P3-5, in the same order.
      */
     fun variants(key: String): List<String> {
         if (key.isEmpty()) return emptyList()
-        val noPunctuation = stripPunctuation(key)
-        val folded = foldPlus(key)
-        val foldedNoPunctuation = foldPlus(noPunctuation)
-        val out = LinkedHashSet<String>(8)
-        out += key
-        out += noPunctuation
-        out += folded
-        out += foldedNoPunctuation
-        out += stripQuality(key)
-        out += stripQuality(noPunctuation)
-        out += stripQuality(folded)
-        out += stripQuality(foldedNoPunctuation)
-        out += canonical(key)
-        out.remove("")
+        val simplified = EpgTraditionalFold.fold(key)
+        val out = LinkedHashSet<String>(16)
+        // script (bit 3) > feed marker (bit 2) > `+` (bit 1) > punctuation (bit 0), ascending mask:
+        // the least-mutated form first, the fully canonicalized form last.
+        for (mask in 0 until 16) {
+            var form = if (mask and 8 != 0) simplified else key
+            if (mask and 2 != 0) form = foldPlus(form)
+            if (mask and 1 != 0) form = stripPunctuation(form)
+            if (mask and 4 != 0) form = stripQuality(form)
+            if (form.isNotEmpty()) out += form
+        }
         return out.toList()
     }
 

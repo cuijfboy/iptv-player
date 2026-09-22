@@ -41,6 +41,42 @@ class EpgNameVariantsTest {
     }
 
     @Test
+    fun `script folding runs before the feed-marker rule`() {
+        // Rule order is the contract: 標清 is a feed marker only *after* it has been folded to 标清, so
+        // a Traditional guide name drops it like any other. If the order were reversed, `cctv1標清`
+        // would keep its marker and miss the plain guide entry.
+        // Inputs are the keys the matcher actually passes (`EpgNameKey` output: no spaces, lower case).
+        assertThat(EpgNameVariants.canonical("cctv1標清")).isEqualTo("cctv1")
+        assertThat(EpgNameVariants.canonical("cctv-1標清")).isEqualTo("cctv1")
+        assertThat(EpgNameVariants.canonical("tvb星河頻道")).isEqualTo("tvb星河频道")
+        // The other rules still compose on top of it: script + punctuation + `+`.
+        assertThat(EpgNameVariants.canonical("中國中央電視台-5＋體育")).isEqualTo("中国中央电视台5plus体育")
+    }
+
+    @Test
+    fun `the script fold is applied to the guide side too and the raw form stays first`() {
+        val index = EpgNameVariants.index(linkedMapOf("澳視澳門" to "mo.id"))
+        // A Simplified playlist key finds the Traditional guide name...
+        val hit = index["澳视澳门"]!!
+        assertThat(hit.epgChannelId).isEqualTo("mo.id")
+        // ...and the reported guide key is the guide's own spelling, never the folded one: folding is a
+        // lookup key, the display name the user sees is untouched.
+        assertThat(hit.guideKey).isEqualTo("澳視澳門")
+        assertThat(index["澳視澳門"]!!.epgChannelId).isEqualTo("mo.id")
+        // The least-mutated form is still the first variant, so a hit explains the smallest change.
+        assertThat(EpgNameVariants.variants("澳視澳門").first()).isEqualTo("澳視澳門")
+        assertThat(EpgNameVariants.variants("澳視澳門")).contains("澳视澳门")
+    }
+
+    @Test
+    fun `a name with nothing to fold keeps exactly the variants it had before the script rule`() {
+        // The script fold must not inflate the variant set for the mainland names that dominate a
+        // playlist: 16 masks collapse back to one form when there is no Traditional character.
+        assertThat(EpgNameVariants.variants("cctv1")).containsExactly("cctv1")
+        assertThat(EpgNameVariants.variants("cctv5+")).containsExactly("cctv5+", "cctv5plus")
+    }
+
+    @Test
     fun `a channel whose whole name is a marker survives`() {
         // "HD" alone must not become the empty key, which would match the first guide entry it met.
         assertThat(EpgNameVariants.canonical("hd")).isEqualTo("hd")
