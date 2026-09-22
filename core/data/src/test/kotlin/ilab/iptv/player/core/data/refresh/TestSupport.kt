@@ -204,6 +204,14 @@ class FakeChannelRepository(private val store: ChannelStore) : ChannelRepository
 
     override suspend fun setEpgBinding(channelId: Long, epgChannelId: String?, match: EpgMatchType) = Unit
 
+    override suspend fun rename(channelId: Long, displayName: String?) = Unit
+
+    override suspend fun setUserGroup(channelId: Long, groupTitle: String?) = Unit
+
+    override suspend fun deleteChannels(channelIds: List<Long>): Int = 0
+
+    override suspend fun restoreChannels(items: List<ChannelWithStreams>): Int = 0
+
     override suspend fun countByGroup(): Map<ChannelGroup, Int> = emptyMap()
 
     private fun streamsOf(channelId: Long): List<Stream> =

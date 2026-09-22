@@ -7,6 +7,8 @@ import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
 import ilab.iptv.player.core.common.Logger
 import ilab.iptv.player.core.data.epg.RoomEpgRepository
+import ilab.iptv.player.core.data.epg.FileEpgChannelCatalog
+import ilab.iptv.player.core.domain.repository.EpgChannelCatalog
 import ilab.iptv.player.core.domain.repository.EpgRepository
 import ilab.iptv.player.core.epg.BuiltInEpgSources
 import ilab.iptv.player.core.epg.EpgAliases
@@ -38,6 +40,14 @@ object EpgModule {
     @Provides
     @Singleton
     fun provideEpgRepository(impl: RoomEpgRepository): EpgRepository = impl
+
+    /**
+     * P3-4: the guide's `<channel>` list, cached in app storage. Bound here (not in
+     * `PersistenceModule`) because it is EPG-derived data, not a §5.1 table.
+     */
+    @Provides
+    @Singleton
+    fun provideEpgChannelCatalog(impl: FileEpgChannelCatalog): EpgChannelCatalog = impl
 
     @Provides
     @Singleton

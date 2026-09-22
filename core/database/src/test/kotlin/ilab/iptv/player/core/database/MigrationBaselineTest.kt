@@ -30,34 +30,47 @@ class MigrationBaselineTest {
     )
 
     @Test
-    fun `the exported schema bundle for version 1 is on the test classpath`() {
+    fun `both exported schema bundles are on the test classpath`() {
         // The bundle is wired in as a *test* asset root, so it is the application-under-test's assets
         // that carry it. The directory is the database class's canonical name (dots, not slashes) —
         // that is exactly the path `MigrationTestHelper` resolves from the database class.
         val assets = ApplicationProvider.getApplicationContext<Context>().assets
-        val path = "ilab.iptv.player.core.database.IptvDatabase/1.json"
+        val root = "ilab.iptv.player.core.database.IptvDatabase"
 
-        val json = assets.open(path).use { it.readBytes().toString(Charsets.UTF_8) }
+        val v1 = assets.open("$root/1.json").use { it.readBytes().toString(Charsets.UTF_8) }
+        assertThat(v1).contains("\"version\": 1")
+        assertThat(v1).contains("idx_channel_namekey")
+        assertThat(v1).contains("idx_prog_slot")
 
-        assertThat(json).contains("\"version\": 1")
-        assertThat(json).contains("idx_channel_namekey")
-        assertThat(json).contains("idx_prog_slot")
+        // P3-4: v2 is a real, exported schema (not only an entity change), so `runMigrationsAndValidate`
+        // below can compare the migrated result against it.
+        val v2 = assets.open("$root/2.json").use { it.readBytes().toString(Charsets.UTF_8) }
+        assertThat(v2).contains("\"version\": 2")
+        assertThat(v2).contains("display_name")
+        assertThat(v2).contains("user_group_title")
     }
 
     @Test
-    fun `version 1 is the current version and has no migrations`() {
-        assertThat(IptvDatabase.VERSION).isEqualTo(1)
-        assertThat(Migrations.ALL).isEmpty()
+    fun `version 2 is the current version and has the v1 to v2 migration`() {
+        assertThat(IptvDatabase.VERSION).isEqualTo(2)
+        assertThat(Migrations.ALL.map { it.startVersion to it.endVersion })
+            .containsExactly(1 to 2)
     }
 
     @Test
-    fun `the exported v1 schema is what the entities create`() {
+    fun `the entities create the exported v1 baseline`() {
         helper.createDatabase(IptvDatabase.NAME, 1).use { created ->
             assertThat(created.version).isEqualTo(1)
             // A created database must already agree with the exported bundle; if a column or index
             // drifts the validation below fails with the exact difference.
         }
-        helper.runMigrationsAndValidate(IptvDatabase.NAME, 1, true, *Migrations.ALL).close()
+    }
+
+    @Test
+    fun `v1 migrates cleanly to the current version`() {
+        helper.createDatabase(IptvDatabase.NAME, 1).close()
+        helper.runMigrationsAndValidate(IptvDatabase.NAME, IptvDatabase.VERSION, true, *Migrations.ALL)
+            .close()
     }
 
     @Test

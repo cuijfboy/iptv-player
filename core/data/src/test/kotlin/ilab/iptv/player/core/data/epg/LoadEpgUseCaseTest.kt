@@ -43,6 +43,8 @@ class LoadEpgUseCaseTest {
     private lateinit var logger: RoomFixtures.RecordingLogger
     private lateinit var clock: Clock
     private lateinit var useCase: LoadEpgUseCase
+    /** P3-4: the guide catalogue this run publishes for the manual-binding picker. */
+    private lateinit var channelCatalog: RoomFixtures.InMemoryEpgChannelCatalog
 
     /**
      * The programme times are relative to this instant, so the "inside the retention window" cases are
@@ -56,6 +58,7 @@ class LoadEpgUseCaseTest {
         clock = RoomFixtures.clock(now)
         repository = RoomEpgRepository(database.channelDao(), database.programmeDao(), clock)
         logger = RoomFixtures.RecordingLogger()
+        channelCatalog = RoomFixtures.InMemoryEpgChannelCatalog()
     }
 
     @After
@@ -110,6 +113,7 @@ class LoadEpgUseCaseTest {
         return LoadEpgUseCase(
             providers = providers.toSet(),
             repository = repository,
+            channelCatalog = channelCatalog,
             channelDao = database.channelDao(),
             epgSourceDao = database.epgSourceDao(),
             programmeDao = database.programmeDao(),
@@ -218,6 +222,32 @@ class LoadEpgUseCaseTest {
         assertThat(logger.codes).contains(EventCodes.EPG_COVERAGE)
         assertThat(logger.codes).contains(EventCodes.EPG_PARSE_OK)
         assertThat(logger.codes).contains(EventCodes.EPG_MATCH_HIT)
+    }
+
+    @Test
+    fun `a manual binding is never overwritten by the automatic chain`() = runBlocking<Unit> {
+        // The channel *would* match by tvg-id, but the user already bound it to a different EPG id
+        // (docs/01 F5, docs/02 §6.3 ⑤). P3-4's acceptance is exactly this: 手动绑定不被覆盖.
+        val channelId = channel("CCTV-1 综合", tvgId = "CCTV1.cn", epgChannelId = "user.picked.id")
+        useCase = buildUseCase(FakeProvider("test", body = guide(programme(now, now + 30 * 60_000L, "x"))))
+
+        useCase()
+
+        val stored = database.channelDao().getWithStreams(channelId)!!.channel
+        assertThat(stored.epgChannelId).isEqualTo("user.picked.id")
+        assertThat(stored.epgMatch).isEqualTo(EpgMatchType.MANUAL.name)
+        assertThat(logger.codes).doesNotContain(EventCodes.EPG_MATCH_HIT)
+    }
+
+    @Test
+    fun `the guide channel list is published for the manual-binding picker`() = runBlocking<Unit> {
+        channel("CCTV-1 综合", tvgId = "CCTV1.cn")
+        useCase = buildUseCase(FakeProvider("test", body = guide(programme(now, now + 30 * 60_000L, "x"))))
+
+        useCase()
+
+        assertThat(channelCatalog.written.map { it.id }).containsExactly("CCTV1.cn")
+        assertThat(channelCatalog.written.single().displayName).isEqualTo("CCTV-1 综合")
     }
 
     @Test

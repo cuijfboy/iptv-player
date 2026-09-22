@@ -64,6 +64,26 @@ object ChannelGrouping {
         return ChannelGroup.OTHER
     }
 
+    /**
+     * P3-4 move-group: the group a channel is *displayed* in. The user's [Channel.userGroupTitle]
+     * outranks the source title; its key is derived with the same [groupKey] rule the parser used, so
+     * a moved channel lands in the target section instead of a section of its own.
+     *
+     * Identity is untouched: the stored `group_key` (and with it `UNIQUE(name_key, group_key)`) is
+     * still the source's, which is what keeps a later refresh updating this row instead of inserting
+     * a second one.
+     */
+    fun effectiveGroupKey(channel: Channel): String =
+        channel.userGroupTitle?.takeIf { it.isNotBlank() }?.let(::groupKey) ?: channel.groupKey
+
+    /** The header a channel's section shows: the user's group title, else the source's. */
+    fun effectiveGroupTitle(channel: Channel): String? =
+        channel.userGroupTitle?.takeIf { it.isNotBlank() } ?: channel.groupTitle
+
+    /** The coarse classification of [effectiveGroupTitle]; used for tab/section order (docs/02 §8.1). */
+    fun effectiveGroup(channel: Channel): ChannelGroup =
+        classify(effectiveGroupTitle(channel) ?: effectiveGroupKey(channel))
+
     /** What the list header shows: the source's own title when it had one, else a readable fallback. */
     fun displayTitle(groupTitle: String?): String =
         groupTitle?.trim().takeUnless { it.isNullOrEmpty() } ?: fallbackTitle(classify(groupTitle))
@@ -88,12 +108,12 @@ object ChannelGrouping {
      */
     fun sections(channels: List<Channel>): List<ChannelGroupSection> {
         val byKey = LinkedHashMap<String, MutableList<Channel>>()
-        for (channel in channels) byKey.getOrPut(channel.groupKey) { ArrayList() } += channel
+        for (channel in channels) byKey.getOrPut(effectiveGroupKey(channel)) { ArrayList() } += channel
         return byKey.map { (key, members) ->
-            val classification = members.first().group
+            val classification = effectiveGroup(members.first())
             ChannelGroupSection(
                 key = key,
-                title = displayTitle(members.first().groupTitle),
+                title = displayTitle(effectiveGroupTitle(members.first())),
                 group = classification,
                 channels = members,
             )

@@ -11,6 +11,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -70,6 +71,7 @@ class BrowseActivity : ComponentActivity() {
     private lateinit var settingsButton: Button
     private lateinit var epgButton: Button
     private lateinit var searchButton: Button
+    private lateinit var managerButton: Button
     private lateinit var adapter: ChannelListAdapter
 
     /**
@@ -163,10 +165,35 @@ class BrowseActivity : ComponentActivity() {
             // contract trick exists for feature → feature, docs/02 §3.2).
             startActivity(Intent(this, SearchActivity::class.java))
         }
+        // P3-4: 频道管理器. Entering flips the list into multi-select; the same button exits.
+        managerButton = findViewById(R.id.open_manager)
+        managerButton.setOnClickListener { viewModel.toggleManage() }
+        // docs/02 §8.1 返回键层级: inside manage mode BACK first leaves the mode (an in-page level),
+        // and only a second BACK leaves the browse screen — the same two-step shape the player uses.
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    if (lastState.manageActive) {
+                        viewModel.toggleManage()
+                    } else {
+                        isEnabled = false
+                        onBackPressedDispatcher.onBackPressed()
+                    }
+                }
+            },
+        )
         adapter = ChannelListAdapter(
             onChannelFocused = { item -> onChannelFocused(item) },
-            onChannelSelected = { item -> openPlayer(item) },
-            onChannelAction = { item -> showChannelActions(item) },
+            onChannelSelected = { item ->
+                // P3-4: in manage mode OK marks instead of playing; outside it the row still plays.
+                if (lastState.manageActive) viewModel.toggleSelected(item.channelId) else openPlayer(item)
+            },
+            onChannelAction = { item ->
+                // P3-4: MENU / held OK is the batch entry in manage mode and the single-channel menu
+                // otherwise — one key, two levels, decided by the current mode.
+                if (lastState.manageActive) showBatchActions() else showChannelActions(item)
+            },
             onLogoError = { url, error ->
                 // docs/03 §3.3: NET_REQ_FAIL is the registered code for "a fetch did not come back".
                 // `kind=logo` separates an image miss from a playlist fetch in the troubleshooting
@@ -343,6 +370,11 @@ class BrowseActivity : ComponentActivity() {
         hiddenButton.text = getString(
             if (state.includeHidden) R.string.browse_filter_hidden_shown else R.string.browse_filter_hidden_hidden,
         )
+        // P3-4: the manager toggle doubles as the mode indicator, and the header counts the marks.
+        managerButton.isSelected = state.manageActive
+        managerButton.text = getString(
+            if (state.manageActive) R.string.browse_manage_off else R.string.browse_manage_on,
+        )
     }
 
     /**
@@ -358,6 +390,15 @@ class BrowseActivity : ComponentActivity() {
             getString(R.string.browse_action_move_down),
             getString(R.string.browse_action_edit_number),
             getString(R.string.browse_action_clear_number),
+            // P3-4 additions: the two edits P2-2 deliberately left to this card.
+            getString(R.string.browse_action_rename),
+            getString(
+                if (item.epgChannelId.isNullOrBlank()) {
+                    R.string.browse_action_bind_epg
+                } else {
+                    R.string.browse_action_unbind_epg
+                },
+            ),
         )
         AlertDialog.Builder(this)
             .setTitle(getString(R.string.browse_action_title, item.number, item.name))
@@ -369,10 +410,109 @@ class BrowseActivity : ComponentActivity() {
                     3 -> viewModel.move(item, +1)
                     4 -> showEditNumberDialog(item)
                     5 -> viewModel.setChannelNo(item, null)
+                    6 -> showRenameDialog(item)
+                    7 -> if (item.epgChannelId.isNullOrBlank()) {
+                        showEpgPicker(item)
+                    } else {
+                        viewModel.unbindEpg(item.channelId)
+                        Toast.makeText(this, R.string.browse_epg_unbound_toast, Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
             .setNegativeButton(R.string.browse_action_cancel, null)
             .show()
+    }
+
+    /**
+     * P3-4 rename. The field is pre-filled with the **shown** name; saving blank clears the overlay and
+     * the row goes back to the source name (the menu's own words say so).
+     */
+    private fun showRenameDialog(item: ChannelListRow.ChannelItem) {
+        val input = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_TEXT
+            setText(item.name)
+            setSelectAllOnFocus(true)
+            hint = getString(R.string.browse_action_rename_hint)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.browse_action_rename_title, item.sourceName))
+            .setView(input)
+            .setPositiveButton(R.string.browse_action_rename_ok) { _, _ ->
+                viewModel.rename(item, input.text?.toString()?.trim().orEmpty())
+            }
+            .setNegativeButton(R.string.browse_action_cancel, null)
+            .show()
+    }
+
+    /**
+     * P3-4 手动绑定 EPG. Candidates are the guide channels the last EPG run parsed ([guideChannels]);
+     * the picker says "该 guide 无此频道" when a search matches none, which is exactly what the three
+     * documented gaps produce (`docs/05-过程记录/39-EPG繁简折叠.md`).
+     */
+    private fun showEpgPicker(item: ChannelListRow.ChannelItem) {
+        ChannelManagerDialogs.showEpgPicker(
+            context = this,
+            channelName = item.name,
+            candidates = viewModel.guideChannels.value,
+            currentId = item.epgChannelId,
+            currentMatchLabel = null,
+        ) { picked ->
+            viewModel.bindEpg(item.channelId, picked.id)
+        }
+    }
+
+    /**
+     * P3-4 batch actions, opened by MENU / held OK while manage mode is on. An empty selection still
+     * opens the dialog but says what to do first, so the key never silently does nothing.
+     */
+    private fun showBatchActions() {
+        val selected = lastState.selectedCount
+        val undo = lastState.undoLabel
+        val labels = ArrayList<String>(8)
+        val actions = ArrayList<() -> Unit>(8)
+        if (selected > 0) {
+            labels += getString(R.string.browse_batch_hide)
+            actions += { viewModel.batchSetHidden(true) }
+            labels += getString(R.string.browse_batch_unhide)
+            actions += { viewModel.batchSetHidden(false) }
+            labels += getString(R.string.browse_batch_move)
+            actions += { showMoveGroupPicker() }
+            labels += getString(R.string.browse_batch_delete)
+            actions += { viewModel.batchDelete() }
+        }
+        labels += getString(R.string.browse_batch_select_all)
+        actions += { viewModel.selectAll() }
+        labels += getString(R.string.browse_batch_clear)
+        actions += { viewModel.clearSelection() }
+        if (undo != null) {
+            labels += getString(R.string.browse_batch_undo, undo)
+            actions += { viewModel.undoLast() }
+        }
+        AlertDialog.Builder(this)
+            .setTitle(
+                if (selected > 0) {
+                    getString(R.string.browse_manage_title, selected)
+                } else {
+                    getString(R.string.browse_batch_none)
+                },
+            )
+            .setItems(labels.toTypedArray()) { _, which -> actions[which].invoke() }
+            .setNegativeButton(R.string.browse_action_cancel, null)
+            .show()
+    }
+
+    /** The move-group picker offers the effective group titles already on screen (P3-4 移动分组). */
+    private fun showMoveGroupPicker() {
+        if (lastState.selectedCount == 0) {
+            Toast.makeText(this, R.string.browse_batch_select_all_first, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val titles = lastState.rows
+            .filterIsInstance<ChannelListRow.ChannelItem>()
+            .mapNotNull { it.groupTitle }
+            .distinct()
+            .sorted()
+        ChannelManagerDialogs.showGroupPicker(this, titles) { title -> viewModel.batchMoveToGroup(title) }
     }
 
     /**
@@ -450,7 +590,17 @@ class BrowseActivity : ComponentActivity() {
                 lastState.groupCount,
                 lastState.streamCount,
                 frames,
-            ) + (focused?.let { "\n" + getString(R.string.browse_focus, it.number, it.name) } ?: "")
+            ) +
+                (focused?.let { "\n" + getString(R.string.browse_focus, it.number, it.name) } ?: "") +
+                // P3-4: in manage mode the marked count replaces the focus line's usefulness, so it is
+                // spelled out; outside it the line is unchanged.
+                (
+                    if (lastState.manageActive) {
+                        "\n" + getString(R.string.browse_manage_selected, lastState.selectedCount)
+                    } else {
+                        ""
+                    }
+                    )
         }
     }
 

@@ -41,7 +41,30 @@ data class Channel(
     val createdAtMs: Long = 0,
     /** `channel.updated_at` (docs/02 §5.1). 0 = not persisted yet (the P1-2 in-memory store). */
     val updatedAtMs: Long = 0,
-)
+    /**
+     * P3-4 rename: the user's display name, or null while the channel still shows the source [name].
+     *
+     * Deliberately a **separate** field from [name] / [nameKey]: `name_key` is the
+     * `UNIQUE(name_key, group_key)` identity, the auto-merge key of a refresh and the key the EPG
+     * matcher compares on. Rewriting any of them on a rename would re-identify the channel — a
+     * refresh would then insert a second row instead of updating this one. So the rename is a
+     * *user-owned overlay* and [shownName] is what every screen renders.
+     */
+    val displayName: String? = null,
+    /**
+     * P3-4 move-group: the user's replacement group title, or null while the source group stands.
+     *
+     * Same reasoning as [displayName]: the stored `group_key` is source-owned *and* half of the
+     * unique index, so a move cannot write it without changing the channel's identity (a later
+     * refresh would re-insert the original group and the list would show the channel twice). The
+     * override therefore lives beside it and the effective group is derived by
+     * [ilab.iptv.player.core.domain.channel.ChannelGrouping].
+     */
+    val userGroupTitle: String? = null,
+) {
+    /** What the browse list, the grid and the player show: the user's rename outranks the source name. */
+    val shownName: String get() = displayName?.takeIf { it.isNotBlank() } ?: name
+}
 
 data class Stream(
     val id: Long,

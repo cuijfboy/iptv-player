@@ -35,16 +35,26 @@ sealed interface ChannelListRow {
         /** docs/01 D12 channel number (user edit > source `tvg-chno` > automatic). */
         val number: Int,
         val numberSource: ChannelNumberSource,
+        /** [Channel.shownName] — the user's rename (P3-4) when there is one, else the source name. */
         val name: String,
+        /** The source name, shown as the meta line when a P3-4 rename is in effect. */
+        val sourceName: String,
+        val renamed: Boolean,
         val logoUrl: String?,
         val streamCount: Int,
-        /** The source's group title as shown in the row's meta line. */
+        /** The **effective** group title (P3-4 move-group overlay when set, else the source's). */
         val groupTitle: String?,
-        /** `channel.group_key` — the identity a reorder moves inside (P2-2). */
+        /** The **effective** group key — the section the row renders in (P3-4). */
         val groupKey: String,
         /** P2-2 list actions read these to show the current state and to toggle it. */
         val favorite: Boolean = false,
         val hidden: Boolean = false,
+        /** P3-4: the current EPG binding, so the manual picker can mark and clear it. */
+        val epgChannelId: String? = null,
+        /** P3-4 multi-select: the row is marked in manage mode. */
+        val selected: Boolean = false,
+        /** P3-4: manage mode is on, so the row shows its checkbox (☐ when unselected). */
+        val manageMode: Boolean = false,
     ) : ChannelListRow {
         override val key: String get() = "channel:$channelId"
 
@@ -64,7 +74,12 @@ sealed interface ChannelListRow {
  */
 object ChannelListRows {
 
-    fun build(channels: List<Channel>, userEdits: Map<Long, Int> = emptyMap()): List<ChannelListRow> {
+    fun build(
+        channels: List<Channel>,
+        userEdits: Map<Long, Int> = emptyMap(),
+        selected: Set<Long> = emptySet(),
+        manageMode: Boolean = selected.isNotEmpty(),
+    ): List<ChannelListRow> {
         val ordered = ChannelSorter.sort(channels)
         val numbered = ChannelNumberAssigner.assign(ordered, userEdits).associateBy { it.channel.id }
         val rows = ArrayList<ChannelListRow>(ordered.size + ChannelGrouping.displayOrder.size)
@@ -81,13 +96,18 @@ object ChannelListRows {
                     channelId = channel.id,
                     number = item.number,
                     numberSource = item.source,
-                    name = channel.name,
+                    name = channel.shownName,
+                    sourceName = channel.name,
+                    renamed = channel.displayName != null,
                     logoUrl = channel.logoUrl,
                     streamCount = channel.streamCount,
-                    groupTitle = channel.groupTitle,
-                    groupKey = channel.groupKey,
+                    groupTitle = ChannelGrouping.effectiveGroupTitle(channel),
+                    groupKey = ChannelGrouping.effectiveGroupKey(channel),
                     favorite = channel.favorite,
                     hidden = channel.hidden,
+                    epgChannelId = channel.epgChannelId,
+                    selected = channel.id in selected,
+                    manageMode = manageMode,
                 )
             }
         }

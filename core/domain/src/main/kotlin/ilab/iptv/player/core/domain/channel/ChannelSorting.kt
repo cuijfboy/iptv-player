@@ -8,7 +8,9 @@ import ilab.iptv.player.core.model.Channel
  * package owns one and the P1-2 record writes it down:
  *
  * 1. classification display order ([ChannelGrouping.displayOrder] — 央视 → 卫视 → 港澳台 → 本地 → 其他);
- * 2. `group_key` ascending, so sections render in a stable order inside one classification;
+ * 2. the **effective** `group_key` ascending (P3-4: [Channel.userGroupTitle] when the user moved the
+ *    channel, else the source `group_key`), so sections render in a stable order inside one
+ *    classification and a moved channel sorts into its target section;
  * 3. [Channel.sortOrder] ascending — **the user's manual order** (docs/01 F5, P2-2). It comes before
  *    the number on purpose: "移动" is a display-order edit, and if the source number won, a moved
  *    channel would snap straight back. Every row defaults to `sort_order = 0`, so before the user
@@ -23,12 +25,12 @@ import ilab.iptv.player.core.model.Channel
 object ChannelSorter {
 
     val comparator: Comparator<Channel> = compareBy(
-        { ChannelGrouping.rank(it.group) },
-        { it.groupKey },
+        { ChannelGrouping.rank(ChannelGrouping.effectiveGroup(it)) },
+        { ChannelGrouping.effectiveGroupKey(it) },
         { it.sortOrder },
         { it.channelNo ?: Int.MAX_VALUE },
         { it.nameKey },
-        { it.name },
+        { it.shownName },
         { it.id },
     )
 

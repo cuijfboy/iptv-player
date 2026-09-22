@@ -54,6 +54,11 @@ object PersistenceMapper {
         sortOrder = channel.sortOrder,
         epgChannelId = channel.epgChannelId,
         epgMatch = channel.epgMatch.name,
+        // P3-4: the two user-owned overlays round trip unchanged. `name` / `name_key` / `group_key`
+        // stay the *source* values (the parser produced them), which is what keeps the row's identity
+        // stable across a rename or a group move.
+        displayName = channel.displayName,
+        userGroupTitle = channel.userGroupTitle,
         createdAt = channel.createdAtMs.takeIf { it > 0 } ?: nowMs,
         updatedAt = channel.updatedAtMs.takeIf { it > 0 } ?: nowMs,
     )
@@ -74,6 +79,8 @@ object PersistenceMapper {
         sortOrder = entity.sortOrder,
         epgChannelId = entity.epgChannelId,
         epgMatch = epgMatch(entity.epgMatch),
+        displayName = entity.displayName,
+        userGroupTitle = entity.userGroupTitle,
         streamCount = streamCount,
         createdAtMs = entity.createdAt,
         updatedAtMs = entity.updatedAt,

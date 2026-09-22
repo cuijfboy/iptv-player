@@ -57,7 +57,10 @@ class SchemaAndIndexTest {
         val expectedColumns = mapOf(
             "channel" to listOf(
                 "id", "name", "name_key", "tvg_id", "group_key", "group_title", "logo", "channel_no",
-                "favorite", "hidden", "sort_order", "epg_channel_id", "epg_match", "created_at", "updated_at",
+                "favorite", "hidden", "sort_order", "epg_channel_id", "epg_match",
+                // P3-4 (schema v2): the two user-owned overlays, appended by `MIGRATION_1_2`.
+                "display_name", "user_group_title",
+                "created_at", "updated_at",
             ),
             "stream" to listOf(
                 "id", "channel_id", "url", "url_hash", "user_agent", "referrer", "source_id", "quality",

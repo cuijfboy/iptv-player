@@ -82,6 +82,7 @@ class ChannelListAdapter(
     ) : RecyclerView.ViewHolder(view) {
 
         private val number: TextView = view.findViewById(R.id.channel_number)
+        private val selected: TextView = view.findViewById(R.id.channel_selected)
         private val logoInitial: TextView = view.findViewById(R.id.channel_logo_initial)
         private val logo: ImageView = view.findViewById(R.id.channel_logo)
         private val name: TextView = view.findViewById(R.id.channel_name)
@@ -130,6 +131,9 @@ class ChannelListAdapter(
         fun bind(item: ChannelListRow.ChannelItem) {
             row = item
             number.text = item.number.toString()
+            // P3-4: the selection marker only exists in manage mode; outside it the row is unchanged.
+            selected.visibility = if (item.manageMode) View.VISIBLE else View.GONE
+            selected.text = if (item.selected) "☑" else "☐"
             // The placeholder is the layer *behind* the logo (the initial in a box). The logo image
             // is cleared here and repopulated by Coil; on a failed fetch it stays cleared, so the
             // placeholder shows through (P2-3: "失败回退占位"). Rebase the box so a real logo is
@@ -150,10 +154,15 @@ class ChannelListAdapter(
         private fun flagsText(item: ChannelListRow.ChannelItem): String = buildString {
             if (item.favorite) append('★')
             if (item.hidden) append(if (isEmpty()) "" else " ").append("隐")
+            // P3-4: a rename is visible as a tag, so "why is this name different from the playlist?"
+            // is answerable from the row itself.
+            if (item.renamed) append(if (isEmpty()) "" else " ").append("名")
         }
 
         private fun metaText(item: ChannelListRow.ChannelItem): String = buildString {
-            append(item.groupTitle ?: item.name)
+            // P3-4: a renamed row keeps the source name on the meta line, so the playlist spelling is
+            // still visible after a rename.
+            append(item.groupTitle ?: (if (item.renamed) item.sourceName else item.name))
             if (item.streamCount > 1) {
                 append(" · ")
                 append(item.streamCount)

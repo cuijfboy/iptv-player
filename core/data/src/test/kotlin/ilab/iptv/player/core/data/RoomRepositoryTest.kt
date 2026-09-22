@@ -12,6 +12,7 @@ import ilab.iptv.player.core.data.repository.InMemoryChannelRepository
 import ilab.iptv.player.core.data.repository.InMemoryStreamRepository
 import ilab.iptv.player.core.data.store.ChannelStore
 import ilab.iptv.player.core.database.IptvDatabase
+import ilab.iptv.player.core.domain.channel.ChannelGrouping
 import ilab.iptv.player.core.model.ChannelFilter
 import ilab.iptv.player.core.model.ChannelGroup
 import ilab.iptv.player.core.model.EpgMatchType
@@ -225,6 +226,51 @@ class RoomRepositoryTest {
         assertThat(reloaded.channelNo).isEqualTo(501)
         assertThat(reloaded.epgChannelId).isEqualTo("epg.501")
         assertThat(reloaded.epgMatch).isEqualTo(EpgMatchType.MANUAL)
+    }
+
+    // ---- P3-4 user overlays ----
+
+    @Test
+    fun `rename writes the overlay and leaves the identity columns alone`() = test {
+        val channel = rig.channels.observe(all).first().first().channel
+
+        rig.channels.rename(channel.id, "我的 CCTV1")
+
+        val reloaded = rig.channels.get(channel.id)!!.channel
+        assertThat(reloaded.shownName).isEqualTo("我的 CCTV1")
+        // The refresh's upsert key and the EPG matcher's lookup key must not move.
+        assertThat(reloaded.name).isEqualTo(channel.name)
+        assertThat(reloaded.nameKey).isEqualTo(channel.nameKey)
+    }
+
+    @Test
+    fun `a group move re-renders the channel under the target group without touching group_key`() = test {
+        val channel = rig.channels.observe(all).first().first().channel
+
+        rig.channels.setUserGroup(channel.id, "我的分组")
+
+        val reloaded = rig.channels.get(channel.id)!!.channel
+        assertThat(ChannelGrouping.effectiveGroupKey(reloaded)).isEqualTo("我的分组")
+        // The stored source group — and with it `UNIQUE(name_key, group_key)` — is unchanged.
+        assertThat(reloaded.groupKey).isEqualTo(channel.groupKey)
+        assertThat(database.channelDao().findByKey(channel.nameKey, channel.groupKey)!!.id)
+            .isEqualTo(channel.id)
+    }
+
+    @Test
+    fun `a batch delete removes the channel and its streams, and the undo puts them back`() = test {
+        val victim = rig.channels.observe(all).first().first()
+        val snapshot = rig.channels.get(victim.channel.id)!!
+        assertThat(snapshot.streams).isNotEmpty()
+
+        assertThat(rig.channels.deleteChannels(listOf(victim.channel.id))).isEqualTo(1)
+        assertThat(rig.channels.get(victim.channel.id)).isNull()
+        assertThat(database.streamDao().countForChannel(victim.channel.id)).isEqualTo(0)
+
+        assertThat(rig.channels.restoreChannels(listOf(snapshot))).isEqualTo(1)
+        val restored = rig.channels.get(victim.channel.id)!!
+        assertThat(restored.channel.name).isEqualTo(snapshot.channel.name)
+        assertThat(restored.streams.map { it.url }).isEqualTo(snapshot.streams.map { it.url })
     }
 
     // ---- streams ----

@@ -76,6 +76,16 @@ class ChannelStore : CatalogSink {
         _channels.update { transform(it) }
     }
 
+    /** P3-4 batch delete (test double): drops the channels by id and returns how many were removed. */
+    fun removeChannels(ids: Set<Long>): Int {
+        if (ids.isEmpty()) return 0
+        val before = _channels.value
+        val kept = before.filterNot { it.id in ids }
+        val removed = before.size - kept.size
+        if (removed > 0) _channels.value = kept
+        return removed
+    }
+
     /** Insert-or-replace by `(channel_id, url_hash)` — the docs/02 §5.1 stream unique index. */
     fun upsertStreams(incoming: List<Stream>) {
         if (incoming.isEmpty()) return

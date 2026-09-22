@@ -39,6 +39,16 @@ data class ChannelEntity(
     @ColumnInfo(name = "sort_order", defaultValue = "0") val sortOrder: Int = 0,
     @ColumnInfo(name = "epg_channel_id") val epgChannelId: String?,
     @ColumnInfo(name = "epg_match", defaultValue = "NONE") val epgMatch: String = "NONE",
+    /**
+     * P3-4 (schema v2): the user's rename overlay. User-owned, so `upsertAll` keeps the stored value
+     * across a refresh; `name` / `name_key` stay source-owned and keep the row's identity.
+     */
+    @ColumnInfo(name = "display_name") val displayName: String? = null,
+    /**
+     * P3-4 (schema v2): the user's group-move overlay. User-owned like the columns above; the stored
+     * `group_key` (source-owned, half of `UNIQUE(name_key, group_key)`) is what a move must not touch.
+     */
+    @ColumnInfo(name = "user_group_title") val userGroupTitle: String? = null,
     @ColumnInfo(name = "created_at") val createdAt: Long,
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
 )

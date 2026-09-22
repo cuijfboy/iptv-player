@@ -37,6 +37,8 @@ internal object DatabaseFixtures {
         sortOrder: Int = 0,
         epgChannelId: String? = null,
         epgMatch: String = "NONE",
+        displayName: String? = null,
+        userGroupTitle: String? = null,
         createdAt: Long = 1_000L,
         updatedAt: Long = 1_000L,
     ): ChannelEntity = ChannelEntity(
@@ -53,6 +55,8 @@ internal object DatabaseFixtures {
         sortOrder = sortOrder,
         epgChannelId = epgChannelId,
         epgMatch = epgMatch,
+        displayName = displayName,
+        userGroupTitle = userGroupTitle,
         createdAt = createdAt,
         updatedAt = updatedAt,
     )

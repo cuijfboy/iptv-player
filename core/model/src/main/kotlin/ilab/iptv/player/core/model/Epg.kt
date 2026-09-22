@@ -115,3 +115,13 @@ data class EpgChannelIndex(
 ) {
     val size: Int get() = byId.size + byNameKey.size
 }
+
+/**
+ * One `<channel>` of the guide the app last parsed (P3-4). The manual-binding picker lists these so a
+ * user can point a channel at an EPG channel the automatic chain missed.
+ *
+ * [id] is the XMLTV channel id — exactly the value `channel.epg_channel_id` stores and
+ * `programme.epg_channel_id` is keyed on. [displayName] is the guide's own name for it (the first
+ * `<display-name>`), which is what the picker shows and what "该 guide 无此频道" is judged against.
+ */
+data class EpgChannelRef(val id: String, val displayName: String)

@@ -28,8 +28,8 @@ import ilab.iptv.player.core.database.entity.StreamEntity
  *   `<module>/schemas/<this class>/<version>.json`. Those files are committed: they are what
  *   `MigrationTestHelper` reads and what a future migration must match, so a schema change without a
  *   new export fails the migration test.
- * - **`VERSION = 1` is the baseline.** Version 1 has no migrations; see [Migrations] for the rule the
- *   next version has to follow.
+ * - **`VERSION = 2`** (P3-4 频道管理器): v1 is the baseline and v2 adds the two user-owned overlays on
+ *   `channel` (`display_name`, `user_group_title`). See [Migrations] for [Migrations.MIGRATION_1_2].
  */
 @Database(
     entities = [
@@ -62,8 +62,11 @@ abstract class IptvDatabase : RoomDatabase() {
 
     companion object {
 
-        /** docs/02 §5.1: version 1 is the first schema; bump it with a migration, never silently. */
-        const val VERSION = 1
+        /**
+         * docs/02 §5.1 / §13: bump this with a migration, never silently. v1 baseline → v2 (P3-4) adds
+         * `channel.display_name` and `channel.user_group_title`; see [Migrations.MIGRATION_1_2].
+         */
+        const val VERSION = 2
 
         const val NAME = "iptv.db"
 

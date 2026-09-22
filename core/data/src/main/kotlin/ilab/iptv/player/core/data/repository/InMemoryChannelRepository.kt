@@ -83,6 +83,32 @@ class InMemoryChannelRepository(
         store.updateChannel(channelId) { it.copy(epgChannelId = epgChannelId, epgMatch = match) }
     }
 
+    /** P3-4: mirrors the Room overlay writes; see [RoomChannelRepository] for the persisted rule. */
+    override suspend fun rename(channelId: Long, displayName: String?) {
+        store.updateChannel(channelId) { it.copy(displayName = displayName?.takeIf(String::isNotBlank)) }
+    }
+
+    override suspend fun setUserGroup(channelId: Long, groupTitle: String?) {
+        store.updateChannel(channelId) { it.copy(userGroupTitle = groupTitle?.takeIf(String::isNotBlank)) }
+    }
+
+    override suspend fun deleteChannels(channelIds: List<Long>): Int {
+        val ids = channelIds.toSet()
+        if (ids.isEmpty()) return 0
+        return store.removeChannels(ids)
+    }
+
+    override suspend fun restoreChannels(items: List<ChannelWithStreams>): Int {
+        if (items.isEmpty()) return 0
+        store.updateChannels { current ->
+            val byId = current.associateBy { it.id }.toMutableMap()
+            for (item in items) byId[item.channel.id] = item.channel
+            byId.values.toList()
+        }
+        store.upsertStreams(items.flatMap { it.streams })
+        return items.size
+    }
+
     override suspend fun countByGroup(): Map<ChannelGroup, Int> {
         loader.ensureLoaded()
         val counts = LinkedHashMap<ChannelGroup, Int>()

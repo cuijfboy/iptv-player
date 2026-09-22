@@ -51,4 +51,34 @@
     <string name="browse_action_number_ok">保存</string>
     <string name="browse_action_number_invalid">请输入大于 0 的整数</string>
     <string name="browse_action_cancel">取消</string>
+
+    <!-- P3-4 频道管理器：多选、批量动作（含撤销）、重命名、手动绑定 EPG。 -->
+    <string name="browse_manage_on">管理</string>
+    <string name="browse_manage_off">完成</string>
+    <string name="browse_manage_selected">已选 %1$d 台 · MENU 批量动作 · BACK 退出</string>
+    <string name="browse_manage_title">频道管理器 · 已选 %1$d 台</string>
+    <string name="browse_batch_filter">批量动作</string>
+    <string name="browse_batch_hide">隐藏选中</string>
+    <string name="browse_batch_unhide">取消隐藏选中</string>
+    <string name="browse_batch_move">移动到分组…</string>
+    <string name="browse_batch_delete">删除选中</string>
+    <string name="browse_batch_select_all">全选</string>
+    <string name="browse_batch_clear">清空选择</string>
+    <string name="browse_batch_undo">撤销：%1$s</string>
+    <string name="browse_batch_none">先标记至少一个频道（OK 标记）</string>
+    <string name="browse_batch_select_all_first">先标记要移动的频道</string>
+    <string name="browse_group_picker_title">移动到分组（%1$d 台）</string>
+    <string name="browse_action_rename">重命名</string>
+    <string name="browse_action_rename_title">重命名 %1$s</string>
+    <string name="browse_action_rename_hint">显示名（留空则恢复源名）</string>
+    <string name="browse_action_rename_ok">保存</string>
+    <string name="browse_action_bind_epg">手动绑定 EPG</string>
+    <string name="browse_action_unbind_epg">解除 EPG 绑定</string>
+    <string name="browse_epg_picker_title">给「%1$s」选一个 EPG 频道</string>
+    <string name="browse_epg_picker_hint">输入频道名搜索（当前 guide 共 %1$d 个频道）</string>
+    <string name="browse_epg_picker_empty">该 guide 无此频道：当前 guide 的频道表里没有与「%1$s」匹配的条目。请先在设置里更新节目单，或改选其它频道。</string>
+    <string name="browse_epg_picker_no_catalog">还没有 guide 频道表。请先到设置页手动更新一次节目单，再回来绑定。</string>
+    <string name="browse_epg_current">当前绑定：%1$s（%2$s）</string>
+    <string name="browse_epg_current_none">当前未绑定 EPG</string>
+    <string name="browse_epg_unbound_toast">已解除 EPG 绑定</string>
 </resources>

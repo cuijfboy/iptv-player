@@ -36,6 +36,37 @@ interface ChannelRepository {
 
     suspend fun setEpgBinding(channelId: Long, epgChannelId: String?, match: EpgMatchType)
 
+    /**
+     * P3-4 rename: the user's display name, or null to fall back to the source name.
+     *
+     * Writes the **user-owned overlay** (`channel.display_name`), never `name` / `name_key`: the
+     * source name stays the identity the refresh upserts on and the EPG matcher compares against, so
+     * a rename cannot re-identify the channel or quietly break its EPG binding.
+     */
+    suspend fun rename(channelId: Long, displayName: String?)
+
+    /**
+     * P3-4 move-group: the user's replacement group title, or null to fall back to the source group.
+     *
+     * Writes `channel.user_group_title`; the effective group (and its key) is derived from it by
+     * [ilab.iptv.player.core.domain.channel.ChannelGrouping]. The stored `group_key` — half of
+     * `UNIQUE(name_key, group_key)` — is deliberately left alone.
+     */
+    suspend fun setUserGroup(channelId: Long, groupTitle: String?)
+
+    /**
+     * P3-4 batch delete: removes the channels (and, by the §5.1 cascade, their streams). Returns how
+     * many rows were removed. Hard delete on purpose — see the P3-4 record for the reasoning and for
+     * the one consequence (a later refresh re-adds a channel the playlist still carries).
+     */
+    suspend fun deleteChannels(channelIds: List<Long>): Int
+
+    /**
+     * P3-4 undo of a batch delete: re-inserts the snapshots taken before the delete, ids included, so
+     * the restored rows keep their streams and their user-owned columns.
+     */
+    suspend fun restoreChannels(items: List<ChannelWithStreams>): Int
+
     suspend fun countByGroup(): Map<ChannelGroup, Int>
 }
 

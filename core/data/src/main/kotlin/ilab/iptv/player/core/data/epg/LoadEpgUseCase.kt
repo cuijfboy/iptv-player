@@ -16,6 +16,7 @@ import ilab.iptv.player.core.database.entity.EpgSourceEntity
 import ilab.iptv.player.core.domain.repository.EpgRepository
 import ilab.iptv.player.core.epg.EpgBindingCandidate
 import ilab.iptv.player.core.epg.EpgBindingPreference
+import ilab.iptv.player.core.domain.repository.EpgChannelCatalog
 import ilab.iptv.player.core.epg.EpgCoverageCalculator
 import ilab.iptv.player.core.epg.EpgMatcher
 import ilab.iptv.player.core.epg.EpgNameKey
@@ -28,6 +29,7 @@ import ilab.iptv.player.core.epg.epgChannelIndex
 import ilab.iptv.player.core.source.pipeline.PlaybackPrioritySignal
 import ilab.iptv.player.core.model.EpgLoadReport
 import ilab.iptv.player.core.model.EpgMatchType
+import ilab.iptv.player.core.model.EpgChannelRef
 import ilab.iptv.player.core.model.Programme
 import java.io.IOException
 import java.io.InputStreamReader
@@ -75,6 +77,7 @@ import kotlinx.coroutines.withContext
 class LoadEpgUseCase @Inject constructor(
     private val providers: Set<@JvmSuppressWildcards EpgProvider>,
     private val repository: EpgRepository,
+    private val channelCatalog: EpgChannelCatalog,
     private val channelDao: ChannelDao,
     private val epgSourceDao: EpgSourceDao,
     private val programmeDao: ProgrammeDao,
@@ -104,6 +107,8 @@ class LoadEpgUseCase @Inject constructor(
         // a property of the run (which id holds the most), not of the source being parsed.
         val proposalsByChannel = LinkedHashMap<Long, MutableList<EpgBindingCandidate>>()
         val proposals = ArrayList<EpgProposal>()
+        // P3-4: the `<channel>` list of the guide(s) this run parsed, so the manual-binding picker can
+        val guideChannels = LinkedHashMap<String, XmltvChannel>()
 
         for ((sourceIndex, source) in sources.withIndex()) {
             // R7, run half: every source after the first is optional work, so a session that started
@@ -239,6 +244,10 @@ class LoadEpgUseCase @Inject constructor(
             // Match AFTER the parse: the index is only complete when every <channel> has been seen, and
             // a guide whose programmes precede its channels still matches correctly.
             val index = epgChannelIndex(indexChannels, EpgNameKey::key)
+            for (channel in indexChannels) {
+                val id = channel.id.trim()
+                if (id.isNotEmpty() && id !in guideChannels) guideChannels[id] = channel
+            }
             val report = matcher.match(channels, index)
             for (hit in report.hits) {
                 val candidate = EpgBindingCandidate(
@@ -331,6 +340,18 @@ class LoadEpgUseCase @Inject constructor(
             }
         }
         val withProgrammeIds = boundIds.filterValues { id -> depthOf(id) >= 1 }.keys
+
+        if (guideChannels.isNotEmpty()) {
+            channelCatalog.replaceAll(
+                guideChannels.values.map { channel ->
+                    EpgChannelRef(
+                        id = channel.id.trim(),
+                        displayName = channel.displayNames.firstOrNull { it.isNotBlank() }?.trim()
+                            ?: channel.id.trim(),
+                    )
+                },
+            )
+        }
 
         val pruned = repository.prune(window.fromMs, window.toMs)
         val coverage = EpgCoverageCalculator.of(channels, boundIds.keys, withProgrammeIds)

@@ -86,6 +86,14 @@
             android:layout_marginStart="12dp"
             android:text="@string/browse_search_action" />
 
+        <!-- P3-4: 频道管理器入口。进入后列表变「多选」，OK 标记、MENU 打开批量动作、BACK 退出。 -->
+        <Button
+            android:id="@+id/open_manager"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:text="@string/browse_manage_on" />
+
     </LinearLayout>
 
     <!-- clipChildren=false: a focused row scales up and must not be clipped at the list edges. -->

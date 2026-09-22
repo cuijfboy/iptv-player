@@ -125,9 +125,12 @@ class EpgNetworkSampleTest {
 
         // 3. The pipeline.
         val repository = RoomEpgRepository(database.channelDao(), database.programmeDao(), clock)
+        // P3-4: capture what one run publishes to the manual-binding picker.
+        val guideCatalog = RoomFixtures.InMemoryEpgChannelCatalog()
         val useCase = LoadEpgUseCase(
             providers = providers,
             repository = repository,
+            channelCatalog = guideCatalog,
             channelDao = database.channelDao(),
             epgSourceDao = database.epgSourceDao(),
             programmeDao = database.programmeDao(),
@@ -188,6 +191,15 @@ class EpgNetworkSampleTest {
                 "matchMiss=${logger.codes.count { it == "EPG_MATCH_MISS" }} " +
                 "coverage=${logger.codes.count { it == "EPG_COVERAGE" }}",
         )
+        // P3-4: what the manual-binding picker would show, and whether the three documented gaps exist
+        // in the guide at all (the "该 guide 无此频道" demo).
+        println("p3-4-guide-catalog: entries=${guideCatalog.written.size}")
+        listOf("TVB星河频道", "澳视澳门", "中天新闻").forEach { gap ->
+            val hits = guideCatalog.written.filter {
+                it.displayName.contains(gap, ignoreCase = true) || it.id.contains(gap, ignoreCase = true)
+            }
+            println("p3-4-gap: '$gap' -> hits=${hits.size} ${hits.map { it.id }}")
+        }
 
         database.close()
         // The sample asserts only that the run happened and produced something; the numbers are the point.

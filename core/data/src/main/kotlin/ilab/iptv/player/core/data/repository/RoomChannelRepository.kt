@@ -3,9 +3,11 @@ package ilab.iptv.player.core.data.repository
 import ilab.iptv.player.core.common.Clock
 import ilab.iptv.player.core.data.catalog.RoomCatalogSeeder
 import ilab.iptv.player.core.data.mapper.PersistenceMapper
+import ilab.iptv.player.core.database.IptvDatabase
 import ilab.iptv.player.core.database.dao.ChannelDao
 import ilab.iptv.player.core.database.dao.ChannelOrder
 import ilab.iptv.player.core.database.dao.ChannelWithStreamRows
+import ilab.iptv.player.core.database.dao.StreamDao
 import ilab.iptv.player.core.domain.channel.ChannelGrouping
 import ilab.iptv.player.core.domain.channel.ChannelSorter
 import ilab.iptv.player.core.domain.repository.ChannelRepository
@@ -19,6 +21,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import androidx.room.withTransaction
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -40,6 +43,8 @@ import javax.inject.Singleton
 @Singleton
 class RoomChannelRepository @Inject constructor(
     private val channelDao: ChannelDao,
+    private val streamDao: StreamDao,
+    private val database: IptvDatabase,
     private val seeder: RoomCatalogSeeder,
     private val clock: Clock,
 ) : ChannelRepository {
@@ -102,6 +107,70 @@ class RoomChannelRepository @Inject constructor(
     }
 
     /**
+     * P3-4 rename: writes `display_name` only. `name` / `name_key` are source-owned by design (they
+     * are the refresh's upsert key and the EPG matcher's lookup key), so a rename must not touch them.
+     */
+    override suspend fun rename(channelId: Long, displayName: String?) {
+        channelDao.setDisplayName(channelId, displayName?.takeIf { it.isNotBlank() }, clock.nowMs())
+    }
+
+    /** P3-4 move-group: writes `user_group_title`; the effective key is derived by `ChannelGrouping`. */
+    override suspend fun setUserGroup(channelId: Long, groupTitle: String?) {
+        channelDao.setUserGroupTitle(channelId, groupTitle?.takeIf { it.isNotBlank() }, clock.nowMs())
+    }
+
+    /**
+     * P3-4 batch delete. The rows (and their streams, via the §5.1 cascade) are gone; the caller holds
+     * the snapshots [restoreChannels] needs. Chunked so a very large selection cannot hit SQLite's
+     * bound-parameter cap on the `IN (...)` list.
+     */
+    override suspend fun deleteChannels(channelIds: List<Long>): Int {
+        if (channelIds.isEmpty()) return 0
+        var removed = 0
+        for (batch in channelIds.distinct().chunked(DELETE_BATCH)) {
+            removed += database.withTransaction { channelDao.deleteByIds(batch) }
+        }
+        return removed
+    }
+
+    /**
+     * P3-4 undo of a batch delete. Re-inserts the snapshot ids-included where the identity is free; if
+     * a refresh already re-created the row (same `(name_key, group_key)`), the existing row is updated
+     * instead, so the undo merges rather than throws.
+     */
+    override suspend fun restoreChannels(items: List<ChannelWithStreams>): Int {
+        if (items.isEmpty()) return 0
+        val nowMs = clock.nowMs()
+        var restored = 0
+        database.withTransaction {
+            for (item in items) {
+                val entity = PersistenceMapper.toEntity(item.channel, nowMs)
+                // Prefer the original id so the undo is invisible to `play_history` and to anything the
+                // user had open; fall back to the identity, then to a fresh row, in that order.
+                val byIdentity = channelDao.findByKey(entity.nameKey, entity.groupKey)
+                val channelId = when {
+                    byIdentity != null -> {
+                        channelDao.update(entity.copy(id = byIdentity.id))
+                        byIdentity.id
+                    }
+
+                    channelDao.findIdOrNull(entity.id) != null -> {
+                        channelDao.update(entity)
+                        entity.id
+                    }
+
+                    else -> channelDao.insert(entity)
+                }
+                streamDao.upsertAll(
+                    item.streams.map { PersistenceMapper.toEntity(it.copy(channelId = channelId)) },
+                )
+                restored++
+            }
+        }
+        return restored
+    }
+
+    /**
      * The coarse classification is recovered from `group_key` because `group_key` *is* the normalized
      * group title and the classifier normalizes its input (see `PersistenceMapper`), so summing the
      * `GROUP BY group_key` counts per classification gives exactly what the in-memory map gave.
@@ -126,5 +195,10 @@ class RoomChannelRepository @Inject constructor(
         // The list's display order is the domain's [ChannelSorter] contract (docs/02 §8.1/§8.2), and it
         // is the same comparator the in-memory implementation used — SQL only got the rows cheaply.
         return filtered.sortedWith(compareBy(ChannelSorter.comparator) { it.channel })
+    }
+
+    private companion object {
+        /** SQLite caps a statement at 999 bound parameters; a delete batch stays well under it. */
+        const val DELETE_BATCH = 500
     }
 }

@@ -15,6 +15,10 @@ import ilab.iptv.player.core.data.dispatchers.TestDispatcherProvider
 import ilab.iptv.player.core.data.repository.RoomStreamRepository
 import ilab.iptv.player.core.data.store.RoomCatalogWriter
 import ilab.iptv.player.core.database.IptvDatabase
+import ilab.iptv.player.core.domain.repository.EpgChannelCatalog
+import ilab.iptv.player.core.model.EpgChannelRef
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -45,6 +49,21 @@ internal object RoomFixtures {
 
     fun clock(at: Long = 1_700_000_000_000L): Clock = object : Clock {
         override fun nowMs(): Long = at
+    }
+
+    /**
+     * P3-4 test double for the guide catalogue: keeps the last [replaceAll] in memory so a test can
+     * assert what one EPG run published to the manual-binding picker.
+     */
+    class InMemoryEpgChannelCatalog : EpgChannelCatalog {
+        private val state = MutableStateFlow<List<EpgChannelRef>>(emptyList())
+        val written: List<EpgChannelRef> get() = state.value
+
+        override fun observe(): Flow<List<EpgChannelRef>> = state
+
+        override suspend fun replaceAll(refs: List<EpgChannelRef>) {
+            state.value = refs
+        }
     }
 
     /** A [Logger] that remembers what it was told, so the tests can assert the events as well. */
@@ -99,7 +118,13 @@ internal object RoomFixtures {
             channelDao = database.channelDao(),
             logger = logger,
         )
-        val channels = RoomChannelRepository(database.channelDao(), seeder, fixedClock)
+        val channels = RoomChannelRepository(
+            database.channelDao(),
+            database.streamDao(),
+            database,
+            seeder,
+            fixedClock,
+        )
         val streams = RoomStreamRepository(database, database.streamDao(), logger)
     }
 }

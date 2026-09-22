@@ -21,6 +21,17 @@
     android:paddingVertical="8dp"
     tools:targetApi="o">
 
+    <!-- P3-4 多选标记：管理模式下显示 ☑/☐，非管理模式隐藏（GONE 时不占位）。 -->
+    <TextView
+        android:id="@+id/channel_selected"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="12dp"
+        android:textColor="#FF8AB4F8"
+        android:textSize="20sp"
+        android:visibility="gone"
+        tools:text="☑" />
+
     <TextView
         android:id="@+id/channel_number"
         android:layout_width="80dp"

@@ -99,6 +99,10 @@ abstract class ChannelDao {
     @Query("SELECT id FROM channel")
     abstract suspend fun allIds(): List<Long>
 
+    /** The rows behind an id batch — the snapshot a P3-4 batch delete keeps for its undo. */
+    @Query("SELECT * FROM channel WHERE id IN (:channelIds) ORDER BY id ASC")
+    abstract suspend fun byIds(channelIds: List<Long>): List<ChannelEntity>
+
     @Query("SELECT group_key, COUNT(*) AS count FROM channel GROUP BY group_key")
     abstract suspend fun countByGroupKey(): List<GroupCountRow>
 
@@ -186,9 +190,10 @@ abstract class ChannelDao {
      * - **source-owned** (`name`, `name_key`, `group_key`, `group_title`, `logo`, `tvg_id`): taken from
      *   the incoming row — this is the refresh.
      * - **user-owned** (`favorite`, `hidden`, `sort_order`, `channel_no`, `epg_channel_id`,
-     *   `epg_match`): kept from the stored row. docs/01 F5 is explicit that a user edit outranks the
-     *   source, so a refresh must not unhide a channel, un-favourite it, re-sort it or drop its EPG
-     *   binding. `created_at` is kept too; `updated_at` comes from the incoming row.
+     *   `epg_match`, `display_name`, `user_group_title`): kept from the stored row. docs/01 F5 is
+     *   explicit that a user edit outranks the source, so a refresh must not unhide a channel,
+     *   un-favourite it, re-sort it, rename it back, move it back or drop its EPG binding. `created_at`
+     *   is kept too; `updated_at` comes from the incoming row.
      *
      * `channel_no` is the one imperfect case: D12 wants *user edit > source `tvg-chno` > auto*, and
      * §5.1 has a single column with no origin flag, so "keep the stored value, take the incoming one
@@ -222,6 +227,8 @@ abstract class ChannelDao {
         channelNo = existing.channelNo ?: incoming.channelNo,
         epgChannelId = existing.epgChannelId ?: incoming.epgChannelId,
         epgMatch = if (existing.epgMatch == "NONE") incoming.epgMatch else existing.epgMatch,
+        displayName = existing.displayName,
+        userGroupTitle = existing.userGroupTitle,
     )
 
     @Query("UPDATE channel SET favorite = :favorite, updated_at = :updatedAt WHERE id = :channelId")
@@ -233,6 +240,17 @@ abstract class ChannelDao {
     /** docs/01 F5 / D12 tier 1: a user-typed number. `null` clears it back to the source value. */
     @Query("UPDATE channel SET channel_no = :channelNo, updated_at = :updatedAt WHERE id = :channelId")
     abstract suspend fun setChannelNo(channelId: Long, channelNo: Int?, updatedAt: Long): Int
+
+    /**
+     * P3-4 rename. `display_name` is the user's overlay; `name` / `name_key` are never touched, so the
+     * `UNIQUE(name_key, group_key)` identity — and with it the EPG match key — survives a rename.
+     */
+    @Query("UPDATE channel SET display_name = :displayName, updated_at = :updatedAt WHERE id = :channelId")
+    abstract suspend fun setDisplayName(channelId: Long, displayName: String?, updatedAt: Long): Int
+
+    /** P3-4 move-group. `group_key` / `group_title` stay the source's; this is the display overlay. */
+    @Query("UPDATE channel SET user_group_title = :groupTitle, updated_at = :updatedAt WHERE id = :channelId")
+    abstract suspend fun setUserGroupTitle(channelId: Long, groupTitle: String?, updatedAt: Long): Int
 
     @Query(
         """
