@@ -4,6 +4,7 @@ import androidx.media3.common.PlaybackException
 import com.google.common.truth.Truth.assertThat
 import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.common.FailureClass
+import ilab.iptv.player.core.common.FailureOrigin
 import org.junit.Test
 
 /** docs/02 §4.6 现象 → FailureClass → retryable, pinned per media3 error code. */
@@ -65,6 +66,39 @@ class PlaybackErrorMapperTest {
         val mapped = mapper.classify(PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND, "FILE_NOT_FOUND")
         assertThat(mapped.failure).isEqualTo(FailureClass.HTTP_CLIENT)
         assertThat(mapped.httpStatus).isEqualTo(404)
+    }
+
+    // ---- 环境闸门 (docs/05 66): 418/451/511/605 are a gate, not a source verdict ---------------
+
+    @Test
+    fun `gateway statuses are flagged ENV_GATED and stay retryable`() {
+        listOf(418, 451, 511, 605).forEach { status ->
+            val mapped = mapper.classify(PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS, "BAD_HTTP", httpCause(status))
+            assertThat(mapped.httpStatus).isEqualTo(status)
+            assertThat(mapped.origin).isEqualTo(FailureOrigin.ENV_GATED)
+            assertThat(mapped.retryable).isTrue()
+        }
+    }
+
+    @Test
+    fun `a plain source refusal keeps SOURCE origin and is not retryable`() {
+        // Negative control for the gate set: 403/404/410 are the source itself saying "gone", so
+        // they keep the frozen HTTP_CLIENT meaning (and, upstream, the permanent demotion).
+        listOf(403, 404, 410).forEach { status ->
+            val mapped = mapper.classify(PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS, "BAD_HTTP", httpCause(status))
+            assertThat(mapped.failure).isEqualTo(FailureClass.HTTP_CLIENT)
+            assertThat(mapped.origin).isEqualTo(FailureOrigin.SOURCE)
+            assertThat(mapped.retryable).isFalse()
+        }
+    }
+
+    @Test
+    fun `a 511 or 605 gate status is HTTP_SERVER in class but still an environment origin`() {
+        listOf(511, 605).forEach { status ->
+            val mapped = mapper.classify(PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS, "BAD_HTTP", httpCause(status))
+            assertThat(mapped.failure).isEqualTo(FailureClass.HTTP_SERVER)
+            assertThat(mapped.origin).isEqualTo(FailureOrigin.ENV_GATED)
+        }
     }
 
     @Test

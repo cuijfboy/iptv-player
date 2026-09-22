@@ -2,8 +2,10 @@ package ilab.iptv.player.core.source.deep
 
 import ilab.iptv.player.core.common.AppError
 import ilab.iptv.player.core.common.AppResult
+import ilab.iptv.player.core.common.EnvGate
 import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.common.FailureClass
+import ilab.iptv.player.core.common.FailureOrigin
 import ilab.iptv.player.core.common.LogCategory
 import ilab.iptv.player.core.common.Logger
 import ilab.iptv.player.core.model.CodecIds
@@ -76,7 +78,9 @@ class DeepProbeValidator(
         if (body.status !in 200..399) {
             return fail(
                 detail = "playlist http ${body.status}",
-                evidence = baseEvidence(body, timeoutMs, phase = "playlist") + ("failure" to FailureClass.HTTP_CLIENT.name),
+                evidence = baseEvidence(body, timeoutMs, phase = "playlist") +
+                    ("failure" to FailureClass.HTTP_CLIENT.name) +
+                    ("origin" to originOf(body.status)),
             )
         }
 
@@ -248,6 +252,8 @@ class DeepProbeValidator(
         detail = "unreachable (${error.failure.name}${error.httpStatus?.let { " http $it" } ?: ""})",
         evidence = mapOf(
             "failure" to error.failure.name,
+            // 只加字段不加码 (docs/05 66): ENV_GATED keeps a gate refusal out of the source's score.
+            "origin" to error.origin.name,
             "status" to error.httpStatus,
             "phase" to phase,
             "codecSource" to "unknown",
@@ -303,6 +309,7 @@ class DeepProbeValidator(
             put("ms", costMs)
             put("timeoutMs", timeoutMs)
             failure?.let { put("failure", it.name) }
+            put("origin", originOf(segmentStatus))
         }
 
         companion object {
@@ -335,3 +342,7 @@ class DeepProbeValidator(
         }
     }
 }
+
+/** 环境闸门 (docs/05 66): classify a raw HTTP status as a source fault or an environment gate. */
+private fun originOf(status: Int?): String =
+    if (EnvGate.isGated(status)) FailureOrigin.ENV_GATED.name else FailureOrigin.SOURCE.name

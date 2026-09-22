@@ -6,6 +6,7 @@ import ilab.iptv.player.core.common.AppResult
 import ilab.iptv.player.core.common.Clock
 import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.common.FailureClass
+import ilab.iptv.player.core.common.FailureOrigin
 import ilab.iptv.player.core.common.LogCategory
 import ilab.iptv.player.core.common.Logger
 import ilab.iptv.player.core.common.SessionIdFactory
@@ -146,6 +147,7 @@ class RefreshSourcesUseCase @Inject constructor(
                 channelIndex = listOfNotNull(channel).associateBy { it.id },
                 candidates = candidates,
                 shallowFailed = emptySet(),
+                shallowEnvGated = emptySet(),
                 freshIds = candidates.filter { isFresh(it, nowMs) }.map { it.id }.toSet(),
                 budget = budget,
                 governor = governor,
@@ -224,6 +226,7 @@ class RefreshSourcesUseCase @Inject constructor(
             channelIndex = resolved.channels.associateBy { it.id },
             candidates = persisted,
             shallowFailed = shallow.failedIds,
+            shallowEnvGated = shallow.envGatedIds,
             freshIds = shallow.skippedIds,
             budget = budget,
             governor = governor,
@@ -253,6 +256,7 @@ class RefreshSourcesUseCase @Inject constructor(
         channelIndex: Map<Long, Channel>,
         candidates: List<Stream>,
         shallowFailed: Set<Long>,
+        shallowEnvGated: Set<Long>,
         freshIds: Set<Long>,
         budget: RefreshBudget,
         governor: ConcurrencyGovernor,
@@ -276,6 +280,10 @@ class RefreshSourcesUseCase @Inject constructor(
         val verify = HashMap<Long, Verification>(candidates.size)
         for (stream in candidates) {
             verify[stream.id] = when {
+                // 环境闸门 (docs/05 66): no verdict about the source — keep its stored score and
+                // health, do not deep-probe it, and leave it selectable if it was verified before.
+                stream.id in shallowEnvGated ->
+                    Verification.envGated(verified = stream.failCount == 0 && stream.lastOkAtMs != null)
                 stream.id in shallowFailed -> Verification.failed("shallow validation failed")
                 stream.id in freshIds ->
                     Verification.reused(verified = stream.failCount == 0 && stream.lastOkAtMs != null)
@@ -315,7 +323,15 @@ class RefreshSourcesUseCase @Inject constructor(
                 }.awaitAll()
             }
         }
-        for ((stream, result) in probed) verify[stream.id] = Verification.probed(result)
+        for ((stream, result) in probed) {
+            // 环境闸门 (docs/05 66): a deep probe the gate refused is not a source verdict either —
+            // keep the row's standing instead of booking a failure against a source we never reached.
+            verify[stream.id] = if (isEnvGated(result)) {
+                Verification.envGated(verified = stream.failCount == 0 && stream.lastOkAtMs != null)
+            } else {
+                Verification.probed(result)
+            }
+        }
         val deepOk = probed.count { it.second.passed }
         val deepFail = probed.size - deepOk
         emit(progress(RefreshPhase.DEEP, probed.size, candidates.size, deepOk, deepFail, startedAt, interruption))
@@ -445,6 +461,11 @@ class RefreshSourcesUseCase @Inject constructor(
                 // Fresh: the stream was verified within its TTL, so its score and health stand; only
                 // the selection verdict is (re)written.
                 VerificationKind.REUSED -> stream.copy(disabled = !selected)
+                // 环境闸门 (docs/05 66): the run has no verdict about this source, so its score and
+                // health are left untouched — only the selection verdict is refreshed, exactly as a
+                // reused (fresh) stream. An env-gated refusal must never be persisted as a source
+                // failure (no score drop, no failCount bump, no cleared healthy stamp).
+                VerificationKind.ENV_GATED -> stream.copy(disabled = !selected)
                 // Not admitted before the deadline: this run has no deep verdict, so the row keeps
                 // everything the store already holds — including the shallow verdict this run recorded
                 // a moment ago (`StreamRepository.recordOutcome`). Writing the pre-shallow snapshot
@@ -714,17 +735,27 @@ class RefreshSourcesUseCase @Inject constructor(
         var okCount = 0
         var failCount = 0
         for ((stream, result) in verdicts) {
-            if (result.passed) okCount++ else failCount++
-            streamRepository.recordOutcome(
-                stream.id,
-                StreamOutcome(
-                    streamId = stream.id,
-                    ok = result.passed,
-                    atMs = clock.nowMs(),
-                    detail = result.detail,
-                    failure = failureOf(result.evidence),
-                ),
-            )
+            val gated = isEnvGated(result)
+            if (result.passed) {
+                okCount++
+            } else if (!gated) {
+                failCount++
+            }
+            // 环境闸门 (docs/05 66): a gate refusal is not a verdict about the source, so it is not
+            // written as a source outcome (no `play_history` failure, no failCount) — the row keeps
+            // its standing until a later run gets a real answer.
+            if (!gated) {
+                streamRepository.recordOutcome(
+                    stream.id,
+                    StreamOutcome(
+                        streamId = stream.id,
+                        ok = result.passed,
+                        atMs = clock.nowMs(),
+                        detail = result.detail,
+                        failure = failureOf(result.evidence),
+                    ),
+                )
+            }
         }
         return ShallowStage(
             checked = verdicts.size,
@@ -732,7 +763,11 @@ class RefreshSourcesUseCase @Inject constructor(
             failed = failCount,
             skipped = skipped.size,
             skippedIds = skipped.map { it.id }.toSet(),
-            failedIds = verdicts.filterNot { it.second.passed }.map { it.first.id }.toSet(),
+            failedIds = verdicts
+                .filterNot { it.second.passed || isEnvGated(it.second) }
+                .map { it.first.id }
+                .toSet(),
+            envGatedIds = verdicts.filter { isEnvGated(it.second) }.map { it.first.id }.toSet(),
             interruption = interruption,
         )
     }
@@ -794,6 +829,13 @@ class RefreshSourcesUseCase @Inject constructor(
             FailureClass.entries.firstOrNull { it.name == name }
         }
 
+    /**
+     * 环境闸门 (docs/05 66): a probe the gate refused carries `origin=ENV_GATED` — that is a fact
+     * about this network, not a verdict about the source, so it must not move the source's score.
+     */
+    private fun isEnvGated(result: ValidationResult): Boolean =
+        result.evidence[EVIDENCE_ORIGIN] == FailureOrigin.ENV_GATED.name
+
     /** `SRC_SCORE` logs a URL digest, not the URL: the log is exportable (docs/03 §11 脱敏). */
     private fun urlDigest(url: String): String =
         url.substringBefore("://", missingDelimiterValue = "") + "://…/" + url.substringAfterLast('/').take(12)
@@ -842,10 +884,12 @@ class RefreshSourcesUseCase @Inject constructor(
         val skipped: Int,
         val skippedIds: Set<Long>,
         val failedIds: Set<Long>,
+        /** Streams the network's gate refused (docs/05 66): no verdict about the source itself. */
+        val envGatedIds: Set<Long>,
         val interruption: RefreshInterruption?,
     )
 
-    private enum class VerificationKind { PROBED, REUSED, PENDING }
+    private enum class VerificationKind { PROBED, REUSED, PENDING, ENV_GATED }
 
     /**
      * What this run knows about one stream's playability:
@@ -872,6 +916,13 @@ class RefreshSourcesUseCase @Inject constructor(
             fun reused(verified: Boolean): Verification =
                 Verification(VerificationKind.REUSED, verified, ValidationResult(verified, "fresh (TTL)"))
 
+            /** 环境闸门 (docs/05 66): the run has no verdict about the source — keep its standing. */
+            fun envGated(verified: Boolean): Verification = Verification(
+                VerificationKind.ENV_GATED,
+                verified,
+                ValidationResult(passed = verified, detail = "env-gated (no source verdict)"),
+            )
+
             fun failed(detail: String): Verification = Verification(
                 VerificationKind.PROBED,
                 verified = false,
@@ -888,5 +939,10 @@ class RefreshSourcesUseCase @Inject constructor(
                 result = ValidationResult(false, "not probed this run"),
             )
         }
+    }
+
+    /** Evidence key carrying [FailureOrigin] (docs/05 66). Shared by shallow and deep validators. */
+    private companion object {
+        const val EVIDENCE_ORIGIN = "origin"
     }
 }

@@ -3,6 +3,7 @@ package ilab.iptv.player.core.domain.playback
 import ilab.iptv.player.core.common.AppError
 import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.common.FailureClass
+import ilab.iptv.player.core.common.FailureOrigin
 import ilab.iptv.player.core.model.Stream
 
 /*
@@ -117,7 +118,14 @@ class DefaultFailoverPolicy(
 
     private fun decideFailure(input: FailoverInput, failure: AppError): FailoverAction {
         val plan = FailurePolicies.plan(failure.failure)
-        if (plan.demotion == StreamDemotion.PERMANENT) {
+        /*
+         * 环境闸门 (docs/05 66): a failure the network's gate caused (FailureOrigin.ENV_GATED —
+         * HTTP 418/451/511/605) still switches this round via its §4.6 recipe, but it must NOT be
+         * booked as a source that answered "gone": no permanent demotion, so the stream stays
+         * selectable in a later round. A genuine source refusal (403/404/410, FailureOrigin.SOURCE)
+         * keeps its permanent demotion untouched.
+         */
+        if (plan.demotion == StreamDemotion.PERMANENT && failure.origin != FailureOrigin.ENV_GATED) {
             input.activeStreamId?.let(permanentlyDemoted::add)
         }
         /*

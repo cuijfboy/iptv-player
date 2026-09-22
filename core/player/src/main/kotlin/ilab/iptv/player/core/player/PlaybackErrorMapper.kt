@@ -2,8 +2,10 @@ package ilab.iptv.player.core.player
 
 import androidx.media3.common.PlaybackException
 import ilab.iptv.player.core.common.AppError
+import ilab.iptv.player.core.common.EnvGate
 import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.common.FailureClass
+import ilab.iptv.player.core.common.FailureOrigin
 
 /**
  * Reads an HTTP status out of a media3 error's cause chain without importing the datasource classes.
@@ -133,13 +135,18 @@ class PlaybackErrorMapper(private val httpStatus: HttpStatusReader = HttpStatusR
      */
     private fun httpError(status: Int, errorCodeName: String, cause: Throwable?): AppError {
         val serverSide = status >= 500 || status == 429 || status == 408
+        // 环境闸门 (docs/05 66): a gateway/WAF/CDN refusal (418/451/511/605) is not a source fault.
+        // It is filed with FailureOrigin.ENV_GATED so the failover policy switches this round
+        // without the permanent demotion a plain HTTP_CLIENT would earn, and stays retryable.
+        val gated = EnvGate.isGated(status)
         return AppError(
             code = EventCodes.PLAY_PREPARE_FAIL,
             failure = if (serverSide) FailureClass.HTTP_SERVER else FailureClass.HTTP_CLIENT,
-            retryable = serverSide,
+            retryable = serverSide || gated,
             httpStatus = status,
             detail = "HTTP $status ($errorCodeName)",
             cause = cause,
+            origin = if (gated) FailureOrigin.ENV_GATED else FailureOrigin.SOURCE,
         )
     }
 }

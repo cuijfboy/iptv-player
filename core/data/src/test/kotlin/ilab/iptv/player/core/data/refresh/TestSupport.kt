@@ -127,7 +127,7 @@ class FakeStreamValidator(
         return if (pass) {
             ValidationResult(true, "ok", evidence ?: mapOf("status" to 200))
         } else {
-            ValidationResult(false, "http 500", mapOf("failure" to "HTTP_SERVER", "status" to 500))
+            ValidationResult(false, "http 500", evidence ?: mapOf("failure" to "HTTP_SERVER", "status" to 500))
         }
     }
 }

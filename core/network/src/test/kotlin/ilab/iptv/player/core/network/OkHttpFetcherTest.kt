@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import ilab.iptv.player.core.common.AppResult
 import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.common.FailureClass
+import ilab.iptv.player.core.common.FailureOrigin
 import java.net.UnknownHostException
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
@@ -127,6 +128,26 @@ class OkHttpFetcherTest {
         assertThat(error.failure).isEqualTo(FailureClass.HTTP_CLIENT)
         assertThat(error.httpStatus).isEqualTo(404)
         assertThat(attempts).isEqualTo(1)
+    }
+
+    // ---- 环境闸门 (docs/05 66): the transport keeps the origin flag on the AppError ------------
+
+    @Test
+    fun `a gateway status surfaces as an ENV_GATED, still-retryable error`() {
+        // A local in-process HTTP stub (an OkHttp interceptor — no socket, no network).
+        listOf(418, 451, 511, 605).forEach { code ->
+            val error = (fetch(client { response(code, "") }) as AppResult.Err).error
+            assertThat(error.httpStatus).isEqualTo(code)
+            assertThat(error.origin).isEqualTo(FailureOrigin.ENV_GATED)
+            assertThat(error.retryable).isTrue()
+        }
+    }
+
+    @Test
+    fun `a plain 403 refusal stays a SOURCE origin on the error`() {
+        val error = (fetch(client { response(403, "") }) as AppResult.Err).error
+        assertThat(error.origin).isEqualTo(FailureOrigin.SOURCE)
+        assertThat(error.retryable).isFalse()
     }
 
     @Test

@@ -82,6 +82,9 @@ class PlaybackEventLogger(private val logger: Logger, private val sessionId: Str
             mapOf(
                 "engine" to engineId,
                 "failure" to error.failure.name,
+                // 只加字段不加码 (docs/05 66): lets a reader tell an environment-gate refusal
+                // (origin=ENV_GATED, e.g. HTTP 418/605) from a real source failure in one line.
+                "origin" to error.origin.name,
                 "httpStatus" to error.httpStatus,
                 "attempt" to attempt,
                 "detail" to error.detail,

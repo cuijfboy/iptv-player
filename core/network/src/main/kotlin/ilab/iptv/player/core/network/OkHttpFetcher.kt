@@ -319,6 +319,8 @@ class OkHttpFetcher(
                 "url" to request.url,
                 "status" to error.httpStatus,
                 "failure" to error.failure.name,
+                // 只加字段不加码 (docs/05 66): ENV_GATED = a gateway/WAF/CDN gate, not the source.
+                "origin" to error.origin.name,
                 "attempt" to attempt,
                 "retryable" to error.retryable,
             ),

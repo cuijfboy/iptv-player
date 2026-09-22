@@ -2,7 +2,9 @@ package ilab.iptv.player.core.source.validate
 
 import ilab.iptv.player.core.common.AppError
 import ilab.iptv.player.core.common.AppResult
+import ilab.iptv.player.core.common.EnvGate
 import ilab.iptv.player.core.common.EventCodes
+import ilab.iptv.player.core.common.FailureOrigin
 import ilab.iptv.player.core.common.LogCategory
 import ilab.iptv.player.core.common.Logger
 import ilab.iptv.player.core.model.ProbeContext
@@ -91,6 +93,9 @@ class ShallowReachabilityValidator(
                 detail = failureDetail(get.error),
                 evidence = mapOf(
                     "failure" to get.error.failure.name,
+                    // 只加字段不加码 (docs/05 66): the caller reads this to keep an environment-gate
+                    // refusal (418/451/511/605) from being booked as the source going dead.
+                    "origin" to get.error.origin.name,
                     "status" to get.error.httpStatus,
                     "timeoutMs" to timeoutMs,
                     "phase" to "get",
@@ -124,6 +129,7 @@ class ShallowReachabilityValidator(
             "costMs" to response.elapsedMs,
             "timeoutMs" to timeoutMs,
             "phase" to phase,
+            "origin" to if (EnvGate.isGated(response.status)) FailureOrigin.ENV_GATED.name else FailureOrigin.SOURCE.name,
         )
 
     private fun failureDetail(error: AppError): String =

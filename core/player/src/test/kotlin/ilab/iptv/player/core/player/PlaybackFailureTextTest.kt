@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import ilab.iptv.player.core.common.AppError
 import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.common.FailureClass
+import ilab.iptv.player.core.common.FailureOrigin
 import org.junit.Test
 
 /**
@@ -56,10 +57,30 @@ class PlaybackFailureTextTest {
         assertThat(text).doesNotContain("null")
     }
 
-    private fun error(failure: FailureClass, retryable: Boolean = false, status: Int? = null) = AppError(
+    @Test
+    fun `an environment gate is named as the gate, not as an unavailable source`() {
+        // 418 is a gate refusal (docs/05 66): the TV must not claim the channel's own source is dead.
+        val text = PlaybackFailureText.of(
+            error(FailureClass.HTTP_CLIENT, retryable = true, status = 418, origin = FailureOrigin.ENV_GATED),
+        )
+        assertThat(text).contains("未放行")
+        assertThat(text).contains("HTTP 418")
+        assertThat(text).contains("重试")
+        assertThat(text).doesNotContain("该频道源不可用")
+        assertThat(PlaybackFailureText.shortLabel(error(FailureClass.HTTP_CLIENT, status = 418, origin = FailureOrigin.ENV_GATED)))
+            .isEqualTo("网关未放行")
+    }
+
+    private fun error(
+        failure: FailureClass,
+        retryable: Boolean = false,
+        status: Int? = null,
+        origin: FailureOrigin = FailureOrigin.SOURCE,
+    ) = AppError(
         code = EventCodes.PLAY_PREPARE_FAIL,
         failure = failure,
         retryable = retryable,
         httpStatus = status,
+        origin = origin,
     )
 }

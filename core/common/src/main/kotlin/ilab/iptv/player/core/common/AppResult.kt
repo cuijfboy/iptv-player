@@ -42,6 +42,36 @@ enum class FailureClass {
 }
 
 /**
+ * Where a failure came from (docs/05 66 环境闸门治理).
+ *
+ * The same wire symptom can mean two very different things: the source answered for itself and
+ * refused us ([SOURCE]), or a gateway / WAF / CDN / proxy in front of the source refused the
+ * request before it ever reached the source ([ENV_GATED]). Only the first is a statement about
+ * source quality; the second is this network's gate and must not be booked against the source.
+ */
+enum class FailureOrigin {
+    /** The source (or its own CDN) answered: the failure is about this source's quality. */
+    SOURCE,
+
+    /** An environment gate in front of the source refused the request: not a source fault. */
+    ENV_GATED,
+}
+
+/**
+ * The non-standard HTTP statuses a gateway / WAF / CDN gate returns instead of the source's own
+ * answer (docs/05 §50 / §31): `418` from CloudWAF, `605` from the miguvideo CDN, plus the
+ * `451`/`511` family seen while scanning the fake-IP range.
+ *
+ * These are deliberately **not** the plain 403/404/410 "this source is gone" codes: those keep
+ * their existing §4.6 meaning (`HTTP_CLIENT` → `SwitchTo(next)` + permanent demotion).
+ */
+object EnvGate {
+    val HTTP_STATUSES: Set<Int> = setOf(418, 451, 511, 605)
+
+    fun isGated(status: Int?): Boolean = status != null && status in HTTP_STATUSES
+}
+
+/**
  * A structured, redacted failure. [code] must come from `EventCodes` (docs/03 §3.3).
  * Use the factories — business code must not pick a [FailureClass] by hand.
  */
@@ -52,15 +82,29 @@ data class AppError(
     val httpStatus: Int? = null,
     val detail: String? = null,
     val cause: Throwable? = null,
+    /**
+     * Source fault vs environment gate (docs/05 66). Defaults to [FailureOrigin.SOURCE] so every
+     * pre-existing construction site — including the factories below — keeps its old meaning.
+     */
+    val origin: FailureOrigin = FailureOrigin.SOURCE,
 ) {
     companion object {
-        fun http(status: Int, code: String, cause: Throwable? = null): AppError = AppError(
-            code = code,
-            failure = if (status in 400..499) FailureClass.HTTP_CLIENT else FailureClass.HTTP_SERVER,
-            retryable = status >= 500 || status == 408 || status == 429,
-            httpStatus = status,
-            cause = cause,
-        )
+        /**
+         * An HTTP answer. A gateway/WAF/CDN status ([EnvGate]) is filed as [FailureOrigin.ENV_GATED]
+         * and stays retryable (env_gated: 本轮切换/退避, 不永久降权 — docs/05 66); every other status
+         * keeps the P0 split (4xx → `HTTP_CLIENT`, 5xx/408/429 → `HTTP_SERVER`).
+         */
+        fun http(status: Int, code: String, cause: Throwable? = null): AppError {
+            val gated = EnvGate.isGated(status)
+            return AppError(
+                code = code,
+                failure = if (status in 400..499) FailureClass.HTTP_CLIENT else FailureClass.HTTP_SERVER,
+                retryable = status >= 500 || status == 408 || status == 429 || gated,
+                httpStatus = status,
+                cause = cause,
+                origin = if (gated) FailureOrigin.ENV_GATED else FailureOrigin.SOURCE,
+            )
+        }
 
         fun timeout(code: String, cause: Throwable? = null): AppError =
             AppError(code, FailureClass.TIMEOUT, retryable = true, cause = cause)

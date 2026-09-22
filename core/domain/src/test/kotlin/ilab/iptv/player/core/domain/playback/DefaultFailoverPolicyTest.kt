@@ -1,6 +1,8 @@
 package ilab.iptv.player.core.domain.playback
 
 import com.google.common.truth.Truth.assertThat
+import ilab.iptv.player.core.common.AppError
+import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.common.FailureClass
 import ilab.iptv.player.core.model.Stream
 import ilab.iptv.player.core.model.StreamHealth
@@ -51,6 +53,51 @@ class DefaultFailoverPolicyTest {
         // The demoted stream is not a target any more: only the active stream is left → fresh resolve.
         val again = decide(FailureClass.HTTP_CLIENT, activeStreamId = 11L)
         assertThat(again).isInstanceOf(FailoverAction.ResolveFresh::class.java)
+    }
+
+    // ---- 环境闸门 (docs/05 66): 418/451/511/605 switch this round but earn no permanent demotion ---
+
+    @Test
+    fun `an environment-gated refusal switches this round and does not permanently demote the source`() {
+        // Negative control: a plain 4xx (404) DOES demote — see the test above. A gate refusal must
+        // not, because the source was never reached.
+        val action = policy.decide(
+            failoverInput(failure = AppError.http(418, EventCodes.PLAY_PREPARE_FAIL)),
+        )
+        assertThat(action).isInstanceOf(FailoverAction.SwitchTo::class.java)
+        assertThat((action as FailoverAction.SwitchTo).stream.id).isEqualTo(11L)
+        assertThat(policy.demotedStreamIds()).isEmpty()
+    }
+
+    @Test
+    fun `an environment-gated source is selectable again in a later round`() {
+        // Round 1: the active 10 is gated (418) → switch to 11, but 10 stays selectable.
+        policy.decide(failoverInput(activeStreamId = 10L, failure = AppError.http(418, EventCodes.PLAY_PREPARE_FAIL)))
+        // Round 2: the active 11 is also gated → the policy may come straight back to 10.
+        val back = policy.decide(
+            failoverInput(activeStreamId = 11L, failure = AppError.http(451, EventCodes.PLAY_PREPARE_FAIL)),
+        )
+        assertThat(back).isInstanceOf(FailoverAction.SwitchTo::class.java)
+        assertThat((back as FailoverAction.SwitchTo).stream.id).isEqualTo(10L)
+        assertThat(policy.demotedStreamIds()).isEmpty()
+    }
+
+    @Test
+    fun `a gate refusal before a real 404 leaves the gate out of the permanent record`() {
+        // Same stream, same session: 605 first (a gate → backoff this round, no demotion), then 404
+        // (the source itself saying "gone") — only the 404 is booked permanently.
+        val gated = policy.decide(
+            failoverInput(activeStreamId = 10L, attempt = 1, failure = AppError.http(605, EventCodes.PLAY_PREPARE_FAIL)),
+        )
+        assertThat(gated).isInstanceOf(FailoverAction.Backoff::class.java)
+        assertThat(policy.demotedStreamIds()).isEmpty()
+
+        val refused = policy.decide(
+            failoverInput(activeStreamId = 10L, attempt = 2, failure = AppError.http(404, EventCodes.PLAY_PREPARE_FAIL)),
+        )
+        assertThat(refused).isInstanceOf(FailoverAction.SwitchTo::class.java)
+        assertThat((refused as FailoverAction.SwitchTo).stream.id).isEqualTo(11L)
+        assertThat(policy.demotedStreamIds()).containsExactly(10L)
     }
 
     @Test

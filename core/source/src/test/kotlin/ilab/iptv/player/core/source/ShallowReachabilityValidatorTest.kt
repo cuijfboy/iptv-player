@@ -1,6 +1,9 @@
 package ilab.iptv.player.core.source
 
 import com.google.common.truth.Truth.assertThat
+import ilab.iptv.player.core.common.AppError
+import ilab.iptv.player.core.common.EventCodes
+import ilab.iptv.player.core.common.FailureOrigin
 import ilab.iptv.player.core.model.EngineCapability
 import ilab.iptv.player.core.model.ProbeContext
 import ilab.iptv.player.core.model.StreamTarget
@@ -67,6 +70,31 @@ class ShallowReachabilityValidatorTest {
         }
         assertThat(result.passed).isFalse()
         assertThat(result.evidence["failure"]).isEqualTo("TIMEOUT")
+    }
+
+    @Test
+    fun `a gate refusal on the fetch leg is marked ENV_GATED in the evidence`() {
+        // docs/05 66: 418 is the network's gate answering, not the source — the pipeline reads this
+        // so it does not book the refusal against the source's score.
+        val result = runBlocking {
+            ShallowReachabilityValidator(
+                FakeHttpFetcher(FakeHttpFetcher.fail(AppError.http(418, EventCodes.NET_REQ_FAIL))),
+                logger,
+            ).validate(target(), ctx)
+        }
+        assertThat(result.passed).isFalse()
+        assertThat(result.evidence["origin"]).isEqualTo(FailureOrigin.ENV_GATED.name)
+        assertThat(result.evidence["status"]).isEqualTo(418)
+    }
+
+    @Test
+    fun `a non-2xx response body that is a gate status is also marked ENV_GATED`() {
+        // The other shape: a fetcher that hands the status back as an Ok response (some fakes/hosts).
+        val result = runBlocking {
+            ShallowReachabilityValidator(FakeHttpFetcher(FakeHttpFetcher.status(605)), logger).validate(target(), ctx)
+        }
+        assertThat(result.passed).isFalse()
+        assertThat(result.evidence["origin"]).isEqualTo(FailureOrigin.ENV_GATED.name)
     }
 
     @Test

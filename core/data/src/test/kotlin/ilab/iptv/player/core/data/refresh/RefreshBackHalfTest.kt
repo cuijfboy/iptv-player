@@ -328,4 +328,51 @@ class RefreshBackHalfTest {
         assertThat(empty.width).isEqualTo(0)
         assertThat(empty.costMs).isNull()
     }
+
+    // ---- 环境闸门 (docs/05 66): a gate refusal must not write the source's long-term score -------
+
+    @Test
+    fun `an environment-gated shallow refusal keeps the stored score instead of a source failure`() {
+        val clock = FakeClock()
+
+        // Run 1: a clean deep pass gives the stream a real score and a healthy stamp.
+        val clean = useCase(
+            providers = listOf(
+                FakeSourceProvider("a", entries = listOf(namedEntry("CCTV-1", "http://s.invalid/1.m3u8"))),
+            ),
+            validators = listOf(FakeStreamValidator(pass = true), FakeDeepValidator.passing()),
+            clock = clock,
+        )
+        run(clean)
+        val healthy = allStreams().single()
+        assertThat(healthy.score).isEqualTo(100)
+        assertThat(healthy.lastOkAtMs).isNotNull()
+
+        // Past the 24 h healthy TTL, so the next run has to re-probe it.
+        clock.advance(25 * 60 * 60_000L)
+
+        // Run 2: the shallow probe is refused by the network's gate (418, origin=ENV_GATED).
+        val deep = FakeDeepValidator.passing()
+        val gated = useCase(
+            providers = listOf(
+                FakeSourceProvider("a", entries = listOf(namedEntry("CCTV-1", "http://s.invalid/1.m3u8"))),
+            ),
+            validators = listOf(
+                FakeStreamValidator(
+                    pass = false,
+                    evidence = mapOf("failure" to "HTTP_CLIENT", "origin" to "ENV_GATED", "status" to 418),
+                ),
+                deep,
+            ),
+            clock = clock,
+        )
+        run(gated)
+
+        val row = allStreams().single()
+        assertThat(deep.calls).isEmpty() // a gated stream is not deep-probed
+        assertThat(row.score).isEqualTo(healthy.score) // 不写长期 score
+        assertThat(row.failCount).isEqualTo(0) // 不记为源失效
+        assertThat(row.lastOkAtMs).isEqualTo(healthy.lastOkAtMs)
+        assertThat(row.disabled).isFalse() // 仍可被选中
+    }
 }

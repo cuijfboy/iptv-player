@@ -2,6 +2,7 @@ package ilab.iptv.player.core.player
 
 import ilab.iptv.player.core.common.AppError
 import ilab.iptv.player.core.common.FailureClass
+import ilab.iptv.player.core.common.FailureOrigin
 
 /**
  * Turns an [AppError] into the sentence the player screen shows (P1-4 item 3: "失败要有可读提示与重试
@@ -14,22 +15,27 @@ import ilab.iptv.player.core.common.FailureClass
 object PlaybackFailureText {
 
     fun of(error: AppError): String {
-        val reason = when (error.failure) {
-            FailureClass.HTTP_CLIENT -> "该频道源不可用（HTTP ${error.httpStatus ?: "4xx"}）"
-            FailureClass.HTTP_SERVER -> "频道源服务器出错（HTTP ${error.httpStatus ?: "5xx"}）"
-            FailureClass.TIMEOUT -> "连接超时"
-            FailureClass.NET_UNREACHABLE -> "网络不可达"
-            FailureClass.TLS -> "安全连接失败"
-            FailureClass.PARSE -> "流格式无法解析"
-            FailureClass.DECODE_UNSUPPORTED -> "设备不支持该流的编码"
-            FailureClass.DECODE_CORRUPT -> "流数据损坏"
-            FailureClass.EMPTY_MEDIA -> "流里没有媒体内容"
-            FailureClass.PLAYLIST_GONE -> "该频道的所有源都已失效"
-            FailureClass.STORAGE -> "本地存储不可用"
-            FailureClass.PERMISSION -> "缺少权限"
-            FailureClass.NO_CAPABILITY -> "没有可用的播放引擎"
-            FailureClass.CANCELLED -> "播放已取消"
-            FailureClass.UNKNOWN -> "播放失败"
+        // 环境闸门 (docs/05 66): name the gate, not the source — this is not "该频道源不可用".
+        val reason = if (error.origin == FailureOrigin.ENV_GATED) {
+            "本网或源侧未放行（HTTP ${error.httpStatus ?: "网关码"}）"
+        } else {
+            when (error.failure) {
+                FailureClass.HTTP_CLIENT -> "该频道源不可用（HTTP ${error.httpStatus ?: "4xx"}）"
+                FailureClass.HTTP_SERVER -> "频道源服务器出错（HTTP ${error.httpStatus ?: "5xx"}）"
+                FailureClass.TIMEOUT -> "连接超时"
+                FailureClass.NET_UNREACHABLE -> "网络不可达"
+                FailureClass.TLS -> "安全连接失败"
+                FailureClass.PARSE -> "流格式无法解析"
+                FailureClass.DECODE_UNSUPPORTED -> "设备不支持该流的编码"
+                FailureClass.DECODE_CORRUPT -> "流数据损坏"
+                FailureClass.EMPTY_MEDIA -> "流里没有媒体内容"
+                FailureClass.PLAYLIST_GONE -> "该频道的所有源都已失效"
+                FailureClass.STORAGE -> "本地存储不可用"
+                FailureClass.PERMISSION -> "缺少权限"
+                FailureClass.NO_CAPABILITY -> "没有可用的播放引擎"
+                FailureClass.CANCELLED -> "播放已取消"
+                FailureClass.UNKNOWN -> "播放失败"
+            }
         }
         val hint = when {
             error.failure == FailureClass.CANCELLED -> ""
@@ -51,6 +57,6 @@ object PlaybackFailureText {
         FailureClass.EMPTY_MEDIA -> "空流"
         FailureClass.PLAYLIST_GONE -> "全部源失效"
         FailureClass.NO_CAPABILITY -> "无可用引擎"
-        else -> "播放失败"
+        else -> if (error.origin == FailureOrigin.ENV_GATED) "网关未放行" else "播放失败"
     }
 }
