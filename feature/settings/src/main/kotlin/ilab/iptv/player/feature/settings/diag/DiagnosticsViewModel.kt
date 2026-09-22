@@ -14,6 +14,7 @@ import ilab.iptv.player.core.common.LogLevel
 import ilab.iptv.player.core.common.Logger
 import ilab.iptv.player.core.common.Redactor
 import ilab.iptv.player.core.domain.refresh.RefreshScheduleSettings
+import ilab.iptv.player.core.domain.epg.EpgBindingPort
 import ilab.iptv.player.core.domain.refresh.EpgRefreshPort
 import ilab.iptv.player.core.domain.refresh.EpgRefreshRequest
 import ilab.iptv.player.core.domain.refresh.EpgRefreshStatus
@@ -61,10 +62,24 @@ class DiagnosticsViewModel @Inject constructor(
     private val sources: SourceManagementPort,
     private val refreshSettings: RefreshScheduleSettings,
     private val epg: EpgRefreshPort,
+    private val epgBindings: EpgBindingPort,
 ) : ViewModel() {
 
     private val _blocks = MutableStateFlow<List<DiagBlock>>(emptyList())
     val blocks: StateFlow<List<DiagBlock>> = _blocks.asStateFlow()
+
+    /**
+     * BUG-20260922-018's evidence block, or null while the tester has not asked for it.
+     *
+     * Deliberately kept out of the 10-second overview re-read: the table is 571 rows and it is a
+     * *snapshot* ("what was bound when I looked"), so it is read once when the toggle is pressed and
+     * then carried through every [refresh] unchanged. Re-querying it on a timer would make the
+     * evidence move under the reader and cost a full table scan every ten seconds.
+     */
+    private val _epgBindingBlock = MutableStateFlow<DiagBlock?>(null)
+
+    /** True while the panel is showing the per-channel EPG binding table (the toggle's label). */
+    val epgBindingShown: Boolean get() = _epgBindingBlock.value != null
 
     /** Non-null while an export runs: the line the progress indicator shows. */
     private val _progress = MutableStateFlow<String?>(null)
@@ -116,7 +131,31 @@ class DiagnosticsViewModel @Inject constructor(
             lastRefresh = lastRefreshText(managed.mapNotNull { it.lastFetchAtMs }.maxOrNull(), managed.size),
             epg = epgSummary(epg.status()),
         )
-        _blocks.value = DiagOverview.build(input)
+        // The binding table rides *after* the overview, unchanged; see [_epgBindingBlock].
+        _blocks.value = DiagOverview.build(input) + listOfNotNull(_epgBindingBlock.value)
+    }
+
+    /**
+     * The EPG 绑定与窗口 toggle: read the per-channel table on the first press, drop it on the
+     * second. Returns whether the table is now shown, so the screen can label its button.
+     *
+     * The read is one snapshot of the *live* channel + programme tables (see [EpgBindingPort]); it
+     * writes nothing.
+     */
+    suspend fun toggleEpgBindings(): Boolean {
+        if (_epgBindingBlock.value != null) {
+            _epgBindingBlock.value = null
+            return false
+        }
+        val report = epgBindings.bindingReport()
+        val window = report.window
+        _epgBindingBlock.value = DiagEpgBinding.block(
+            report = report,
+            windowLabel = "${localTime(window.fromMs)} – ${localTime(window.toMs)}" +
+                "（${(window.toMs - window.fromMs) / 3_600_000L} 小时，from=${window.fromMs} to=${window.toMs}）",
+            readAt = localTime(clock.nowMs()),
+        )
+        return true
     }
 
     /**

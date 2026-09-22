@@ -314,10 +314,18 @@ class EpgNetworkSampleTest {
      */
     private suspend fun spotlight(database: IptvDatabase): String {
         val names = listOf(
+            // BUG-20260922-018's spotlight: the four channels the QA round named on the device, so the
+            // sample answers per channel what the build could not. `win=` is the count inside the grid
+            // window — the number the coverage event and the grid both use; `rows=` is everything the
+            // retention window keeps.
+            "CCTV1", "CGTN俄语", "CCTV-11戏曲", "CCTV-12社会与法",
             "凤凰卫视中文台", "凤凰卫视资讯台", "翡翠台", "明珠台",
             "TVB星河频道", "澳视澳门", "中天新闻",
             "三沙卫视", "深圳卫视", "深圳卫视 高清",
         )
+        val window = EpgGridWindow.of(ilab.iptv.player.core.log.AndroidClock().nowMs())
+        val inWindow = database.programmeDao().countByChannelInWindow(window.fromMs, window.toMs)
+            .associate { it.epgChannelId to it.count }
         val channels = database.channelDao().all().associateBy { it.name }
         val parts = ArrayList<String>(names.size)
         for (name in names) {
@@ -328,7 +336,8 @@ class EpgNetworkSampleTest {
             }
             val epgChannelId = row.epgChannelId
             val rows = if (epgChannelId.isNullOrBlank()) 0 else database.programmeDao().countForChannel(epgChannelId)
-            parts += "$name=${epgChannelId ?: "null"}:${row.epgMatch}:rows=$rows"
+            val windowRows = epgChannelId?.let { inWindow[it] } ?: 0
+            parts += "$name=${epgChannelId ?: "null"}:${row.epgMatch}:win=$windowRows:rows=$rows"
         }
         return parts.joinToString(" | ")
     }

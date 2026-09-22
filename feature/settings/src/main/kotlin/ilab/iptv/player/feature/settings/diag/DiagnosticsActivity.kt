@@ -54,6 +54,7 @@ class DiagnosticsActivity : ComponentActivity() {
 
     private lateinit var header: TextView
     private lateinit var overview: TextView
+    private lateinit var overviewScroll: ScrollView
     private lateinit var logText: TextView
     private lateinit var logScroll: ScrollView
     private lateinit var levelButton: Button
@@ -62,6 +63,10 @@ class DiagnosticsActivity : ComponentActivity() {
     private lateinit var exportButton: Button
     private lateinit var progress: ProgressBar
     private lateinit var epgButton: Button
+    private lateinit var epgBindingsButton: Button
+
+    /** The last overview text set, so the 1 s tick does not re-lay-out a 600-line block for nothing. */
+    private var overviewText: String? = null
 
     private val handler = Handler(Looper.getMainLooper())
     private var tick = 0
@@ -81,6 +86,7 @@ class DiagnosticsActivity : ComponentActivity() {
 
         header = findViewById(R.id.diag_header)
         overview = findViewById(R.id.diag_overview)
+        overviewScroll = findViewById(R.id.diag_overview_scroll)
         logText = findViewById(R.id.diag_log)
         logScroll = findViewById(R.id.diag_log_scroll)
         levelButton = findViewById(R.id.diag_level)
@@ -89,6 +95,7 @@ class DiagnosticsActivity : ComponentActivity() {
         exportButton = findViewById(R.id.diag_export)
         progress = findViewById(R.id.diag_progress)
         epgButton = findViewById(R.id.diag_epg_refresh)
+        epgBindingsButton = findViewById(R.id.diag_epg_bindings)
 
         val searchField = findViewById<EditText>(R.id.diag_search_field)
         levelButton.setOnClickListener {
@@ -114,6 +121,7 @@ class DiagnosticsActivity : ComponentActivity() {
         }
         exportButton.setOnClickListener { runExport() }
         epgButton.setOnClickListener { requestEpg() }
+        epgBindingsButton.setOnClickListener { toggleEpgBindings() }
 
         lifecycleScope.launch { viewModel.progress.collect { step -> progressStep = step; render() } }
         lifecycleScope.launch { viewModel.blocks.collect { render() } }
@@ -175,6 +183,24 @@ class DiagnosticsActivity : ComponentActivity() {
     }
 
     /**
+     * BUG-20260922-018's evidence entry: append (or drop) the per-channel 绑定与窗口 table at the end
+     * of the overview. Nothing is written — the block is a read-only snapshot of what the channel
+     * table and the programme table say right now — so the button is safe to press at any time.
+     *
+     * The overview scrolls to the end when the table appears, because the block is appended below the
+     * regular overview and a tester pressing the button expects to land on it.
+     */
+    private fun toggleEpgBindings() {
+        epgBindingsButton.isEnabled = false
+        lifecycleScope.launch {
+            val shown = viewModel.toggleEpgBindings()
+            epgBindingsButton.isEnabled = true
+            render()
+            if (shown) overviewScroll.post { overviewScroll.fullScroll(View.FOCUS_DOWN) }
+        }
+    }
+
+    /**
      * P3-6's manual trigger. The button is disabled until the request returns so a second tap cannot
      * queue a second job, and the answer is shown as a dialog — the job itself is queued, not run
      * here, so "accepted" is the honest thing to report.
@@ -208,8 +234,12 @@ class DiagnosticsActivity : ComponentActivity() {
     }
 
     private fun render() {
-        overview.text = viewModel.blocks.value.joinToString(separator = "\n") { block ->
+        val text = viewModel.blocks.value.joinToString(separator = "\n") { block ->
             "== ${block.title} ==\n" + block.facts.joinToString(separator = "\n") { "${it.label}：${it.value}" }
+        }
+        if (text != overviewText) {
+            overviewText = text
+            overview.text = text
         }
         if (!paused) shown = viewModel.logs(query)
         logText.text = if (shown.isEmpty()) getString(R.string.diag_empty) else shown.joinToString("\n") { format(it) }
@@ -228,6 +258,9 @@ class DiagnosticsActivity : ComponentActivity() {
         levelButton.text = getString(R.string.diag_level, query.minLevel.name)
         categoryButton.text = getString(R.string.diag_category, categoryLabel)
         pauseButton.text = getString(if (paused) R.string.diag_resume else R.string.diag_pause)
+        epgBindingsButton.text = getString(
+            if (viewModel.epgBindingShown) R.string.diag_epg_bindings_hide else R.string.diag_epg_bindings,
+        )
         progress.isVisible = progressStep != null
     }
 

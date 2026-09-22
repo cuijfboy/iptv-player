@@ -44,8 +44,16 @@ class FakeEpgStoredGuide(
     var reads: Int = 0
         private set
 
+    /**
+     * Optional per-read answer, for the NEW-20260922-002 case: the catalogue is not there on the first
+     * read and appears a few reads later, exactly like the seeding that lands ~2 s after a cold start.
+     * When set it overrides whatever [set] stored.
+     */
+    var answerOn: ((Int) -> EpgStoredGuide)? = null
+
     override suspend fun read(): EpgStoredGuide {
         reads++
+        answerOn?.let { return it(reads) }
         return guide
     }
 

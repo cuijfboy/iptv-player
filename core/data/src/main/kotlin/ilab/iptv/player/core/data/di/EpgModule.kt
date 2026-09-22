@@ -7,7 +7,9 @@ import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
 import ilab.iptv.player.core.common.Logger
 import ilab.iptv.player.core.data.epg.RoomEpgRepository
+import ilab.iptv.player.core.data.epg.RoomEpgBindingReader
 import ilab.iptv.player.core.data.epg.FileEpgChannelCatalog
+import ilab.iptv.player.core.domain.epg.EpgBindingPort
 import ilab.iptv.player.core.domain.repository.EpgChannelCatalog
 import ilab.iptv.player.core.domain.repository.EpgRepository
 import ilab.iptv.player.core.epg.BuiltInEpgSources
@@ -40,6 +42,15 @@ object EpgModule {
     @Provides
     @Singleton
     fun provideEpgRepository(impl: RoomEpgRepository): EpgRepository = impl
+
+    /**
+     * BUG-20260922-018's read-only evidence entry. Bound here (not in `:app`) because the caller is
+     * the settings feature and the implementation is the only module allowed to see both the channel
+     * table and the programme counts.
+     */
+    @Provides
+    @Singleton
+    fun provideEpgBindingPort(impl: RoomEpgBindingReader): EpgBindingPort = impl
 
     /**
      * P3-4: the guide's `<channel>` list, cached in app storage. Bound here (not in

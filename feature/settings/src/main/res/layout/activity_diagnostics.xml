@@ -73,6 +73,16 @@
             android:focusable="true"
             android:text="@string/diag_epg_refresh" />
 
+        <!-- BUG-20260922-018's read-only evidence entry: per-channel binding + programmes in the
+             grid window, appended to the overview as its own block. -->
+        <Button
+            android:id="@+id/diag_epg_bindings"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:focusable="true"
+            android:text="@string/diag_epg_bindings" />
+
     </LinearLayout>
 
     <LinearLayout

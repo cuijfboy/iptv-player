@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import ilab.iptv.player.core.common.EventCodes
 import ilab.iptv.player.core.domain.refresh.EpgRefreshPolicy
 import ilab.iptv.player.core.domain.refresh.EpgRefreshSettings
+import ilab.iptv.player.core.model.EpgStoredGuide
 import ilab.iptv.player.core.model.RefreshTrigger
 import ilab.iptv.player.refresh.FakeClock
 import ilab.iptv.player.refresh.RecordingLogger
@@ -51,9 +52,51 @@ class EpgRefreshCoordinatorTest {
 
         assertThat(result).isEqualTo(EpgRunResult.Deferred(RefreshTrigger.FIRST_RUN, deferrals = 0))
         assertThat(runner.calls).isEqualTo(0)
+        // NEW-20260922-002: the deferral is still reached when the catalogue never appears, but only
+        // after the bounded in-run wait — the run polls the table instead of coming back instantly and
+        // letting WorkManager's 30-minute backoff own the next attempt.
+        assertThat(guide.reads).isEqualTo(EpgRefreshCoordinator.CATALOG_POLL_ATTEMPTS + 1)
         val event = logger.fields(EventCodes.WORK_RUN)
         assertThat(event["decision"]).isEqualTo("DEFER")
         assertThat(event["reason"]).isEqualTo(EpgRefreshPolicy.REASON_CATALOG_EMPTY)
+        assertThat(event["catalogWaitMs"]).isEqualTo(0L)
+    }
+
+    @Test
+    fun `a cold start whose channel table arrives a moment later runs instead of waiting 30 minutes`() =
+        runTest {
+            // The seeding lands after the first read, like the measured 12:17:47 → 12:17:49.
+            guide.answerOn = { read ->
+                if (read >= 2) {
+                    EpgStoredGuide(channels = 571, matched = 141, programmed = 134)
+                } else {
+                    EpgStoredGuide(channels = 0, matched = 0, programmed = 0)
+                }
+            }
+            val runner = FakeEpgRunner()
+
+            val result = coordinator(runner).run(RefreshTrigger.FIRST_RUN)
+
+            assertThat(result).isInstanceOf(EpgRunResult.Completed::class.java)
+            assertThat(runner.calls).isEqualTo(1)
+            val event = logger.fields(EventCodes.WORK_RUN)
+            assertThat(event["decision"]).isEqualTo("RUN")
+            assertThat(event["catalogWaitMs"]).isEqualTo(EpgRefreshCoordinator.CATALOG_POLL_MS)
+        }
+
+    @Test
+    fun `waiting for the catalogue is bounded, and does not touch the network`() = runTest {
+        guide.set(channels = 0, matched = 0, programmed = 0)
+        val runner = FakeEpgRunner()
+
+        coordinator(runner).run(RefreshTrigger.SCHEDULED)
+
+        // 15 polls of 2 s: a minute of grace at most, after which the job's own retry owns the rest.
+        assertThat(runner.calls).isEqualTo(0)
+        assertThat(EpgRefreshCoordinator.CATALOG_POLL_ATTEMPTS)
+            .isEqualTo(15)
+        assertThat(EpgRefreshCoordinator.CATALOG_POLL_ATTEMPTS * EpgRefreshCoordinator.CATALOG_POLL_MS)
+            .isEqualTo(30_000L)
     }
 
     @Test

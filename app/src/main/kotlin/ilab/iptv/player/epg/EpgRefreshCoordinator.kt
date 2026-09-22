@@ -14,7 +14,9 @@ import ilab.iptv.player.core.domain.refresh.EpgRefreshDecision
 import ilab.iptv.player.core.domain.refresh.EpgRefreshPolicy
 import ilab.iptv.player.core.domain.refresh.EpgRefreshSettings
 import ilab.iptv.player.core.model.EpgLoadReport
+import ilab.iptv.player.core.model.EpgStoredGuide
 import ilab.iptv.player.core.model.RefreshTrigger
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import kotlin.coroutines.cancellation.CancellationException
@@ -98,20 +100,34 @@ class EpgRefreshCoordinator(
         budgetMs: Long = EpgRefreshBudget.DEFAULT_BUDGET_MS,
     ): EpgRunResult {
         val playing = playback.isActive()
-        val stored = guide.read()
-        val decision = policy.decide(
-            trigger = trigger,
-            playing = playing,
-            respectPlayback = respectPlayback,
-            deferrals = deferrals,
-            lastFetchAtMs = status.read().lastFetchAtMs,
-            nowMs = clock.nowMs(),
-            settings = settings,
-            stored = stored,
-        )
+        var stored = guide.read()
+        var lastFetchAtMs = status.read().lastFetchAtMs
+        var decision = decide(trigger, playing, respectPlayback, deferrals, lastFetchAtMs, stored)
+
+        // NEW-20260922-002: waiting for the catalogue is a *short* wait that belongs to the run, not
+        // the job's 30-minute retry backoff. BUG-016 made a cold start that arrives before the channel
+        // table defer instead of fetching into nothing — which was right — but the run then returned
+        // `retry()`, and WorkManager's LINEAR backoff meant the guide only appeared 30 minutes later
+        // (measured 12:17:47 → 12:51:08). A later cold start did not help either: the scheduler
+        // re-enqueues the same unique work with `KEEP`, so while the first attempt sat in backoff the
+        // new request was a no-op. The seeding that unblocks the run happens ~2 s after the cold start,
+        // so the run simply waits for it here — bounded, network-free, and only on this arm. The
+        // 30-minute floor still governs the empty-guide retry (§4.2c) and the playing deferral.
+        var catalogWaitMs = 0L
+        if (decision.action == EpgRefreshAction.DEFER &&
+            decision.reason == EpgRefreshPolicy.REASON_CATALOG_EMPTY
+        ) {
+            val ready = awaitCatalog()
+            if (ready != null) {
+                catalogWaitMs = ready.waitedMs
+                stored = ready.guide
+                lastFetchAtMs = status.read().lastFetchAtMs
+                decision = decide(trigger, playing, respectPlayback, deferrals, lastFetchAtMs, stored)
+            }
+        }
         when (decision.action) {
             EpgRefreshAction.SKIP -> {
-                log(EventCodes.WORK_RUN, "epg refresh skipped", decision, trigger, playing, deferrals)
+                log(EventCodes.WORK_RUN, "epg refresh skipped", decision, trigger, playing, deferrals, catalogWaitMs)
                 return EpgRunResult.Skipped(decision.reason)
             }
 
@@ -129,6 +145,7 @@ class EpgRefreshCoordinator(
                     trigger,
                     playing,
                     deferrals,
+                    catalogWaitMs,
                 )
                 return EpgRunResult.Deferred(trigger = trigger, deferrals = deferrals)
             }
@@ -148,7 +165,7 @@ class EpgRefreshCoordinator(
                         LogCategory.WORK,
                         EventCodes.WORK_RUN,
                         "epg refresh finished",
-                        fields(decision, trigger, playing, deferrals) + mapOf(
+                        fields(decision, trigger, playing, deferrals, catalogWaitMs) + mapOf(
                             "result" to if (report.interrupted == null) "success" else "interrupted",
                             "providers" to report.providers,
                             "programmes" to report.programmes,
@@ -168,14 +185,14 @@ class EpgRefreshCoordinator(
 
                 is AppResult.Err -> {
                     val reason = "error:${result.error.failure.name}"
-                    logFailure(decision, trigger, playing, deferrals, startedAtMs, reason)
+                    logFailure(decision, trigger, playing, deferrals, catalogWaitMs, startedAtMs, reason)
                     EpgRunResult.Failed(reason)
                 }
             }
         } catch (timeout: TimeoutCancellationException) {
             // The budget, not the caller: report it as a failure so the retry policy owns what happens
             // next. Rows already written stay (docs/02 §6.3).
-            logFailure(decision, trigger, playing, deferrals, startedAtMs, REASON_BUDGET)
+            logFailure(decision, trigger, playing, deferrals, catalogWaitMs, startedAtMs, REASON_BUDGET)
             EpgRunResult.Failed(REASON_BUDGET)
         } catch (e: CancellationException) {
             // docs/02 §4.5 C5 / F2: cancellation is a stop signal, not a failure. WorkManager cancels
@@ -184,16 +201,59 @@ class EpgRefreshCoordinator(
             throw e
         } catch (e: Throwable) {
             val reason = e::class.simpleName ?: "unknown"
-            logFailure(decision, trigger, playing, deferrals, startedAtMs, reason, e)
+            logFailure(decision, trigger, playing, deferrals, catalogWaitMs, startedAtMs, reason, e)
             EpgRunResult.Failed(reason)
         }
     }
+
+    /** One trigger decision, with the inputs re-read for this attempt. */
+    private fun decide(
+        trigger: RefreshTrigger,
+        playing: Boolean,
+        respectPlayback: Boolean,
+        deferrals: Int,
+        lastFetchAtMs: Long?,
+        stored: EpgStoredGuide,
+    ): EpgRefreshDecision = policy.decide(
+        trigger = trigger,
+        playing = playing,
+        respectPlayback = respectPlayback,
+        deferrals = deferrals,
+        lastFetchAtMs = lastFetchAtMs,
+        nowMs = clock.nowMs(),
+        settings = settings,
+        stored = stored,
+    )
+
+    /**
+     * Wait for the channel table to appear, up to [CATALOG_POLL_ATTEMPTS] × [CATALOG_POLL_MS].
+     *
+     * Returns the stored guide that made the catalogue ready, with how long that took, or null when
+     * the catalogue never showed up inside the window — in which case the run defers as before and
+     * the job's own retry backoff owns the next attempt.
+     *
+     * The wait is a fixed number of polls rather than a clock comparison on purpose: it is bounded,
+     * needs no wall-clock, and therefore unit-tests deterministically under `runTest`'s virtual time
+     * (the injected test clock does not advance with `delay`).
+     */
+    private suspend fun awaitCatalog(): CatalogWait? {
+        repeat(CATALOG_POLL_ATTEMPTS) { attempt ->
+            delay(CATALOG_POLL_MS)
+            val stored = guide.read()
+            if (stored.catalogReady) return CatalogWait(stored, (attempt + 1) * CATALOG_POLL_MS)
+        }
+        return null
+    }
+
+    /** The catalogue that ended the wait, and how long the run spent waiting for it. */
+    private data class CatalogWait(val guide: EpgStoredGuide, val waitedMs: Long)
 
     private suspend fun logFailure(
         decision: EpgRefreshDecision,
         trigger: RefreshTrigger,
         playing: Boolean,
         deferrals: Int,
+        catalogWaitMs: Long,
         startedAtMs: Long,
         reason: String,
         error: Throwable? = null,
@@ -202,7 +262,7 @@ class EpgRefreshCoordinator(
             LogCategory.WORK,
             EventCodes.WORK_RUN,
             "epg refresh failed",
-            fields(decision, trigger, playing, deferrals) + mapOf(
+            fields(decision, trigger, playing, deferrals, catalogWaitMs) + mapOf(
                 "result" to "failed",
                 "reason" to reason,
                 "elapsedMs" to (clock.nowMs() - startedAtMs),
@@ -218,8 +278,14 @@ class EpgRefreshCoordinator(
         trigger: RefreshTrigger,
         playing: Boolean,
         deferrals: Int,
+        catalogWaitMs: Long = 0L,
     ) {
-        logger.i(LogCategory.WORK, code, message, fields(decision, trigger, playing, deferrals))
+        logger.i(
+            LogCategory.WORK,
+            code,
+            message,
+            fields(decision, trigger, playing, deferrals, catalogWaitMs),
+        )
     }
 
     /** Every EPG event carries `job=epg`, so one grep separates it from the P2-5 refresh events. */
@@ -228,6 +294,7 @@ class EpgRefreshCoordinator(
         trigger: RefreshTrigger,
         playing: Boolean,
         deferrals: Int,
+        catalogWaitMs: Long = 0L,
     ): Map<String, Any?> = mapOf(
         "job" to JOB,
         "trigger" to trigger.name,
@@ -235,6 +302,9 @@ class EpgRefreshCoordinator(
         "reason" to decision.reason,
         "playing" to playing,
         "deferrals" to deferrals,
+        // NEW-20260922-002: how long this attempt waited for the channel table before deciding, so
+        // "the guide arrived 30 minutes late" is readable as "waited 2 s, then ran" or "never saw it".
+        "catalogWaitMs" to catalogWaitMs,
     )
 
     companion object {
@@ -242,5 +312,11 @@ class EpgRefreshCoordinator(
         const val JOB: String = "epg"
 
         const val REASON_BUDGET: String = "budget_exceeded"
+
+        /** How often the catalogue wait re-reads the channel table. */
+        const val CATALOG_POLL_MS: Long = 2_000L
+
+        /** 15 × 2 s = 30 s of grace for the seeding/import that unblocks the run. */
+        const val CATALOG_POLL_ATTEMPTS: Int = 15
     }
 }
