@@ -16,8 +16,28 @@ interface FirstRunStore {
     /** True once the wizard has been completed (or ruled out for an existing install). */
     fun isCompleted(): Boolean
 
-    /** Records completion. Idempotent: writing it twice is the same as writing it once. */
+    /**
+     * Records completion. Idempotent: writing it twice is the same as writing it once.
+     *
+     * It also **drops the saved step** ([saveProgress]): a finished wizard has nothing to resume, so
+     * the completion flag and the progress are never both set.
+     */
     fun markCompleted()
+
+    /**
+     * The step the user left the wizard on, or null when there is no run to resume.
+     *
+     * WHY THIS EXISTS (NEW-1): the completion flag is only written by "walked all three steps"
+     * (docs/04 P2-9 item 1), so an abandoned run comes back on the next launch. Coming back to step 1
+     * every time was harmless while the wizard was walkable; with a wizard that can be abandoned on
+     * any step it would make the user re-decide 选源 and re-watch a refresh they already started.
+     * Remembering the step turns "the wizard comes back" into "the wizard comes back *where it was*",
+     * which is what removes the every-launch loop NEW-1 was made of.
+     */
+    fun savedProgress(): WizardState?
+
+    /** Remembers [state] for the next launch. [WizardStep.FINISHED] is not a resumable step. */
+    fun saveProgress(state: WizardState)
 }
 
 /**

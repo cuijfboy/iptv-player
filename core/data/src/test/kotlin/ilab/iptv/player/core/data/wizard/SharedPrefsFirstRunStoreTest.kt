@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
+import ilab.iptv.player.core.domain.wizard.WizardState
+import ilab.iptv.player.core.domain.wizard.WizardStep
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -57,6 +59,73 @@ class SharedPrefsFirstRunStoreTest {
         prefs().edit().putBoolean("wizard-completed-typo", true).commit()
 
         assertThat(SharedPrefsFirstRunStore(context).isCompleted()).isFalse()
+    }
+
+    // ---- NEW-1: the step an abandoned run stopped on -------------------------------------------
+
+    @Test
+    fun `a fresh install has no step to resume`() {
+        assertThat(SharedPrefsFirstRunStore(context).savedProgress()).isNull()
+    }
+
+    @Test
+    fun `the saved step and its skips survive a restart`() {
+        SharedPrefsFirstRunStore(context)
+            .saveProgress(WizardState(step = WizardStep.WATCH, skipped = setOf(WizardStep.UPDATE)))
+
+        // A new instance is what the next app start has.
+        val saved = SharedPrefsFirstRunStore(context).savedProgress()
+
+        assertThat(saved?.step).isEqualTo(WizardStep.WATCH)
+        assertThat(saved?.skipped).containsExactly(WizardStep.UPDATE)
+    }
+
+    @Test
+    fun `finishing the wizard clears the step it could otherwise resume`() {
+        val store = SharedPrefsFirstRunStore(context)
+        store.saveProgress(WizardState(step = WizardStep.UPDATE))
+
+        store.markCompleted()
+
+        assertThat(store.isCompleted()).isTrue()
+        assertThat(SharedPrefsFirstRunStore(context).savedProgress()).isNull()
+    }
+
+    @Test
+    fun `finishing does not clear a flag an earlier run already set`() {
+        // The two keys are independent: writing progress must never be read as completion either.
+        val store = SharedPrefsFirstRunStore(context)
+        store.saveProgress(WizardState(step = WizardStep.SOURCE))
+
+        assertThat(store.isCompleted()).isFalse()
+    }
+
+    @Test
+    fun `a step name this build does not know reads as no progress`() {
+        // Forward/backward compatibility: an unknown value must send the wizard to step 1, never to a
+        // panel it cannot render.
+        prefs().edit().putString("wizard-step", "SOMETHING_NEW").commit()
+
+        assertThat(SharedPrefsFirstRunStore(context).savedProgress()).isNull()
+    }
+
+    @Test
+    fun `the hand-over state is not a resumable step`() {
+        val store = SharedPrefsFirstRunStore(context)
+        store.saveProgress(WizardState(step = WizardStep.FINISHED))
+
+        assertThat(store.savedProgress()).isNull()
+    }
+
+    @Test
+    fun `an unknown name inside the skipped set is dropped, not guessed`() {
+        prefs().edit()
+            .putString("wizard-step", WizardStep.UPDATE.name)
+            .putStringSet("wizard-skipped", setOf(WizardStep.SOURCE.name, "SOMETHING_NEW"))
+            .commit()
+
+        assertThat(SharedPrefsFirstRunStore(context).savedProgress()?.skipped)
+            .containsExactly(WizardStep.SOURCE)
     }
 
     private fun prefs() = context.getSharedPreferences("first-run", Context.MODE_PRIVATE)

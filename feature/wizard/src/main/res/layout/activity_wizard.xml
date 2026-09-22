@@ -1,21 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  P2-9 first-run wizard (docs/02 §8.1). Three panels in one activity, one visible at a time: the
-  remote's path is a straight walk down the visible panel's buttons, and BACK moves one panel up
-  (§8.2 焦点路由 + 返回键层级), so no nested scroll container and no tab bar gets in the way.
+  P2-9 first-run wizard (docs/02 §8.1), relaid out for NEW-1.
+
+  WHAT NEW-1 WAS: all four 选源 buttons lived under 17 text lines in one non-scrolling column, so at
+  1080p (960×540 dp) and 720p (640×360 dp) the buttons were laid out past the bottom of the panel and
+  the remote had nowhere to go but BACK. The fix is the ② option in the NEW-1 dispatch: the 17 built-ins
+  became a **one-line summary row** on the decision panel, and the list itself moved to a read-only
+  二级页 (`wizard_step_sources`) with its own scroll container.
+
+  THE SHAPE (the rule `WizardPanels` / `WizardPanelLayoutTest` pin):
+    root
+      ├── header, hint                                    (wrap_content)
+      ├── wizard_body (0dp, weight 1)                     ← the ONLY weighted child
+      │     └── 4 panels (match_parent) — exactly one VISIBLE; each panel IS a ScrollView, so the
+      │           description is what scrolls (and the 选源 二级页's 17 focusable rows live in one)
+      └── wizard_footer (wrap_content)                    ← the visible panel's buttons, measured before
+            └── 4 footer groups — exactly one VISIBLE        wizard_body's weight is resolved
+
+  WHY THE BUTTONS ARE NOT IN THE PANELS: `wizard_body` is the weighted child, so the footer is sized
+  first and keeps the buttons on screen whatever the description wants to be. Putting a weighted
+  `ScrollView` inside a weighted panel would say the same thing with nested weights — two measure
+  passes and an `NestedWeights` lint warning — so the panels hold only their scroll container and the
+  footer is a sibling of the body.
+
+  `ScrollView` is `focusable="false"` on purpose: it must not become a focus stop of its own, so the
+  D-pad walks the focusable content inside it and the footer — nothing else. The 选源 summary row and
+  the built-in rows are focusable views (not buttons), because they are the two things the remote has
+  to be able to reach and scroll; both draw the shared focus palette through `bg_wizard_row`.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#FF101014"
     android:orientation="vertical"
-    android:paddingHorizontal="48dp"
-    android:paddingVertical="32dp">
+    android:paddingHorizontal="@dimen/wizard_horizontal_padding"
+    android:paddingVertical="@dimen/wizard_vertical_padding">
 
     <TextView
         android:id="@+id/wizard_header"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:minHeight="@dimen/wizard_header_min_height"
         android:textColor="#FFF2F2F6"
         android:textSize="28sp"
         android:textStyle="bold" />
@@ -24,164 +49,307 @@
         android:id="@+id/wizard_hint"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
+        android:minHeight="@dimen/wizard_hint_min_height"
         android:textColor="#FF8E8E9C"
         android:textSize="16sp" />
 
-    <!-- Step 1 · 选源 -->
+    <FrameLayout
+        android:id="@+id/wizard_body"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="@dimen/wizard_section_gap"
+        android:layout_weight="1">
+
+        <!--
+          The panel IS the scroll container: a panel whose only child is a ScrollView would be a
+          `UselessParent` (and would say "this scrolls" twice). The id goes on the ScrollView.
+        -->
+
+        <!-- ==================== Step 1 · 选源 ==================== -->
+        <ScrollView
+            android:id="@+id/wizard_step_source"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:focusable="false"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <!--
+                  The summary row: one focusable line that opens the built-in list. It replaces the
+                  17 text lines NEW-1 measured at ≈715 px, and it is the reason the buttons below fit.
+                -->
+                <TextView
+                    android:id="@+id/wizard_source_summary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_wizard_row"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center_vertical"
+                    android:minHeight="@dimen/wizard_row_min_height"
+                    android:nextFocusDown="@id/wizard_source_continue"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="8dp"
+                    android:textColor="#FFD7D7E0"
+                    android:textSize="18sp" />
+
+                <TextView
+                    android:id="@+id/wizard_source_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textColor="#FFF0C674"
+                    android:textSize="16sp" />
+
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- ==================== Step 2 · 更新 ==================== -->
+        <ScrollView
+            android:id="@+id/wizard_step_update"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:focusable="false"
+            android:scrollbars="none"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/wizard_update_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="#FFD7D7E0"
+                    android:textSize="18sp" />
+
+                <ProgressBar
+                    android:id="@+id/wizard_update_progress"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp" />
+
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- ==================== Step 3 · 开看 ==================== -->
+        <ScrollView
+            android:id="@+id/wizard_step_watch"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:focusable="false"
+            android:scrollbars="none"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/wizard_watch_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#FFD7D7E0"
+                android:textSize="18sp" />
+
+        </ScrollView>
+
+        <!-- ============ 选源 二级页 · 内置源清单（只读，NEW-1） ============ -->
+        <ScrollView
+            android:id="@+id/wizard_step_sources"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:focusable="false"
+            android:scrollbars="none"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/wizard_sources_note"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="#FFB9B9C6"
+                    android:textSize="16sp" />
+
+                <!-- The 17 rows are added in code: one focusable row per built-in, so the D-pad
+                     scrolls the list and keeps the focused row on screen. -->
+                <LinearLayout
+                    android:id="@+id/wizard_sources_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="@dimen/wizard_button_gap"
+                    android:orientation="vertical" />
+
+            </LinearLayout>
+        </ScrollView>
+
+    </FrameLayout>
+
+    <!--
+      The fixed footer. Exactly one group is VISIBLE at a time; each group's first row is the panel's
+      primary action (WizardPanels.primaryOf), and it is a row of its own so the labels fit at 640 dp.
+    -->
     <LinearLayout
-        android:id="@+id/wizard_step_source"
+        android:id="@+id/wizard_footer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
+        android:layout_marginTop="@dimen/wizard_button_gap"
         android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/wizard_source_summary"
+        <LinearLayout
+            android:id="@+id/wizard_footer_source"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="#FFD7D7E0"
-            android:textSize="18sp" />
+            android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/wizard_source_list"
+            <Button
+                android:id="@+id/wizard_source_continue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="@dimen/wizard_button_min_height"
+                android:nextFocusUp="@id/wizard_source_summary"
+                android:text="@string/wizard_source_continue" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/wizard_button_gap"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/wizard_source_import"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:minHeight="@dimen/wizard_button_min_height"
+                    android:text="@string/wizard_source_import" />
+
+                <Button
+                    android:id="@+id/wizard_source_subscribe"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="@dimen/wizard_button_gap"
+                    android:layout_weight="1"
+                    android:minHeight="@dimen/wizard_button_min_height"
+                    android:text="@string/wizard_source_subscribe" />
+
+                <Button
+                    android:id="@+id/wizard_source_skip"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="@dimen/wizard_button_gap"
+                    android:layout_weight="1"
+                    android:minHeight="@dimen/wizard_button_min_height"
+                    android:text="@string/wizard_source_skip" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/wizard_footer_update"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:lineSpacingExtra="2dp"
-            android:textColor="#FFB9B9C6"
-            android:textSize="16sp" />
+            android:orientation="vertical"
+            android:visibility="gone">
 
-        <TextView
-            android:id="@+id/wizard_source_status"
+            <Button
+                android:id="@+id/wizard_update_start"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="@dimen/wizard_button_min_height"
+                android:text="@string/wizard_update_start" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/wizard_button_gap"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/wizard_update_cancel"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:minHeight="@dimen/wizard_button_min_height"
+                    android:text="@string/wizard_update_cancel" />
+
+                <Button
+                    android:id="@+id/wizard_update_skip"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="@dimen/wizard_button_gap"
+                    android:layout_weight="1"
+                    android:minHeight="@dimen/wizard_button_min_height"
+                    android:text="@string/wizard_update_skip" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/wizard_footer_watch"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:textColor="#FFF0C674"
-            android:textSize="16sp" />
+            android:orientation="vertical"
+            android:visibility="gone">
 
-        <Button
-            android:id="@+id/wizard_source_continue"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:minHeight="48dp"
-            android:text="@string/wizard_source_continue" />
+            <Button
+                android:id="@+id/wizard_watch_open"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="@dimen/wizard_button_min_height"
+                android:text="@string/wizard_watch_open" />
 
-        <Button
-            android:id="@+id/wizard_source_import"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:minHeight="48dp"
-            android:text="@string/wizard_source_import" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/wizard_button_gap"
+                android:orientation="horizontal">
 
-        <Button
-            android:id="@+id/wizard_source_subscribe"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:minHeight="48dp"
-            android:text="@string/wizard_source_subscribe" />
+                <Button
+                    android:id="@+id/wizard_watch_import"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:minHeight="@dimen/wizard_button_min_height"
+                    android:text="@string/wizard_watch_import" />
 
-        <Button
-            android:id="@+id/wizard_source_skip"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:minHeight="48dp"
-            android:text="@string/wizard_source_skip" />
+                <Button
+                    android:id="@+id/wizard_watch_skip"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="@dimen/wizard_button_gap"
+                    android:layout_weight="1"
+                    android:minHeight="@dimen/wizard_button_min_height"
+                    android:text="@string/wizard_watch_skip" />
 
-    </LinearLayout>
+            </LinearLayout>
 
-    <!-- Step 2 · 更新 -->
-    <LinearLayout
-        android:id="@+id/wizard_step_update"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
-        android:orientation="vertical"
-        android:visibility="gone">
+        </LinearLayout>
 
-        <TextView
-            android:id="@+id/wizard_update_status"
+        <LinearLayout
+            android:id="@+id/wizard_footer_sources"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="#FFD7D7E0"
-            android:textSize="18sp" />
+            android:orientation="vertical"
+            android:visibility="gone">
 
-        <ProgressBar
-            android:id="@+id/wizard_update_progress"
-            style="?android:attr/progressBarStyleHorizontal"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp" />
+            <Button
+                android:id="@+id/wizard_sources_back"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="@dimen/wizard_button_min_height"
+                android:text="@string/wizard_sources_back" />
 
-        <Button
-            android:id="@+id/wizard_update_start"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:minHeight="48dp"
-            android:text="@string/wizard_update_start" />
-
-        <Button
-            android:id="@+id/wizard_update_cancel"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:minHeight="48dp"
-            android:text="@string/wizard_update_cancel" />
-
-        <Button
-            android:id="@+id/wizard_update_skip"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:minHeight="48dp"
-            android:text="@string/wizard_update_skip" />
-
-    </LinearLayout>
-
-    <!-- Step 3 · 开看 -->
-    <LinearLayout
-        android:id="@+id/wizard_step_watch"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
-        android:orientation="vertical"
-        android:visibility="gone">
-
-        <TextView
-            android:id="@+id/wizard_watch_status"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="#FFD7D7E0"
-            android:textSize="18sp" />
-
-        <Button
-            android:id="@+id/wizard_watch_open"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:minHeight="48dp"
-            android:text="@string/wizard_watch_open" />
-
-        <Button
-            android:id="@+id/wizard_watch_import"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:minHeight="48dp"
-            android:text="@string/wizard_watch_import" />
-
-        <Button
-            android:id="@+id/wizard_watch_skip"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:minHeight="48dp"
-            android:text="@string/wizard_watch_skip" />
+        </LinearLayout>
 
     </LinearLayout>
 

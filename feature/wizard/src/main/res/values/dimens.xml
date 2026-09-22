@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The numbers `WizardPanels` budgets the first screen with (NEW-1). They are resources rather than
+  literals in the layout so `WizardPanelLayoutTest` can read this file back and refuse to let the XML
+  drift from the model — the same guard `InfoBarLayoutTest` puts on the player's info bar.
+-->
+<resources>
+    <dimen name="wizard_horizontal_padding">48dp</dimen>
+    <dimen name="wizard_vertical_padding">24dp</dimen>
+    <dimen name="wizard_header_min_height">36dp</dimen>
+    <dimen name="wizard_hint_min_height">24dp</dimen>
+    <dimen name="wizard_section_gap">12dp</dimen>
+    <dimen name="wizard_button_min_height">48dp</dimen>
+    <dimen name="wizard_button_gap">8dp</dimen>
+    <dimen name="wizard_row_min_height">48dp</dimen>
+    <dimen name="wizard_row_gap">4dp</dimen>
+</resources>

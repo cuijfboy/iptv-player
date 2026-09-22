@@ -3,6 +3,7 @@ package ilab.iptv.player.feature.wizard
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Bundle
+import android.view.Gravity
 import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
@@ -56,7 +57,12 @@ import kotlinx.coroutines.launch
  *
  * BACK (docs/02 §8.1 返回键层级): inside the wizard BACK walks one step up, and from the first step
  * it leaves. Leaving writes no completion flag, so an abandoned wizard comes back on the next launch
- * rather than dropping the user into a half-configured app.
+ * rather than dropping the user into a half-configured app — and since NEW-1 it comes back **on the
+ * step it was left on** (`FirstRunStore.savedProgress`), so "comes back" no longer means "redo 选源".
+ *
+ * THE 选源 二级页 (NEW-1): step 1's summary row opens a read-only panel listing the built-in sources.
+ * It is the same activity, one panel toggled by [showingSources], because the wizard's BACK contract
+ * is "one level up" and the panel is exactly one level up from the summary row.
  */
 @AndroidEntryPoint
 class WizardActivity : ComponentActivity() {
@@ -68,12 +74,19 @@ class WizardActivity : ComponentActivity() {
 
     private lateinit var header: TextView
     private lateinit var hint: TextView
-    private lateinit var sourcePanel: LinearLayout
-    private lateinit var updatePanel: LinearLayout
-    private lateinit var watchPanel: LinearLayout
+    // Each panel is itself the `ScrollView` (see the layout), so its type is the generic `View`.
+    private lateinit var sourcePanel: View
+    private lateinit var updatePanel: View
+    private lateinit var watchPanel: View
+    private lateinit var sourcesPanel: View
     private lateinit var sourceSummary: TextView
-    private lateinit var sourceList: TextView
     private lateinit var sourceStatus: TextView
+    private lateinit var sourcesNote: TextView
+    private lateinit var sourcesList: LinearLayout
+    private lateinit var sourceFooter: LinearLayout
+    private lateinit var updateFooter: LinearLayout
+    private lateinit var watchFooter: LinearLayout
+    private lateinit var sourcesFooter: LinearLayout
     private lateinit var updateStatus: TextView
     private lateinit var updateProgress: ProgressBar
     private lateinit var updateStart: Button
@@ -86,6 +99,15 @@ class WizardActivity : ComponentActivity() {
 
     /** The step currently inflated, so focus is requested when a step *changes* and not every tick. */
     private var renderedStep: WizardStep? = null
+
+    /** The panel the last frame drew, so a panel *change* (including 二级页) re-aims the focus once. */
+    private var renderedPanel: WizardPanel? = null
+
+    /** True while the 选源 二级页 (the built-in list) is on screen instead of the step panel. */
+    private var showingSources = false
+
+    /** The last state drawn; BACK and the summary row re-render from it without a new emission. */
+    private var lastState: WizardUiState? = null
 
     /** The SAF half of 导入本地清单: the same `OpenDocument` contract the browse screen uses. */
     private val documentPicker = registerForActivityResult(
@@ -107,9 +129,15 @@ class WizardActivity : ComponentActivity() {
         sourcePanel = findViewById(R.id.wizard_step_source)
         updatePanel = findViewById(R.id.wizard_step_update)
         watchPanel = findViewById(R.id.wizard_step_watch)
+        sourcesPanel = findViewById(R.id.wizard_step_sources)
         sourceSummary = findViewById(R.id.wizard_source_summary)
-        sourceList = findViewById(R.id.wizard_source_list)
         sourceStatus = findViewById(R.id.wizard_source_status)
+        sourcesNote = findViewById(R.id.wizard_sources_note)
+        sourcesList = findViewById(R.id.wizard_sources_list)
+        sourceFooter = findViewById(R.id.wizard_footer_source)
+        updateFooter = findViewById(R.id.wizard_footer_update)
+        watchFooter = findViewById(R.id.wizard_footer_watch)
+        sourcesFooter = findViewById(R.id.wizard_footer_sources)
         updateStatus = findViewById(R.id.wizard_update_status)
         updateProgress = findViewById(R.id.wizard_update_progress)
         updateStart = findViewById(R.id.wizard_update_start)
@@ -119,6 +147,8 @@ class WizardActivity : ComponentActivity() {
 
         findViewById<Button>(R.id.wizard_source_continue).setOnClickListener { viewModel.onContinue() }
         findViewById<Button>(R.id.wizard_source_import).setOnClickListener { openImportPicker() }
+        // NEW-1: the summary row replaces the 17-line list; it opens the list one level down.
+        sourceSummary.setOnClickListener { openSources() }
         findViewById<Button>(R.id.wizard_source_subscribe).setOnClickListener {
             // The existing source-management page (P2-6). Coming back re-reads the subscription
             // count, so 选源 shows what the user just added instead of what it showed on entry.
@@ -133,11 +163,14 @@ class WizardActivity : ComponentActivity() {
         watchOpen.setOnClickListener { enterChannelList(play = true) }
         findViewById<Button>(R.id.wizard_watch_import).setOnClickListener { openImportPicker() }
         findViewById<Button>(R.id.wizard_watch_skip).setOnClickListener { enterChannelList(play = false) }
+        findViewById<Button>(R.id.wizard_sources_back).setOnClickListener { closeSources() }
 
         onBackPressedDispatcher.addCallback(
             this,
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
+                    // The 二级页 is one level up from 选源, so BACK leaves it before it leaves a step.
+                    if (closeSources()) return
                     if (viewModel.onBack()) return
                     isEnabled = false
                     onBackPressedDispatcher.onBackPressed()
@@ -190,6 +223,17 @@ class WizardActivity : ComponentActivity() {
     }
 
     private fun render(state: WizardUiState) {
+        lastState = state
+        // A step change always leaves the 选源 二级页: the panel belongs to step 1, and coming back to
+        // step 1 later must show the decision panel (with its primary button), not the list.
+        if (state.step != renderedStep) {
+            renderedStep = state.step
+            showingSources = false
+        }
+        val panel = WizardPanels.of(state.step, showingSources)
+        val panelChanged = panel != renderedPanel
+        renderedPanel = panel
+
         val number = state.stepNumber
         header.text = if (number == null) {
             getString(R.string.wizard_step_watch)
@@ -201,43 +245,45 @@ class WizardActivity : ComponentActivity() {
                 getString(stepTitle(state.step)),
             )
         }
-        hint.text = getString(
-            if (state.step == WizardStep.SOURCE) {
-                R.string.wizard_hint_back_exit
-            } else {
-                R.string.wizard_hint_back_previous
-            },
-        )
+        hint.text = getString(hintOf(panel))
 
-        val changed = state.step != renderedStep
-        renderedStep = state.step
-        sourcePanel.visibility = visibleIf(state.step == WizardStep.SOURCE)
-        updatePanel.visibility = visibleIf(state.step == WizardStep.UPDATE)
-        watchPanel.visibility = visibleIf(state.step == WizardStep.WATCH)
+        sourcePanel.visibility = visibleIf(panel == WizardPanel.SOURCE)
+        updatePanel.visibility = visibleIf(panel == WizardPanel.UPDATE)
+        watchPanel.visibility = visibleIf(panel == WizardPanel.WATCH)
+        sourcesPanel.visibility = visibleIf(panel == WizardPanel.SOURCES)
+        // The footer is one fixed area for the whole wizard (see the layout): exactly the visible
+        // panel's group shows, so the buttons never move off the first screen.
+        sourceFooter.visibility = visibleIf(panel == WizardPanel.SOURCE)
+        updateFooter.visibility = visibleIf(panel == WizardPanel.UPDATE)
+        watchFooter.visibility = visibleIf(panel == WizardPanel.WATCH)
+        sourcesFooter.visibility = visibleIf(panel == WizardPanel.SOURCES)
 
-        when (state.step) {
-            WizardStep.SOURCE -> renderSource(state)
-            WizardStep.UPDATE -> renderUpdate(state)
-            WizardStep.WATCH -> renderWatch(state)
-            WizardStep.FINISHED -> Unit
+        when (panel) {
+            WizardPanel.SOURCE -> renderSource(state)
+            WizardPanel.UPDATE -> renderUpdate(state)
+            WizardPanel.WATCH -> renderWatch(state)
+            WizardPanel.SOURCES -> renderSources(state)
+            null -> Unit
         }
 
-        // Never leave a step focus-less: a step whose first button does not take focus is a step the
+        // Never leave a panel focus-less: a panel whose main button does not take focus is a panel the
         // remote cannot drive (docs/02 §8.2).
-        if (changed || currentFocus == null) {
-            firstButtonOf(state.step)?.requestFocus()
-        }
+        if (panelChanged || currentFocus == null) requestFocusOn(panel)
     }
 
     // ---- step 1 · 选源 ----
 
     private fun renderSource(state: WizardUiState) {
-        sourceSummary.text = getString(R.string.wizard_source_summary, state.builtIns.size)
-        sourceList.text = if (state.builtIns.isEmpty()) {
-            getString(R.string.wizard_source_list_placeholder)
-        } else {
-            state.builtIns.joinToString("\n") { source -> "· ${source.label}" }
-        }
+        // NEW-1: one line, not 17. The list itself is one level down (renderSources).
+        val summary = WizardSourceSummary.summaryOf(state.builtIns)
+        sourceSummary.text = getString(
+            if (summary.loaded) {
+                R.string.wizard_source_summary_row
+            } else {
+                R.string.wizard_source_summary_loading
+            },
+            summary.count,
+        )
 
         val lines = ArrayList<String>(4)
         lines += getString(R.string.wizard_source_subscriptions, state.subscriptionCount)
@@ -259,6 +305,59 @@ class WizardActivity : ComponentActivity() {
         }
         if (state.sourceSkipped) lines += getString(R.string.wizard_source_skipped)
         sourceStatus.text = lines.joinToString("\n")
+    }
+
+    // ---- step 1 · 二级页：内置源清单（只读）----
+
+    /**
+     * The read-only built-in list NEW-1 moved off the decision panel. The rows are built in code
+     * rather than inflated, because their count is the catalogue's: one focusable row each, so the
+     * remote can walk them and the `ScrollView` scrolls the focused row into view on its own
+     * (`requestChildFocus`) instead of the user having to drag the page.
+     */
+    private fun renderSources(state: WizardUiState) {
+        sourcesNote.text = getString(R.string.wizard_sources_note, state.builtIns.size)
+        val labels = WizardSourceSummary.detailRows(state.builtIns)
+        val unchanged = sourcesList.childCount == labels.size &&
+            labels.withIndex().all { (index, label) ->
+                (sourcesList.getChildAt(index) as? TextView)?.text == "· $label"
+            }
+        if (unchanged) return
+
+        sourcesList.removeAllViews()
+        labels.forEach { label -> sourcesList.addView(sourceRow(label)) }
+    }
+
+    /** One built-in source on the 二级页: focusable (the remote scrolls by walking) but read-only. */
+    private fun sourceRow(label: String): TextView = TextView(this).apply {
+        text = getString(R.string.wizard_sources_row, label)
+        textSize = ROW_TEXT_SP
+        setTextColor(ROW_TEXT_COLOR)
+        gravity = Gravity.CENTER_VERTICAL
+        minHeight = dp(WizardPanels.BUTTON_MIN_HEIGHT_DP)
+        isFocusable = true
+        setBackgroundResource(R.drawable.bg_wizard_row)
+        val inset = dp(ROW_INSET_DP)
+        setPadding(inset, inset, inset, inset)
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = dp(ROW_MARGIN_DP) }
+    }
+
+    /** The summary row opened the list: one level down, so BACK comes back here. */
+    private fun openSources() {
+        if (showingSources) return
+        showingSources = true
+        lastState?.let(::render)
+    }
+
+    /** BACK (or the 返回 button) on the 二级页. True when it was handled — the panel was on screen. */
+    private fun closeSources(): Boolean {
+        if (!showingSources) return false
+        showingSources = false
+        lastState?.let(::render)
+        return true
     }
 
     // ---- step 2 · 更新 ----
@@ -457,20 +556,52 @@ class WizardActivity : ComponentActivity() {
         WizardStep.WATCH, WizardStep.FINISHED -> R.string.wizard_step_watch
     }
 
-    /** The button the remote should land on when a step opens: the step's primary action. */
-    private fun firstButtonOf(step: WizardStep): View? = when (step) {
-        WizardStep.SOURCE -> findViewById(R.id.wizard_source_continue)
-        WizardStep.UPDATE -> if (updateStart.visibility == View.VISIBLE) updateStart else updateCancel
-        WizardStep.WATCH ->
+    /** The BACK hint for the panel on screen (each panel is one level up from exactly one place). */
+    private fun hintOf(panel: WizardPanel?): Int = when (panel) {
+        WizardPanel.SOURCE -> R.string.wizard_hint_back_exit
+        WizardPanel.SOURCES -> R.string.wizard_hint_back_source
+        WizardPanel.UPDATE, WizardPanel.WATCH, null -> R.string.wizard_hint_back_previous
+    }
+
+    /**
+     * The control the remote should land on when a panel opens: its primary action
+     * ([WizardPanels.primaryOf]). The wizard's panels are the ones that need this — a hot-seat
+     * descendant, e.g. the built-in rows, must not steal the first focus, or the panel would open on
+     * a read-only row instead of the button the user came for.
+     */
+    private fun focusTargetOf(panel: WizardPanel): View? = when (panel) {
+        WizardPanel.SOURCE -> findViewById(R.id.wizard_source_continue)
+        WizardPanel.UPDATE -> if (updateStart.visibility == View.VISIBLE) updateStart else updateCancel
+        WizardPanel.WATCH ->
             if (watchOpen.isEnabled) watchOpen else findViewById(R.id.wizard_watch_import)
 
-        WizardStep.FINISHED -> null
+        // The list scrolls by walking its rows, so the first row is the natural landing spot; the
+        // 返回 button is the fallback when the catalogue has not been read (no rows to land on).
+        WizardPanel.SOURCES -> sourcesList.getChildAt(0) ?: findViewById(R.id.wizard_sources_back)
     }
+
+    private fun requestFocusOn(panel: WizardPanel?) {
+        if (panel == null) return
+        val target = focusTargetOf(panel) ?: return
+        // A request made before the panel's first layout can be refused; retrying on the next frame is
+        // what keeps the first screen of a cold start focus-able instead of focus-less.
+        if (!target.requestFocus()) target.post { target.requestFocus() }
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     private fun visibleIf(condition: Boolean): Int =
         if (condition) View.VISIBLE else View.GONE
 
     private companion object {
         const val SCREEN_NAME = "Wizard"
+
+        /** The 二级页's row text: the body size the wizard uses, not a button label. */
+        const val ROW_TEXT_SP = 16f
+        const val ROW_INSET_DP = 8
+        const val ROW_MARGIN_DP = 4
+
+        /** The row label colour (same family as `wizard_source_status`). */
+        val ROW_TEXT_COLOR: Int = 0xFFB9B9C6.toInt()
     }
 }

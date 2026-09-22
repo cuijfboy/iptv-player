@@ -15,6 +15,8 @@ import ilab.iptv.player.core.domain.wizard.BuiltInSourceCatalog
 import ilab.iptv.player.core.domain.wizard.BuiltInSourceInfo
 import ilab.iptv.player.core.domain.wizard.FirstRunStore
 import ilab.iptv.player.core.domain.wizard.WizardUpdatePort
+import ilab.iptv.player.core.domain.wizard.WizardState
+import ilab.iptv.player.core.domain.wizard.WizardStep
 import ilab.iptv.player.core.domain.wizard.WizardUpdateSnapshot
 import ilab.iptv.player.core.model.Channel
 import ilab.iptv.player.core.model.ChannelFilter
@@ -34,13 +36,29 @@ import kotlinx.coroutines.flow.MutableStateFlow
  * asked, instead of imitating a repository.
  */
 
-/** A [FirstRunStore] in memory; [completed] is read back exactly as the router would read it. */
-class FakeFirstRunStore(var completed: Boolean = false) : FirstRunStore {
+/**
+ * A [FirstRunStore] in memory; [completed] is read back exactly as the router would read it, and
+ * [saved] is the NEW-1 resume slot — constructed with a value to imitate "the user left the wizard on
+ * step N and started the app again".
+ */
+class FakeFirstRunStore(
+    var completed: Boolean = false,
+    var saved: WizardState? = null,
+) : FirstRunStore {
 
     override fun isCompleted(): Boolean = completed
 
     override fun markCompleted() {
         completed = true
+        // The real store drops the resume slot on completion; the fake must not be more forgiving.
+        saved = null
+    }
+
+    override fun savedProgress(): WizardState? = saved
+
+    override fun saveProgress(state: WizardState) {
+        if (state.step == WizardStep.FINISHED) return
+        saved = state
     }
 }
 

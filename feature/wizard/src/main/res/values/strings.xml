@@ -6,11 +6,22 @@
     <string name="wizard_step_update">更新频道表</string>
     <string name="wizard_step_watch">开始看</string>
     <string name="wizard_hint_back_previous">按返回键回到上一步</string>
-    <string name="wizard_hint_back_exit">按返回键退出向导（下次启动还会出现）</string>
+    <!-- NEW-1: the wizard resumes where it was left, so the exit hint no longer promises a restart. -->
+    <string name="wizard_hint_back_exit">按返回键退出向导（下次启动从这里继续）</string>
+    <!-- NEW-1: the 选源 二级页 (built-in list) is one level above nothing — BACK returns to step 1. -->
+    <string name="wizard_hint_back_source">按返回键回到「选择源」</string>
 
     <!-- Step 1 · 选源 -->
-    <string name="wizard_source_summary">内置聚合源 %1$d 个，已全部启用，更新时会一起刷新。也可以先导入自己的清单或添加订阅。</string>
-    <string name="wizard_source_list_placeholder">正在读取内置源…</string>
+    <!--
+      NEW-1: step 1 shows this ONE focusable line instead of all 17 source names. The list itself is
+      one level down (`wizard_sources_*`), because 17 lines is what pushed the buttons off the panel.
+    -->
+    <string name="wizard_source_summary_row">已启用 %1$d 个内置源 · 查看清单</string>
+    <string name="wizard_source_summary_loading">正在读取内置源清单…</string>
+    <!-- Step 1 · 二级页: the read-only built-in list NEW-1 moved off the decision panel. -->
+    <string name="wizard_sources_note">这 %1$d 个内置聚合源在更新时会一起刷新，目前不支持逐个关闭。返回键回到「选择源」。</string>
+    <string name="wizard_sources_row">· %1$s</string>
+    <string name="wizard_sources_back">返回「选择源」</string>
     <string name="wizard_source_subscriptions">已添加订阅：%1$d 个</string>
     <string name="wizard_source_imported">当前播放列表：%1$s</string>
     <string name="wizard_source_import_none">还没有导入过自己的清单</string>

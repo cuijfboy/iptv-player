@@ -6,6 +6,7 @@ import ilab.iptv.player.core.domain.playlist.ImportResult
 import ilab.iptv.player.core.domain.playlist.ImportedPlaylist
 import ilab.iptv.player.core.domain.source.ManagedSource
 import ilab.iptv.player.core.domain.wizard.WizardStep
+import ilab.iptv.player.core.domain.wizard.WizardState
 import ilab.iptv.player.core.domain.wizard.WizardUpdateResult
 import ilab.iptv.player.core.domain.wizard.WizardUpdateRun
 import ilab.iptv.player.core.domain.wizard.WizardUpdateSnapshot
@@ -280,6 +281,71 @@ class WizardViewModelTest {
         viewModel.complete()
 
         assertThat(firstRun.completed).isTrue()
+    }
+
+    // ---- NEW-1: the wizard remembers where it was left ----
+
+    @Test
+    fun `an abandoned run is remembered so the next launch resumes there`() {
+        viewModel.onContinue()
+
+        assertThat(firstRun.saved?.step).isEqualTo(WizardStep.UPDATE)
+    }
+
+    @Test
+    fun `a saved step is where the wizard opens`() {
+        firstRun.saved = WizardState(step = WizardStep.WATCH)
+
+        val resumed = WizardViewModel(builtIns, sources, channels, importPort, update, firstRun)
+
+        assertThat(resumed.uiState.value.step).isEqualTo(WizardStep.WATCH)
+        assertThat(resumed.uiState.value.stepNumber).isEqualTo(3)
+    }
+
+    @Test
+    fun `resuming on 更新 starts the run the user never got to finish`() {
+        firstRun.saved = WizardState(step = WizardStep.UPDATE)
+
+        val resumed = WizardViewModel(builtIns, sources, channels, importPort, update, firstRun)
+
+        assertThat(resumed.uiState.value.step).isEqualTo(WizardStep.UPDATE)
+        assertThat(update.startCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `resuming on 开看 starts nothing`() {
+        firstRun.saved = WizardState(step = WizardStep.WATCH)
+
+        WizardViewModel(builtIns, sources, channels, importPort, update, firstRun)
+
+        assertThat(update.startCount).isEqualTo(0)
+    }
+
+    @Test
+    fun `the saved step follows BACK too`() {
+        viewModel.onContinue()
+        viewModel.onBack()
+
+        assertThat(firstRun.saved?.step).isEqualTo(WizardStep.SOURCE)
+    }
+
+    @Test
+    fun `a skipped set is part of what is remembered`() {
+        viewModel.onSkip()
+
+        assertThat(firstRun.saved?.step).isEqualTo(WizardStep.UPDATE)
+        assertThat(firstRun.saved?.skipped).containsExactly(WizardStep.SOURCE)
+    }
+
+    @Test
+    fun `finishing clears the resume slot so a completed wizard is never resumed`() {
+        viewModel.onContinue()
+        assertThat(firstRun.saved).isNotNull()
+
+        viewModel.complete()
+
+        assertThat(firstRun.completed).isTrue()
+        assertThat(firstRun.saved).isNull()
     }
 
     private fun moveToWatch() {

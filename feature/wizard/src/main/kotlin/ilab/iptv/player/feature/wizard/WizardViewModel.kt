@@ -83,7 +83,12 @@ class WizardViewModel @Inject constructor(
         val loaded: Boolean = false,
     )
 
-    private val flow = MutableStateFlow(WizardState())
+    /**
+     * NEW-1: the wizard resumes where it was left. The read is the same synchronous
+     * `SharedPreferences` read the router already does, so this costs no loading frame; a stored step
+     * that cannot be parsed reads as "no progress" (see `SharedPrefsFirstRunStore`).
+     */
+    private val flow = MutableStateFlow(firstRun.savedProgress() ?: WizardState())
 
     private val sourceFacts = MutableStateFlow(SourceFacts(builtIns = builtIns.sources()))
 
@@ -140,6 +145,9 @@ class WizardViewModel @Inject constructor(
         // One load for the whole screen: the two reads are a small file and one `SELECT`, both off
         // the main thread behind the ports.
         refreshSources()
+        // A run that resumes on 更新 owes the user the same auto-start it would have got by walking
+        // there (see [maybeStartUpdate]); resuming on 开看 or 选源 starts nothing.
+        maybeStartUpdate(flow.value)
     }
 
     /** Re-reads the subscriptions and the remembered import (the screen calls this on resume). */
@@ -164,6 +172,7 @@ class WizardViewModel @Inject constructor(
     private fun advance(transition: (WizardState) -> WizardState) {
         val next = transition(flow.value)
         flow.value = next
+        firstRun.saveProgress(next)
         maybeStartUpdate(next)
     }
 
@@ -183,6 +192,7 @@ class WizardViewModel @Inject constructor(
         }
         val previous = WizardFlow.back(current) ?: return false
         flow.value = previous
+        firstRun.saveProgress(previous)
         return true
     }
 
@@ -254,7 +264,8 @@ class WizardViewModel @Inject constructor(
     /**
      * The 开看 step is done: record the setting the whole card is built around, then let the screen
      * hand over to the channel list. Written here rather than in the screen, so "the wizard was
-     * completed" has exactly one author.
+     * completed" has exactly one author. `markCompleted` also clears the saved step (NEW-1), so a run
+     * that finished is never resumed.
      */
     fun complete() {
         firstRun.markCompleted()
