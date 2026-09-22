@@ -44,8 +44,8 @@ android {
         applicationId = "ilab.iptv.player"
         minSdk = 21
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.1.1"
         // Target device is armeabi-v7a only (docs/01). Do not pull 64-bit-only native libs.
         ndk { abiFilters += "armeabi-v7a" }
     }
