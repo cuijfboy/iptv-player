@@ -8,10 +8,12 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import ilab.iptv.player.core.model.RefreshTrigger
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.flow.first
 
 /**
  * The one thing P2-5 needs from WorkManager: put a job on the queue (docs/04 P2-5).
@@ -26,8 +28,20 @@ interface WorkEnqueuer {
     /** Enqueue/replace the daily job. `UPDATE` so a changed setting takes effect on the next app start. */
     fun enqueuePeriodic(spec: RefreshWorkSpec)
 
-    /** Enqueue the immediate job; `KEEP` so two taps do not queue two runs. */
-    fun enqueueOnce(spec: RefreshWorkSpec)
+    /**
+     * Enqueue the immediate job under [policy].
+     *
+     * `KEEP` is the ordinary case (two taps do not queue two runs); `REPLACE` is what
+     * [RefreshReclaim] asks for when the queued job is a run the process death interrupted, so the
+     * re-trigger is not swallowed by that run's backoff (NEW-004).
+     */
+    fun enqueueOnce(spec: RefreshWorkSpec, policy: RefreshEnqueuePolicy)
+
+    /**
+     * What the queue holds for [uniqueName], or `null` when nothing is queued. The decision itself
+     * lives in [RefreshReclaim]; this is only the read.
+     */
+    suspend fun existing(uniqueName: String): ExistingRefreshRun?
 }
 
 /** The production adapter: builds the two WorkRequests and hands them to WorkManager. */
@@ -53,7 +67,7 @@ class WorkManagerEnqueuer(private val workManager: WorkManager) : WorkEnqueuer {
         )
     }
 
-    override fun enqueueOnce(spec: RefreshWorkSpec) {
+    override fun enqueueOnce(spec: RefreshWorkSpec, policy: RefreshEnqueuePolicy) {
         val request = OneTimeWorkRequestBuilder<RefreshWorker>()
             .setConstraints(constraintsOf(spec))
             .setInitialDelay(spec.initialDelayMs, TimeUnit.MILLISECONDS)
@@ -63,10 +77,34 @@ class WorkManagerEnqueuer(private val workManager: WorkManager) : WorkEnqueuer {
             .build()
         workManager.enqueueUniqueWork(
             spec.uniqueName,
-            ExistingWorkPolicy.KEEP,
+            existingWorkPolicyOf(policy),
             request,
         )
     }
+
+    /**
+     * The read behind the NEW-004 decision. `getWorkInfosForUniqueWorkFlow` is the same API the
+     * wizard's port observes, and it is a `Flow` rather than a `ListenableFuture`, so this never
+     * blocks the caller's thread (the enqueue runs on the view model's coroutine).
+     */
+    override suspend fun existing(uniqueName: String): ExistingRefreshRun? =
+        workManager.getWorkInfosForUniqueWorkFlow(uniqueName)
+            .first()
+            .lastOrNull()
+            ?.let { info -> ExistingRefreshRun(stateOf(info.state)) }
+
+    private fun stateOf(state: WorkInfo.State): QueuedRefreshState = when (state) {
+        WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED -> QueuedRefreshState.QUEUED
+        WorkInfo.State.RUNNING -> QueuedRefreshState.RUNNING
+        WorkInfo.State.SUCCEEDED, WorkInfo.State.FAILED, WorkInfo.State.CANCELLED ->
+            QueuedRefreshState.FINISHED
+    }
+
+    private fun existingWorkPolicyOf(policy: RefreshEnqueuePolicy): ExistingWorkPolicy =
+        when (policy) {
+            RefreshEnqueuePolicy.KEEP -> ExistingWorkPolicy.KEEP
+            RefreshEnqueuePolicy.REPLACE -> ExistingWorkPolicy.REPLACE
+        }
 
     private fun backoffOf(spec: RefreshWorkSpec): BackoffPolicy =
         if (spec.linearBackoff) BackoffPolicy.LINEAR else BackoffPolicy.EXPONENTIAL

@@ -67,13 +67,44 @@ class RecordingWorkEnqueuer : WorkEnqueuer {
     val periodic = mutableListOf<RefreshWorkSpec>()
     val once = mutableListOf<RefreshWorkSpec>()
 
+    /** NEW-004: the policy each `enqueueOnce` was given, in call order. */
+    val oncePolicies = mutableListOf<RefreshEnqueuePolicy>()
+
+    /** What [existing] answers; a test sets it to imitate what the queue already holds. */
+    var queued: ExistingRefreshRun? = null
+
     override fun enqueuePeriodic(spec: RefreshWorkSpec) {
         periodic += spec
     }
 
-    override fun enqueueOnce(spec: RefreshWorkSpec) {
+    override fun enqueueOnce(spec: RefreshWorkSpec, policy: RefreshEnqueuePolicy) {
         once += spec
+        oncePolicies += policy
     }
+
+    override suspend fun existing(uniqueName: String): ExistingRefreshRun? = queued
+}
+
+/**
+ * The NEW-004 mark in memory: what [RefreshWorker] would have set at the start of a run and cleared
+ * at its end. `true` is the state a test seeds to imitate "the last run was killed by the process".
+ */
+class FakeRefreshRunLedger(var unconcluded: Boolean = false) : RefreshRunLedger {
+
+    /** `started` / `concluded`, in call order. */
+    val events = mutableListOf<String>()
+
+    override fun markRunStarted() {
+        unconcluded = true
+        events += "started"
+    }
+
+    override fun markRunConcluded() {
+        unconcluded = false
+        events += "concluded"
+    }
+
+    override fun isRunUnconcluded(): Boolean = unconcluded
 }
 
 /** A pipeline whose frames and failure the test chooses; no Hilt, no network, no Room. */

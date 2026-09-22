@@ -64,6 +64,16 @@ object RefreshModule {
     fun provideWorkEnqueuer(@ApplicationContext context: Context): WorkEnqueuer =
         WorkManagerEnqueuer.from(context)
 
+    /**
+     * NEW-004: the "a run started and never finished" mark. One `SharedPreferences` boolean, written
+     * by [RefreshWorker] and read by [RefreshScheduler] (the enqueue decision) and by the wizard's
+     * [ilab.iptv.player.wizard.WorkManagerWizardUpdate] (the honest "上次中断，正在重试" wording).
+     */
+    @Provides
+    @Singleton
+    fun provideRefreshRunLedger(@ApplicationContext context: Context): RefreshRunLedger =
+        SharedPrefsRefreshRunLedger(context)
+
     @Provides
     @Singleton
     fun provideRefreshScheduler(
@@ -71,5 +81,6 @@ object RefreshModule {
         settings: RefreshScheduleSettings,
         logger: Logger,
         clock: Clock,
-    ): RefreshScheduler = RefreshScheduler(enqueuer, settings, logger, clock)
+        ledger: RefreshRunLedger,
+    ): RefreshScheduler = RefreshScheduler(enqueuer, settings, logger, clock, ledger)
 }

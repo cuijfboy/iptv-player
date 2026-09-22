@@ -11,9 +11,11 @@ import ilab.iptv.player.core.domain.wizard.WizardUpdatePort
 import ilab.iptv.player.core.domain.wizard.WizardUpdateResult
 import ilab.iptv.player.core.domain.wizard.WizardUpdateRun
 import ilab.iptv.player.core.domain.wizard.WizardUpdateSnapshot
+import ilab.iptv.player.core.domain.wizard.WizardUpdateWait
 import ilab.iptv.player.core.model.RefreshPhase
 import ilab.iptv.player.core.model.RefreshTrigger
 import ilab.iptv.player.refresh.RefreshNotifications
+import ilab.iptv.player.refresh.RefreshRunLedger
 import ilab.iptv.player.refresh.RefreshScheduler
 import ilab.iptv.player.refresh.RefreshWorkOutcome
 import ilab.iptv.player.refresh.RefreshWorkSpec
@@ -47,6 +49,7 @@ class WorkManagerWizardUpdate @Inject constructor(
     @ApplicationContext private val context: Context,
     private val scheduler: RefreshScheduler,
     private val logger: Logger,
+    private val ledger: RefreshRunLedger,
 ) : WizardUpdatePort {
 
     private val workManager: WorkManager by lazy { WorkManager.getInstance(context) }
@@ -89,6 +92,10 @@ class WorkManagerWizardUpdate @Inject constructor(
                 WorkInfo.State.FAILED -> WizardUpdateRun.FAILED
                 WorkInfo.State.CANCELLED -> WizardUpdateRun.CANCELLED
             },
+            // NEW-004: a queued run with the interruption mark still set was killed last time and is
+            // waiting out that attempt's backoff — not the network. The mark is cleared by the worker
+            // itself the moment a run concludes, so an ordinary retry reads as AWAITING_CONSTRAINTS.
+            wait = waitReasonOf(info),
             // While it runs the phase rides in `progress`; once it is done the same key arrives in
             // `outputData` (RefreshWorkOutcome writes it), so one reader covers both.
             phase = phaseOf(progress.getString(RefreshWorkOutcome.KEY_PHASE))
@@ -102,6 +109,15 @@ class WorkManagerWizardUpdate @Inject constructor(
             detail = output.getString(RefreshWorkOutcome.KEY_ERROR)
                 ?: output.getString(RefreshWorkOutcome.KEY_INTERRUPTED),
         )
+    }
+
+    private fun waitReasonOf(info: WorkInfo): WizardUpdateWait {
+        val queued = info.state == WorkInfo.State.ENQUEUED || info.state == WorkInfo.State.BLOCKED
+        return if (queued && ledger.isRunUnconcluded()) {
+            WizardUpdateWait.RETRY_AFTER_INTERRUPTION
+        } else {
+            WizardUpdateWait.AWAITING_CONSTRAINTS
+        }
     }
 
     private fun phaseOf(name: String?): RefreshPhase? =

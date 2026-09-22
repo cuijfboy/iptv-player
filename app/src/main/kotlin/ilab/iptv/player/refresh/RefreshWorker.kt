@@ -60,10 +60,20 @@ class RefreshWorker(
         fun refreshRunCoordinator(): RefreshRunCoordinator
 
         fun epgRefreshScheduler(): EpgRefreshScheduler
+
+        fun refreshRunLedger(): RefreshRunLedger
     }
 
     override suspend fun doWork(): Result {
         val deps = EntryPointAccessors.fromApplication(applicationContext, RefreshEntryPoint::class.java)
+        val ledger = deps.refreshRunLedger()
+        // NEW-004: the run is "in flight" from here until it concludes. A process death skips the
+        // clearing half, which is how `RefreshScheduler.enqueueNow` tells "the process was killed"
+        // apart from "the worker asked for a retry" — see [RefreshRunLedger].
+        return recordingRefreshRun(ledger) { runRefresh(deps) }
+    }
+
+    private suspend fun runRefresh(deps: RefreshEntryPoint): Result {
         val logger = deps.logger()
         val trigger = triggerFrom(inputData)
         val startedAtMs = deps.clock().nowMs()

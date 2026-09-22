@@ -24,6 +24,7 @@ class RefreshScheduler(
     private val settings: RefreshScheduleSettings,
     private val logger: Logger,
     private val clock: Clock,
+    private val ledger: RefreshRunLedger,
     private val zone: TimeZone = TimeZone.getDefault(),
 ) {
 
@@ -51,10 +52,21 @@ class RefreshScheduler(
         return spec
     }
 
-    /** A run the user asked for; it must not wait for 06:00. */
-    fun enqueueNow(trigger: RefreshTrigger = RefreshTrigger.MANUAL): RefreshWorkSpec {
+    /**
+     * A run the user asked for; it must not wait for 06:00 — and it must not wait out the backoff of a
+     * run the process death interrupted either (NEW-004).
+     *
+     * The job it queues is the same `refresh-manual` unique work as before; what the card changes is
+     * *which policy* asks for it. [RefreshReclaim] answers that from two inputs — the state of the
+     * queued job and [RefreshRunLedger] — so the three rules in that file hold (no duplicate run, no
+     * cancelled live run, ordinary backoff untouched).
+     */
+    suspend fun enqueueNow(trigger: RefreshTrigger = RefreshTrigger.MANUAL): RefreshWorkSpec {
         val spec = RefreshWorkSpec.immediate()
-        enqueuer.enqueueOnce(spec)
+        val existing = enqueuer.existing(spec.uniqueName)
+        val unconcluded = ledger.isRunUnconcluded()
+        val policy = RefreshReclaim.plan(existing, unconcluded)
+        enqueuer.enqueueOnce(spec, policy)
         logger.i(
             LogCategory.WORK,
             EventCodes.WORK_SCHEDULE,
@@ -62,6 +74,11 @@ class RefreshScheduler(
             mapOf(
                 "name" to spec.uniqueName,
                 "trigger" to trigger.name,
+                // The NEW-004 observability: one line says whether the request was honored and why,
+                // so "the tap did nothing" is answerable without `dumpsys jobscheduler`.
+                "queuedState" to (existing?.state?.name ?: "NONE"),
+                "interruptedRunOnRecord" to unconcluded,
+                "policy" to policy.name,
                 "requiresNetwork" to spec.requiresNetwork,
                 "backoffMs" to spec.backoffMs,
                 "maxAttempts" to spec.maxAttempts,

@@ -23,6 +23,7 @@ import ilab.iptv.player.core.domain.wizard.WizardFlow
 import ilab.iptv.player.core.domain.wizard.WizardStep
 import ilab.iptv.player.core.domain.wizard.WizardUpdateFailure
 import ilab.iptv.player.core.domain.wizard.WizardUpdateState
+import ilab.iptv.player.core.domain.wizard.WizardUpdateWait
 import ilab.iptv.player.core.model.RefreshPhase
 import ilab.iptv.player.core.ui.browse.BrowseContract
 import ilab.iptv.player.core.ui.import.ImportCandidateLabel
@@ -376,7 +377,7 @@ class WizardActivity : ComponentActivity() {
                 if (percent != null) updateProgress.progress = percent
             }
 
-            WizardUpdateState.Preparing -> updateProgress.isIndeterminate = true
+            is WizardUpdateState.Preparing -> updateProgress.isIndeterminate = true
             else -> Unit
         }
         updateStart.visibility = visibleIf(!inFlight)
@@ -393,7 +394,16 @@ class WizardActivity : ComponentActivity() {
     private fun updateText(state: WizardUiState): String {
         val text = when (val update = state.update) {
             WizardUpdateState.NotStarted -> getString(R.string.wizard_update_idle)
-            WizardUpdateState.Preparing -> getString(R.string.wizard_update_preparing)
+            is WizardUpdateState.Preparing -> getString(
+                // NEW-004: the two reasons a queued run is not running are different things and the
+                // screen must not report one as the other (the QA round saw "等待网络…" for a run that
+                // was actually waiting out a killed attempt's backoff).
+                when (update.wait) {
+                    WizardUpdateWait.AWAITING_CONSTRAINTS -> R.string.wizard_update_preparing
+                    WizardUpdateWait.RETRY_AFTER_INTERRUPTION ->
+                        R.string.wizard_update_retry_after_interruption
+                },
+            )
             is WizardUpdateState.Running -> {
                 val phase = phaseLabel(update.phase)
                 if (update.percent == null) {

@@ -152,5 +152,10 @@ dependencies {
     testImplementation(libs.truth)
     // The refresh coordinator/scheduler tests drive coroutines on a virtual clock.
     testImplementation(libs.kotlinx.coroutines.test)
+    // NEW-004: the run ledger is a real `SharedPreferences` round trip, so its test needs Robolectric
+    // (the same shape `:core:player`'s overscan store test and `:core:data`'s Room tests use).
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.androidx.test.ext.junit)
+    testImplementation(libs.robolectric)
     debugImplementation(project(":core:testing"))
 }

@@ -44,6 +44,23 @@ enum class WizardUpdateRun {
  */
 enum class WizardUpdateResult { COMPLETED, DEFERRED, GAVE_UP, UNKNOWN }
 
+/**
+ * Why a queued run has not started yet (NEW-004, docs/05-过程记录/67).
+ *
+ * The P2-9 screen showed one sentence — 「已排队，等待网络…」 — for every queued run. That was wrong
+ * for the run WorkManager rescheduled after a process death: the network was fine, the job was simply
+ * waiting out the backoff of the attempt that was killed. One enum splits the two so the screen can
+ * say the true thing instead of guessing "network".
+ */
+enum class WizardUpdateWait {
+
+    /** Queued normally: waiting for the job's constraints (network, battery). */
+    AWAITING_CONSTRAINTS,
+
+    /** Queued again after the previous run was interrupted; it will start as soon as it is allowed. */
+    RETRY_AFTER_INTERRUPTION,
+}
+
 /** One reading of the manual refresh job, with the Android types already stripped off. */
 data class WizardUpdateSnapshot(
     val run: WizardUpdateRun = WizardUpdateRun.NONE,
@@ -59,6 +76,8 @@ data class WizardUpdateSnapshot(
     val interrupted: Boolean = false,
     /** The failure's short class name, for the readable message ("IOException"). */
     val detail: String? = null,
+    /** Only meaningful when [run] is [WizardUpdateRun.QUEUED]: why it has not started. */
+    val wait: WizardUpdateWait = WizardUpdateWait.AWAITING_CONSTRAINTS,
 )
 
 /** Why the update step did not produce a usable library — the wizard shows one sentence per value. */
@@ -82,8 +101,8 @@ sealed interface WizardUpdateState {
     /** Nothing started: the step shows its invitation and the 开始更新 button. */
     data object NotStarted : WizardUpdateState
 
-    /** Queued or started, before the pipeline reported its first phase. */
-    data object Preparing : WizardUpdateState
+    /** Queued or started, before the pipeline reported its first phase. [wait] says why it is queued. */
+    data class Preparing(val wait: WizardUpdateWait) : WizardUpdateState
 
     /** [percent] is null when the phase has no item counter — an indeterminate bar. */
     data class Running(val phase: RefreshPhase?, val percent: Int?) : WizardUpdateState
@@ -108,7 +127,7 @@ object WizardUpdateReading {
 
     fun of(snapshot: WizardUpdateSnapshot): WizardUpdateState = when (snapshot.run) {
         WizardUpdateRun.NONE -> WizardUpdateState.NotStarted
-        WizardUpdateRun.QUEUED -> WizardUpdateState.Preparing
+        WizardUpdateRun.QUEUED -> WizardUpdateState.Preparing(snapshot.wait)
         WizardUpdateRun.RUNNING -> WizardUpdateState.Running(snapshot.phase, percentOf(snapshot))
         WizardUpdateRun.FAILED -> WizardUpdateState.Failed(
             WizardUpdateFailure.RUN_FAILED,

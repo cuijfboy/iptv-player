@@ -35,6 +35,8 @@
     <!-- Step 2 · 更新 -->
     <string name="wizard_update_idle">还没有更新。更新会拉取上面的源、逐条校验可播放性并写入频道表。</string>
     <string name="wizard_update_preparing">已排队，等待网络…</string>
+    <!-- NEW-004: a queued run whose previous attempt was killed is not waiting for the network. -->
+    <string name="wizard_update_retry_after_interruption">上次更新被中断，正在重试…</string>
     <string name="wizard_update_running">正在更新：%1$s</string>
     <string name="wizard_update_running_percent">正在更新：%1$s %2$d%%</string>
     <string name="wizard_update_done">更新完成：可播放 %1$d 条 / 失败 %2$d 条</string>

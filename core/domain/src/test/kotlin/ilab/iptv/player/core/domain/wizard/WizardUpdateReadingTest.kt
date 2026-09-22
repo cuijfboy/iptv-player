@@ -23,6 +23,7 @@ class WizardUpdateReadingTest {
         fail: Int = 0,
         interrupted: Boolean = false,
         detail: String? = null,
+        wait: WizardUpdateWait = WizardUpdateWait.AWAITING_CONSTRAINTS,
     ) = WizardUpdateSnapshot(
         run = run,
         phase = phase,
@@ -33,6 +34,7 @@ class WizardUpdateReadingTest {
         failCount = fail,
         interrupted = interrupted,
         detail = detail,
+        wait = wait,
     )
 
     @Test
@@ -43,9 +45,23 @@ class WizardUpdateReadingTest {
     @Test
     fun `queued and running are distinct states, because only one of them can be interrupted`() {
         assertThat(WizardUpdateReading.of(snapshot(run = WizardUpdateRun.QUEUED)))
-            .isEqualTo(WizardUpdateState.Preparing)
+            .isEqualTo(WizardUpdateState.Preparing(WizardUpdateWait.AWAITING_CONSTRAINTS))
         assertThat(WizardUpdateReading.of(snapshot(run = WizardUpdateRun.RUNNING)))
             .isEqualTo(WizardUpdateState.Running(phase = null, percent = null))
+    }
+
+    @Test
+    fun `a queued run that follows an interruption says so instead of blaming the network`() {
+        // NEW-004: the QA round saw 「已排队，等待网络…」 for a run that was really waiting out the
+        // backoff of the attempt the process death killed. The two waits are different readings of the
+        // same WorkManager state, so the difference has to survive this mapping.
+        val read = WizardUpdateReading.of(
+            snapshot(run = WizardUpdateRun.QUEUED, wait = WizardUpdateWait.RETRY_AFTER_INTERRUPTION),
+        )
+
+        assertThat(read).isEqualTo(
+            WizardUpdateState.Preparing(WizardUpdateWait.RETRY_AFTER_INTERRUPTION),
+        )
     }
 
     @Test
