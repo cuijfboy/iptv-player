@@ -68,6 +68,7 @@ class FakeEpgRunner(
             programmes: Int = 177_447,
             matched: Int = 153,
             total: Int = 156,
+            withProgrammes: Int = matched,
             interrupted: String? = null,
         ) = EpgLoadReport(
             providers = providers,
@@ -79,6 +80,8 @@ class FakeEpgRunner(
                 total = total,
                 byGroup = mapOf(ChannelGroup.CCTV to matched),
                 byGroupTotal = mapOf(ChannelGroup.CCTV to total),
+                withProgrammes = withProgrammes,
+                byGroupWithProgrammes = mapOf(ChannelGroup.CCTV to withProgrammes),
             ),
             elapsedMs = 6_000L,
             interrupted = interrupted,

@@ -132,23 +132,17 @@ class DiagnosticsViewModel @Inject constructor(
 
     private fun epgSummary(status: EpgRefreshStatus): DiagEpgSummary {
         val coverage = status.coverage
-        val (mainMatched, mainTotal) = DiagOverview.mainstreamOf(coverage)
         return DiagEpgSummary(
             lastFetch = status.sources.lastFetchAtMs?.let {
                 "${localTime(it)}（${(clock.nowMs() - it) / 60_000L} 分钟前）"
             } ?: "还没拉取过",
             sources = "共 ${status.sources.sources} / 启用 ${status.sources.enabledSources}" +
                 (status.sources.lastResult?.let { " · 上次 $it" } ?: ""),
-            mainstream = coverageText(mainMatched, mainTotal),
-            coverage = coverageText(coverage.matched, coverage.total),
+            mainstream = DiagOverview.coverageText(DiagOverview.mainstreamOf(coverage)),
+            coverage = DiagOverview.coverageText(DiagOverview.coverageOf(coverage)),
             minInterval = intervalText(status.settings.minIntervalMs),
             enabled = status.enabled,
         )
-    }
-
-    private fun coverageText(matched: Int, total: Int): String {
-        val ratio = if (total <= 0) 0.0 else matched.toDouble() / total
-        return "$matched / $total = ${"%.1f".format(java.util.Locale.US, ratio * 100)}%"
     }
 
     /** The panel's live tail: the ring's contents, filtered (no second buffer — dispatch item 2). */

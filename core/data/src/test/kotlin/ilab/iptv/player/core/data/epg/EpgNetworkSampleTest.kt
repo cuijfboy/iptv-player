@@ -12,6 +12,7 @@ import ilab.iptv.player.core.data.catalog.ChannelCatalog
 import ilab.iptv.player.core.data.dispatchers.TestDispatcherProvider
 import ilab.iptv.player.core.data.store.RoomCatalogWriter
 import ilab.iptv.player.core.database.IptvDatabase
+import ilab.iptv.player.core.database.ProgrammeWindows
 import ilab.iptv.player.core.domain.channel.ChannelGrouping
 import ilab.iptv.player.core.epg.BuiltInEpgSources
 import ilab.iptv.player.core.epg.EpgAliases
@@ -123,12 +124,13 @@ class EpgNetworkSampleTest {
         }.toSet()
 
         // 3. The pipeline.
-        val repository = RoomEpgRepository(database.channelDao(), database.programmeDao())
+        val repository = RoomEpgRepository(database.channelDao(), database.programmeDao(), clock)
         val useCase = LoadEpgUseCase(
             providers = providers,
             repository = repository,
             channelDao = database.channelDao(),
             epgSourceDao = database.epgSourceDao(),
+            programmeDao = database.programmeDao(),
             matcher = EpgMatcher(nameKey = Keys::nameKey, aliases = EpgAliases.BUILT_IN),
             clock = clock,
             logger = logger,
@@ -150,6 +152,15 @@ class EpgNetworkSampleTest {
             "coverage: matched=${report.coverage.matched} total=${report.coverage.total} " +
                 "ratio=${report.coverage.ratio} byGroup=${report.coverage.byGroup}",
         )
+        // EPG-BIND: the three readings of one run. `matched` is the id side (unchanged since P3-5),
+        // `withProgrammes` is what a viewer can actually open, and `emptyBinding` is the difference —
+        // the 三沙卫视 state that used to be reported as coverage.
+        println(
+            "coverage-verdicts: matched=${report.coverage.matched} " +
+                "withProgrammes=${report.coverage.withProgrammes} " +
+                "emptyBinding=${report.coverage.emptyBinding} total=${report.coverage.total} " +
+                "ratio=${report.coverage.ratio} programmedRatio=${report.coverage.programmedRatio}",
+        )
         val mainstream = EpgCoverageCalculator.mainstream(report.coverage)
         println(
             "coverage-by-group: " + report.coverage.byGroupTotal.entries.joinToString(" ") { (group, total) ->
@@ -157,10 +168,14 @@ class EpgNetworkSampleTest {
             },
         )
         println(
-            "coverage-mainstream: matched=${mainstream.matched} total=${mainstream.total} " +
-                "ratio=${mainstream.ratio} (docs/04 P3-5 target = 0.60)",
+            "coverage-mainstream: matched=${mainstream.matched} " +
+                "withProgrammes=${mainstream.withProgrammes} emptyBinding=${mainstream.emptyBinding} " +
+                "total=${mainstream.total} ratio=${mainstream.ratio} " +
+                "programmedRatio=${mainstream.programmedRatio} (docs/04 P3-5 target = 0.60)",
         )
         println("coverage-uncovered: " + uncoveredSummary(database))
+        println("coverage-empty-binding: " + emptyBindingSummary(database, clock))
+        println("coverage-competition: " + competitionSummary(database, logger))
         println("coverage-spotlight: " + spotlight(database))
         println("coverage-hit-tiers: " + tierSummary(logger))
         println("elapsedReportedMs=${report.elapsedMs} wallMs=$wallMs")
@@ -178,6 +193,56 @@ class EpgNetworkSampleTest {
         // The sample asserts only that the run happened and produced something; the numbers are the point.
         assertThat(report.coverage.total).isEqualTo(load.channels)
         assertThat(LogLevel.DEBUG).isNotNull()
+    }
+
+    /**
+     * The channels that *have* a guide id but whose id holds nothing in the retention window — the
+     * "covered on paper, blank in the app" set EPG-BIND reports as `emptyBinding`. These are the rows
+     * the id-side coverage counted as a success, so the list is the evidence for the口径 change.
+     */
+    private suspend fun emptyBindingSummary(
+        database: IptvDatabase,
+        clock: ilab.iptv.player.core.common.Clock,
+    ): String {
+        val window = ProgrammeWindows.around(clock.nowMs())
+        val counts = database.programmeDao().countByChannelInWindow(window.fromMs, window.toMs)
+            .associate { it.epgChannelId to it.count }
+        val empty = database.channelDao().all()
+            .filter { !it.epgChannelId.isNullOrBlank() && (counts[it.epgChannelId] ?: 0) == 0 }
+        val byGroup = empty.groupBy { ChannelGrouping.classify(it.groupTitle).key }
+        return "count=${empty.size} " + byGroup.entries
+            .sortedByDescending { it.value.size }
+            .joinToString(" | ") { (group, rows) ->
+                // Every name, not a sample: this list is the follow-up work list (a manual P3-4
+                // binding needs the id it would replace), so the name carries the guide id it is bound to.
+                "$group:${rows.size} [" +
+                    rows.joinToString(",") { "${it.name}=${it.epgChannelId}" } + "]"
+            }
+    }
+
+    /**
+     * The channels more than one source proposed a binding for — the ones EPG-BIND actually decides.
+     * Each proposal is printed as `guideId(rowsInWindow,win|lose)`, so the winner's margin is visible
+     * and "the later source won" can be told from "the deeper guide won".
+     */
+    private suspend fun competitionSummary(database: IptvDatabase, logger: PrintingLogger): String {
+        val names = database.channelDao().all().associate { it.id to it.name }
+        return logger.events
+            .filter { (code, _) -> code == "EPG_MATCH_HIT" }
+            .groupBy { (_, fields) -> fields["channelId"] }
+            .filterKeys { it != null }
+            .values
+            .filter { it.size > 1 }
+            .joinToString(" | ") { proposals ->
+                val channelId = proposals.first().second["channelId"]
+                val name = names[channelId] ?: "id=$channelId"
+                val detail = proposals.joinToString(",") { (_, fields) ->
+                    val verdict = if (fields["chosen"] == true) "win" else "lose"
+                    "${fields["epgId"]}(${fields["programmesInWindow"]},$verdict)"
+                }
+                "$name=[$detail]"
+            }
+            .ifEmpty { "(none)" }
     }
 
     /**

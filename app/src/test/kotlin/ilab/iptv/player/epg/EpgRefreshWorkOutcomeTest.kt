@@ -30,6 +30,21 @@ class EpgRefreshWorkOutcomeTest {
     }
 
     @Test
+    fun `the run result records both coverage readings, so an empty binding is visible after the fact`() {
+        // EPG-BIND: the id-side ratio stays where it was (an old reader must not change), and the
+        // honest one travels next to it — 150 of 156 mainstream channels have something to show, and
+        // the three that do not are the difference between the two numbers.
+        val result = resultOf(
+            EpgRunResult.Completed(FakeEpgRunner.report(matched = 153, total = 156, withProgrammes = 150)),
+            attempt = 0,
+        )
+        val data = (result as ListenableWorker.Result.Success).outputData
+
+        assertThat(data.getFloat(EpgRefreshWorkOutcome.KEY_COVERAGE, 0f)).isEqualTo(153f / 156f)
+        assertThat(data.getFloat(EpgRefreshWorkOutcome.KEY_COVERAGE_PROGRAMMED, 0f)).isEqualTo(150f / 156f)
+    }
+
+    @Test
     fun `a run stopped by playback still succeeds, but says it was interrupted`() {
         val result = resultOf(
             EpgRunResult.Completed(FakeEpgRunner.report(interrupted = "playback_priority")),

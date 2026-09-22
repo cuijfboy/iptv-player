@@ -46,9 +46,12 @@ data class DiagEpgSummary(
     val lastFetch: String,
     /** `共 4 / 启用 4 · 上次 OK:25234`. */
     val sources: String,
-    /** `153 / 156 = 98.1%` over the mainstream slice (央视 + 卫视 + 港澳台). */
+    /**
+     * `153 / 156 = 98.1%` over the mainstream slice (央视 + 卫视 + 港澳台); `（空绑 N）` is appended
+     * when N channels of that slice are bound to a guide id with nothing behind it (EPG-BIND).
+     */
     val mainstream: String,
-    /** `209 / 658 = 31.8%` over every channel. */
+    /** `209 / 658 = 31.8%` over every channel, same两项 as [mainstream]. */
     val coverage: String,
     /** The refresh interval the trigger is honouring, e.g. `6 小时`. */
     val minInterval: String,
@@ -171,16 +174,56 @@ object DiagOverview {
     )
 
     /**
+     * One coverage reading in the two口径 EPG-BIND split: channels that can actually show something
+     * ([withProgrammes]) out of [total], and how many of the matched bindings hold nothing
+     * ([emptyBinding]). `withProgrammes == total` renders exactly like the single reading it replaces,
+     * so a list with no empty bindings reads as it always did.
+     */
+    data class CoverageReading(val withProgrammes: Int, val total: Int, val emptyBinding: Int)
+
+    /** Every channel, in the panel's口径: the id side is [EpgCoverage.matched], the honest side is the grid. */
+    fun coverageOf(coverage: EpgCoverage): CoverageReading = CoverageReading(
+        withProgrammes = coverage.withProgrammes,
+        total = coverage.total,
+        emptyBinding = coverage.emptyBinding,
+    )
+
+    /**
+     * `153 / 156 = 98.1%`, or `149 / 156 = 95.5%（空绑 4）` when some bindings hold nothing.
+     *
+     * The number is the *programmed* count (EPG-BIND): a binding whose guide id has no programme in
+     * the window is not coverage, so it must not raise the reading. The empty count is appended only
+     * when there is one, which keeps a healthy list printing exactly the string it printed before.
+     */
+    fun coverageText(reading: CoverageReading): String {
+        val ratio = if (reading.total <= 0) 0.0 else reading.withProgrammes.toDouble() / reading.total
+        val percent = "%.1f".format(java.util.Locale.US, ratio * 100)
+        val base = "${reading.withProgrammes} / ${reading.total} = $percent%"
+        return if (reading.emptyBinding > 0) "$base（空绑 ${reading.emptyBinding}）" else base
+    }
+
+    /**
      * The mainstream slice of docs/04's P3-5 exit — 央视 + 卫视 + 港澳台 — recomputed here from the
      * coverage the port returns. `EpgCoverageCalculator` owns the same rule inside `:core:epg`, which a
      * feature may not see (§3.2 rule 2); the three groups are named, not looped over "everything that
      * is not local", so a new group cannot silently join the slice.
      */
-    fun mainstreamOf(coverage: EpgCoverage): Pair<Int, Int> {
-        val groups = MAINSTREAM_GROUPS
-        val matched = groups.sumOf { coverage.byGroup[it] ?: 0 }
-        val total = groups.sumOf { coverage.byGroupTotal[it] ?: 0 }
-        return matched to total
+    fun mainstreamOf(coverage: EpgCoverage): CoverageReading {
+        var matched = 0
+        var withProgrammes = 0
+        var total = 0
+        for (group in MAINSTREAM_GROUPS) {
+            matched += coverage.byGroup[group] ?: 0
+            total += coverage.byGroupTotal[group] ?: 0
+            // Same fallback as EpgCoverageCalculator.mainstream: a producer that reported only the id
+            // side is read the old way, so its slice does not shift.
+            withProgrammes += coverage.byGroupWithProgrammes[group] ?: (coverage.byGroup[group] ?: 0)
+        }
+        return CoverageReading(
+            withProgrammes = withProgrammes,
+            total = total,
+            emptyBinding = (matched - withProgrammes).coerceAtLeast(0),
+        )
     }
 
     /** `央视 + 卫视 + 港澳台`, the slice docs/04 P3-5 measures (kept in this order for the doc trail). */

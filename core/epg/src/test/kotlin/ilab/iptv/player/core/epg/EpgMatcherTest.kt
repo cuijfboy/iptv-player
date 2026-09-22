@@ -359,4 +359,102 @@ class EpgMatcherTest {
         assertThat(mainstream.total).isEqualTo(0)
         assertThat(mainstream.ratio).isEqualTo(0.0)
     }
+
+    @Test
+    fun `coverage tells an empty binding apart from one with programmes`() {
+        val channels = listOf(
+            channel(id = 1, name = "CCTV-1", group = ChannelGroup.CCTV),
+            // EPG-TRAD-1's 三沙卫视: an id was bound, the guide has no <programme> for it.
+            channel(id = 2, name = "三沙卫视", group = ChannelGroup.CCTV),
+            channel(id = 3, name = "湖南卫视", group = ChannelGroup.SATELLITE),
+            channel(id = 4, name = "凤凰中文", group = ChannelGroup.HK_MO_TW),
+            channel(id = 5, name = "本地台", group = ChannelGroup.LOCAL),
+        )
+        val coverage = EpgCoverageCalculator.of(
+            channels,
+            matchedChannelIds = setOf(1, 2, 3, 5),
+            channelsWithProgrammes = setOf(1, 3, 5),
+        )
+
+        assertThat(coverage.matched).isEqualTo(4)
+        assertThat(coverage.withProgrammes).isEqualTo(3)
+        assertThat(coverage.emptyBinding).isEqualTo(1)
+        assertThat(coverage.ratio).isEqualTo(0.8)
+        assertThat(coverage.programmedRatio).isEqualTo(0.6)
+        assertThat(coverage.byGroupWithProgrammes).containsExactly(
+            ChannelGroup.CCTV, 1,
+            ChannelGroup.SATELLITE, 1,
+            ChannelGroup.LOCAL, 1,
+        )
+    }
+
+    @Test
+    fun `an empty binding is not counted in the mainstream reading, which is what the target gates on`() {
+        val channels = listOf(
+            channel(id = 1, name = "CCTV-1", group = ChannelGroup.CCTV),
+            channel(id = 2, name = "三沙卫视", group = ChannelGroup.CCTV),
+            channel(id = 3, name = "湖南卫视", group = ChannelGroup.SATELLITE),
+        )
+        val coverage = EpgCoverageCalculator.of(
+            channels,
+            matchedChannelIds = setOf(1, 2, 3),
+            channelsWithProgrammes = setOf(1, 3),
+        )
+        val mainstream = EpgCoverageCalculator.mainstream(coverage)
+
+        // The id-side reading is a perfect 3/3 here; the reading a viewer experiences is 2/3, and the
+        // difference is exactly the one binding that would show a blank grid.
+        assertThat(mainstream.matched).isEqualTo(3)
+        assertThat(mainstream.ratio).isEqualTo(1.0)
+        assertThat(mainstream.withProgrammes).isEqualTo(2)
+        assertThat(mainstream.emptyBinding).isEqualTo(1)
+        assertThat(mainstream.programmedRatio).isEqualTo(2.0 / 3.0)
+    }
+
+    @Test
+    fun `a list where every binding is empty reports nothing covered rather than everything`() {
+        val channels = listOf(channel(id = 1, name = "三沙卫视", group = ChannelGroup.SATELLITE))
+        val coverage = EpgCoverageCalculator.of(
+            channels,
+            matchedChannelIds = setOf(1),
+            channelsWithProgrammes = emptySet(),
+        )
+
+        assertThat(coverage.matched).isEqualTo(1)
+        assertThat(coverage.withProgrammes).isEqualTo(0)
+        assertThat(coverage.emptyBinding).isEqualTo(1)
+        assertThat(coverage.programmedRatio).isEqualTo(0.0)
+        // A group whose every binding is empty is reported as `0`, not omitted: an omitted group has to
+        // keep meaning "not reported", otherwise the mainstream slice would round it up to covered.
+        assertThat(coverage.byGroupWithProgrammes).containsExactly(ChannelGroup.SATELLITE, 0)
+    }
+
+    @Test
+    fun `a caller that only knows the id side keeps the old reading`() {
+        // Backward compatibility: the third parameter defaults to the matched set, so every existing
+        // call site (and any producer that cannot check the programme table) reads as it always did.
+        val channels = listOf(channel(id = 1, name = "CCTV-1", group = ChannelGroup.CCTV))
+        val coverage = EpgCoverageCalculator.of(channels, matchedChannelIds = setOf(1))
+
+        assertThat(coverage.withProgrammes).isEqualTo(coverage.matched)
+        assertThat(coverage.emptyBinding).isEqualTo(0)
+        assertThat(coverage.programmedRatio).isEqualTo(coverage.ratio)
+        assertThat(EpgCoverageCalculator.mainstream(coverage).programmedRatio)
+            .isEqualTo(EpgCoverageCalculator.mainstream(coverage).ratio)
+    }
+
+    @Test
+    fun `a programme count for a channel that was never matched cannot inflate the numerator`() {
+        val channels = listOf(channel(id = 1, name = "本地台", group = ChannelGroup.LOCAL))
+        val coverage = EpgCoverageCalculator.of(
+            channels,
+            matchedChannelIds = emptySet(),
+            // id 1 is known to have programmes, but it has no binding: it is not coverage.
+            channelsWithProgrammes = setOf(1),
+        )
+
+        assertThat(coverage.matched).isEqualTo(0)
+        assertThat(coverage.withProgrammes).isEqualTo(0)
+        assertThat(coverage.emptyBinding).isEqualTo(0)
+    }
 }

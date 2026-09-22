@@ -107,9 +107,78 @@ class DiagOverviewTest {
             ),
         )
 
-        assertThat(DiagOverview.mainstreamOf(coverage)).isEqualTo(153 to 156)
+        assertThat(DiagOverview.mainstreamOf(coverage))
+            .isEqualTo(DiagOverview.CoverageReading(withProgrammes = 153, total = 156, emptyBinding = 0))
         assertThat(DiagOverview.MAINSTREAM_GROUPS)
             .containsExactly(ChannelGroup.CCTV, ChannelGroup.SATELLITE, ChannelGroup.HK_MO_TW)
+    }
+
+    @Test
+    fun `the panel's number is the coverage a viewer sees, and an empty binding is called out`() {
+        // EPG-BIND: 4 of the matched channels are bound to a guide id with nothing behind it. The id
+        // side says 98.1% mainstream; the reading the viewer experiences is 149/156, and the panel says
+        // so instead of rounding the empty bindings into the covered count.
+        val coverage = EpgCoverage(
+            matched = 209,
+            total = 658,
+            byGroup = mapOf(
+                ChannelGroup.CCTV to 80,
+                ChannelGroup.SATELLITE to 69,
+                ChannelGroup.HK_MO_TW to 4,
+            ),
+            byGroupTotal = mapOf(
+                ChannelGroup.CCTV to 80,
+                ChannelGroup.SATELLITE to 69,
+                ChannelGroup.HK_MO_TW to 7,
+            ),
+            withProgrammes = 205,
+            byGroupWithProgrammes = mapOf(
+                ChannelGroup.CCTV to 79,
+                ChannelGroup.SATELLITE to 66,
+                ChannelGroup.HK_MO_TW to 4,
+            ),
+        )
+
+        assertThat(DiagOverview.coverageOf(coverage))
+            .isEqualTo(DiagOverview.CoverageReading(withProgrammes = 205, total = 658, emptyBinding = 4))
+        assertThat(DiagOverview.coverageText(DiagOverview.coverageOf(coverage)))
+            .isEqualTo("205 / 658 = 31.2%（空绑 4）")
+        assertThat(DiagOverview.mainstreamOf(coverage))
+            .isEqualTo(DiagOverview.CoverageReading(withProgrammes = 149, total = 156, emptyBinding = 4))
+        assertThat(DiagOverview.coverageText(DiagOverview.mainstreamOf(coverage)))
+            .isEqualTo("149 / 156 = 95.5%（空绑 4）")
+    }
+
+    @Test
+    fun `a coverage whose groups are all empty reads as zero rather than falling back to the id count`() {
+        // The group is *present* with a zero, which is how "every binding is empty" is told apart from
+        // "this producer never reported the programmed side" (the latter falls back, the former must not).
+        val coverage = EpgCoverage(
+            matched = 1,
+            total = 1,
+            byGroup = mapOf(ChannelGroup.SATELLITE to 1),
+            byGroupTotal = mapOf(ChannelGroup.SATELLITE to 1),
+            withProgrammes = 0,
+            byGroupWithProgrammes = mapOf(ChannelGroup.SATELLITE to 0),
+        )
+
+        assertThat(DiagOverview.mainstreamOf(coverage))
+            .isEqualTo(DiagOverview.CoverageReading(withProgrammes = 0, total = 1, emptyBinding = 1))
+        assertThat(DiagOverview.coverageText(DiagOverview.mainstreamOf(coverage)))
+            .isEqualTo("0 / 1 = 0.0%（空绑 1）")
+    }
+
+    @Test
+    fun `a producer that only knows the id side keeps printing the number it printed before`() {
+        val coverage = EpgCoverage(
+            matched = 153,
+            total = 156,
+            byGroup = mapOf(ChannelGroup.CCTV to 153),
+            byGroupTotal = mapOf(ChannelGroup.CCTV to 156),
+        )
+
+        assertThat(DiagOverview.coverageText(DiagOverview.mainstreamOf(coverage)))
+            .isEqualTo("153 / 156 = 98.1%")
     }
 
     @Test

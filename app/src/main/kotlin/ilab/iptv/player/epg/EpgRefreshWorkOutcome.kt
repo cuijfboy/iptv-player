@@ -22,6 +22,8 @@ object EpgRefreshWorkOutcome {
     const val KEY_PROVIDERS = "providers"
     const val KEY_PROGRAMMES = "programmes"
     const val KEY_COVERAGE = "coverageRatio"
+    /** EPG-BIND: the same run's honest ratio — channels whose binding actually holds programmes. */
+    const val KEY_COVERAGE_PROGRAMMED = "coverageProgrammedRatio"
     const val KEY_INTERRUPTED = "interrupted"
     const val KEY_REASON = "reason"
     const val KEY_GAVE_UP = "gaveUp"
@@ -39,6 +41,7 @@ object EpgRefreshWorkOutcome {
                     .putInt(KEY_PROVIDERS, result.report.providers)
                     .putInt(KEY_PROGRAMMES, result.report.programmes)
                     .putFloat(KEY_COVERAGE, result.report.coverage.ratio.toFloat())
+                    .putFloat(KEY_COVERAGE_PROGRAMMED, result.report.coverage.programmedRatio.toFloat())
                     .putString(KEY_INTERRUPTED, result.report.interrupted)
                     .build(),
             )

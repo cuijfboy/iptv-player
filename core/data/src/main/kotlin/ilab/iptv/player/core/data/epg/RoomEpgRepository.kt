@@ -1,6 +1,8 @@
 package ilab.iptv.player.core.data.epg
 
+import ilab.iptv.player.core.common.Clock
 import ilab.iptv.player.core.data.mapper.PersistenceMapper
+import ilab.iptv.player.core.database.ProgrammeWindows
 import ilab.iptv.player.core.database.dao.ChannelDao
 import ilab.iptv.player.core.database.dao.ProgrammeDao
 import ilab.iptv.player.core.domain.channel.ChannelGrouping
@@ -31,6 +33,7 @@ import javax.inject.Singleton
 class RoomEpgRepository @Inject constructor(
     private val channelDao: ChannelDao,
     private val programmeDao: ProgrammeDao,
+    private val clock: Clock,
 ) : EpgRepository {
 
     override fun observeWindow(query: EpgWindowQuery): Flow<List<Programme>> = flow {
@@ -76,17 +79,37 @@ class RoomEpgRepository @Inject constructor(
     }
 
     /**
-     * §6.3's coverage: channels that carry a guide id over all channels, of which the table has rows
-     * or not — the *binding* is what coverage measures, since that is what the matcher achieved.
+     * §6.3's coverage, in both口径 since EPG-BIND: [EpgCoverage.matched] is "carries a guide id",
+     * [EpgCoverage.withProgrammes] is "that id has something to show inside the retention window".
+     *
+     * The second half is what a reader of the panel actually means by coverage. A guide can declare
+     * `<channel id="…">` and publish no `<programme>` for it — the id points at an empty grid, and
+     * counting it made "100% covered" and "the channel list is blank" true at the same time. The
+     * window comes from the clock because the table is only *approximately* the window: it is pruned
+     * at the end of every refresh, so between refreshes it can still hold rows that have aged out.
      */
     override suspend fun coverage(): EpgCoverage {
+        val window = ProgrammeWindows.around(clock.nowMs())
         val byGroup = channelDao.countWithEpgByGroupKey()
             .groupBy({ ChannelGrouping.classify(it.groupKey) }, { it.count })
             .mapValues { (_, counts) -> counts.sum() }
+        val byGroupTotal = channelDao.countByGroupKey()
+            .groupBy({ ChannelGrouping.classify(it.groupKey) }, { it.count })
+            .mapValues { (_, counts) -> counts.sum() }
+        val programmedByGroup = channelDao.countWithEpgProgrammesByGroupKey(window.fromMs, window.toMs)
+            .groupBy({ ChannelGrouping.classify(it.groupKey) }, { it.count })
+            .mapValues { (_, counts) -> counts.sum() }
+        // Every group that has a matched channel gets an entry, zero included: an absent key has to keep
+        // meaning "this producer did not report the programmed side", or an all-empty group would be
+        // rounded up to covered by the reader's fallback (EPG-BIND).
+        val byGroupWithProgrammes = byGroup.keys.associateWith { group -> programmedByGroup[group] ?: 0 }
         return EpgCoverage(
             matched = channelDao.countWithEpg(),
             total = channelDao.count(),
             byGroup = byGroup,
+            byGroupTotal = byGroupTotal,
+            withProgrammes = channelDao.countWithEpgProgrammes(window.fromMs, window.toMs),
+            byGroupWithProgrammes = byGroupWithProgrammes,
         )
     }
 

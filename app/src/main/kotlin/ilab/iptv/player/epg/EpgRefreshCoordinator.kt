@@ -134,6 +134,10 @@ class EpgRefreshCoordinator(
                             "programmes" to report.programmes,
                             "skippedRows" to report.skipped,
                             "coverageMatched" to report.coverage.matched,
+                            // EPG-BIND: the id-side reading and the one that says a viewer sees
+                            // something, so the run's log answers both without the coverage event.
+                            "coverageWithProgrammes" to report.coverage.withProgrammes,
+                            "coverageEmptyBinding" to report.coverage.emptyBinding,
                             "coverageTotal" to report.coverage.total,
                             "interrupted" to report.interrupted,
                             "elapsedMs" to (clock.nowMs() - startedAtMs),

@@ -11,8 +11,11 @@ import ilab.iptv.player.core.database.ProgrammeWindows
 import ilab.iptv.player.core.database.dao.ChannelDao
 import ilab.iptv.player.core.database.dao.EpgBinding
 import ilab.iptv.player.core.database.dao.EpgSourceDao
+import ilab.iptv.player.core.database.dao.ProgrammeDao
 import ilab.iptv.player.core.database.entity.EpgSourceEntity
 import ilab.iptv.player.core.domain.repository.EpgRepository
+import ilab.iptv.player.core.epg.EpgBindingCandidate
+import ilab.iptv.player.core.epg.EpgBindingPreference
 import ilab.iptv.player.core.epg.EpgCoverageCalculator
 import ilab.iptv.player.core.epg.EpgMatcher
 import ilab.iptv.player.core.epg.EpgNameKey
@@ -59,6 +62,14 @@ import kotlinx.coroutines.withContext
  * runs — the decision to start was already taken, and a user-triggered run must produce something.
  * The run reports itself as [EpgLoadReport.interrupted] = `playback_priority` so the caller can tell
  * "stopped by design" from "failed".
+ *
+ * **Binding choice (EPG-BIND).** Every source's match pass proposes a binding; the run holds all the
+ * proposals and picks one per channel at the end ([EpgBindingPreference]): the guide id with the most
+ * programmes inside the retention window, ties going to the later source — the arbitration the old
+ * "overwrite as you go" loop produced by accident. Depth is read once, from
+ * [ProgrammeDao.countByChannelInWindow], so what the pick is made from is exactly what the grid would
+ * show. A proposal whose id turns out to hold nothing still wins if it is the only one; the coverage
+ * report is what says the binding is empty.
  */
 @Singleton
 class LoadEpgUseCase @Inject constructor(
@@ -66,6 +77,7 @@ class LoadEpgUseCase @Inject constructor(
     private val repository: EpgRepository,
     private val channelDao: ChannelDao,
     private val epgSourceDao: EpgSourceDao,
+    private val programmeDao: ProgrammeDao,
     private val matcher: EpgMatcher,
     private val clock: Clock,
     private val logger: Logger,
@@ -88,8 +100,10 @@ class LoadEpgUseCase @Inject constructor(
         var providersRun = 0
         var malformed = false
         var interrupted: String? = null
-        val bindings = LinkedHashMap<Long, EpgBinding>()
-        val matchedIds = HashSet<Long>()
+        // Every source's proposals, kept per channel until the whole run has been read: the winner is
+        // a property of the run (which id holds the most), not of the source being parsed.
+        val proposalsByChannel = LinkedHashMap<Long, MutableList<EpgBindingCandidate>>()
+        val proposals = ArrayList<EpgProposal>()
 
         for ((sourceIndex, source) in sources.withIndex()) {
             // R7, run half: every source after the first is optional work, so a session that started
@@ -226,27 +240,19 @@ class LoadEpgUseCase @Inject constructor(
             // a guide whose programmes precede its channels still matches correctly.
             val index = epgChannelIndex(indexChannels, EpgNameKey::key)
             val report = matcher.match(channels, index)
-            val updatedAt = clock.nowMs()
             for (hit in report.hits) {
-                bindings[hit.channelId] = EpgBinding(hit.channelId, hit.epgChannelId, hit.type.name)
-                matchedIds += hit.channelId
-                // DEBUG on purpose: one event per channel is exactly the "explainable" record the job
-                // asks for (which tier, which field), and it is off in the shipping log level (docs/03 §3.3).
-                logger.d(
-                    LogCategory.EPG,
-                    EventCodes.EPG_MATCH_HIT,
-                    "epg channel matched",
-                    mapOf(
-                        "channelId" to hit.channelId,
-                        "strategy" to hit.type.name,
-                        "epgId" to hit.epgChannelId,
-                        "matchedOn" to hit.matchedOn,
-                        // The guide-side key of a name-based hit, so a folded match shows both sides
-                        // (`matchedOn=cctv1高清` vs `guideKey=cctv1`) and the fold is auditable.
-                        "guideKey" to hit.guideKey,
-                        "provider" to source.id,
-                    ),
+                val candidate = EpgBindingCandidate(
+                    channelId = hit.channelId,
+                    epgChannelId = hit.epgChannelId,
+                    type = hit.type,
+                    matchedOn = hit.matchedOn,
+                    guideKey = hit.guideKey,
+                    sourceOrder = sourceIndex,
                 )
+                proposalsByChannel.getOrPut(hit.channelId) { ArrayList(INITIAL_CANDIDATES) } += candidate
+                // Held, not logged: the DEBUG line below carries `depth` and `chosen`, and neither is
+                // known until the last source has been read.
+                proposals += EpgProposal(source.id, candidate)
             }
             for (miss in report.misses) {
                 logger.d(
@@ -262,36 +268,102 @@ class LoadEpgUseCase @Inject constructor(
                     ),
                 )
             }
-            if (report.hits.isNotEmpty()) {
-                val rows = report.hits.mapNotNull { bindings[it.channelId] }
-                channelDao.setEpgBindings(rows, updatedAt)
-            }
-
-            // A manual binding never went through `match`, but it still counts as covered.
-            matchedIds += channels
-                .filter { it.epgMatch == EpgMatchType.MANUAL && !it.epgChannelId.isNullOrBlank() }
-                .map { it.id }
         }
 
+        // EPG-BIND, the decision itself: one query answers "how much is behind each candidate id", and
+        // the pure preference picks per channel. Reading the count here (rather than trusting the parse
+        // order) is what makes the choice a rule instead of a race.
+        val programmesInWindow: Map<String, Int> = withContext(dispatchers.default) {
+            programmeDao.countByChannelInWindow(window.fromMs, window.toMs)
+                .associate { row -> row.epgChannelId to row.count }
+        }
+        val depthOf: (String) -> Int = { id -> programmesInWindow[id] ?: 0 }
+
+        val chosen = LinkedHashMap<Long, EpgBindingCandidate>(proposalsByChannel.size)
+        for ((channelId, candidates) in proposalsByChannel) {
+            EpgBindingPreference.choose(candidates, depthOf)?.let { chosen[channelId] = it }
+        }
+
+        // One write for the whole run, after the pick: a channel can no longer be left pointing at a
+        // binding a later source overrode, because there is no "later" any more.
+        if (chosen.isNotEmpty()) {
+            channelDao.setEpgBindings(
+                chosen.values.map { EpgBinding(it.channelId, it.epgChannelId, it.type.name) },
+                clock.nowMs(),
+            )
+        }
+
+        // DEBUG on purpose: one event per (channel × source) proposal is exactly the "explainable"
+        // record the job asks for (which tier, which field, how deep, and whether it won), and it is
+        // off in the shipping log level (docs/03 §3.3). Emitting it here, after the decision, keeps one
+        // line per proposal instead of a second "who won" event on the same code.
+        for (proposal in proposals) {
+            val candidate = proposal.candidate
+            logger.d(
+                LogCategory.EPG,
+                EventCodes.EPG_MATCH_HIT,
+                "epg channel matched",
+                mapOf(
+                    "channelId" to candidate.channelId,
+                    "strategy" to candidate.type.name,
+                    "epgId" to candidate.epgChannelId,
+                    "matchedOn" to candidate.matchedOn,
+                    // The guide-side key of a name-based hit, so a folded match shows both sides
+                    // (`matchedOn=cctv1高清` vs `guideKey=cctv1`) and the fold is auditable.
+                    "guideKey" to candidate.guideKey,
+                    "provider" to proposal.providerId,
+                    // The two facts the pick was made from, so "why is this channel on that guide?"
+                    // is answered by the log alone: rows behind the id, and whether it won.
+                    "programmesInWindow" to depthOf(candidate.epgChannelId),
+                    "chosen" to (chosen[candidate.channelId] === candidate),
+                ),
+            )
+        }
+
+        // The channels the run bound, and of those the ones with something to show. A manual binding
+        // never went through `match`, but it is a binding like any other — including for the empty test.
+        val boundIds = LinkedHashMap<Long, String>(chosen.size + MANUAL_BINDINGS_HEADROOM)
+        for ((channelId, candidate) in chosen) boundIds[channelId] = candidate.epgChannelId
+        for (channel in channels) {
+            val manualId = channel.epgChannelId
+            if (channel.epgMatch == EpgMatchType.MANUAL && !manualId.isNullOrBlank()) {
+                boundIds[channel.id] = manualId
+            }
+        }
+        val withProgrammeIds = boundIds.filterValues { id -> depthOf(id) >= 1 }.keys
+
         val pruned = repository.prune(window.fromMs, window.toMs)
-        val coverage = EpgCoverageCalculator.of(channels, matchedIds)
+        val coverage = EpgCoverageCalculator.of(channels, boundIds.keys, withProgrammeIds)
         val mainstream = EpgCoverageCalculator.mainstream(coverage)
         val elapsedMs = clock.nowMs() - startedAtMs
 
-        val belowTarget = mainstream.total > 0 && mainstream.ratio < MAINSTREAM_TARGET
+        // The gate reads the *programmed* ratio on purpose: a channel whose guide id holds nothing is
+        // not coverage, and counting it was exactly the "empty grid, 100% covered" report EPG-TRAD-1
+        // produced (三沙卫视 bound to a mainland id with zero programmes).
+        val belowTarget = mainstream.total > 0 && mainstream.programmedRatio < MAINSTREAM_TARGET
         val coverageFields = mapOf(
+            // Both口径 side by side (EPG-BIND). `matched`/`ratio` are the pre-existing fields and keep
+            // their old meaning so an old reader keeps working; `withProgrammes`/`programmedRatio` are
+            // the ones that say whether a viewer sees anything, and `emptyBinding` is their difference.
             "matched" to coverage.matched,
+            "withProgrammes" to coverage.withProgrammes,
+            "emptyBinding" to coverage.emptyBinding,
             "total" to coverage.total,
             "ratio" to ratioText(coverage.ratio),
+            "programmedRatio" to ratioText(coverage.programmedRatio),
             // P3-5: group dimension with both halves, so "42/80 央视" is readable straight from the
             // event instead of joining it against the catalogue.
             "byGroup" to coverage.byGroup.mapKeys { (group, _) -> group.key },
             "byGroupTotal" to coverage.byGroupTotal.mapKeys { (group, _) -> group.key },
+            "byGroupWithProgrammes" to coverage.byGroupWithProgrammes.mapKeys { (group, _) -> group.key },
             // docs/04's P3-5 exit is measured on 主流频道 (see MAINSTREAM_GROUPS); both ratios are
             // reported because docs/01–04 never define the word (a口径 question for god/arch).
             "mainstreamMatched" to mainstream.matched,
+            "mainstreamWithProgrammes" to mainstream.withProgrammes,
+            "mainstreamEmptyBinding" to mainstream.emptyBinding,
             "mainstreamTotal" to mainstream.total,
             "mainstreamRatio" to ratioText(mainstream.ratio),
+            "mainstreamProgrammedRatio" to ratioText(mainstream.programmedRatio),
             "target" to ratioText(MAINSTREAM_TARGET),
             "providers" to providersRun,
             "sources" to sources.size,
@@ -357,6 +429,12 @@ class LoadEpgUseCase @Inject constructor(
 
         const val INITIAL_CHANNEL_INDEX = 256
 
+        /** Most channels are proposed by one source; two is the contested case (`三沙卫视` CN + HK). */
+        const val INITIAL_CANDIDATES = 2
+
+        /** Room in the binding map for the manual bindings appended after the chosen ones. */
+        const val MANUAL_BINDINGS_HEADROOM = 8
+
         /** Logged with every miss so the reader knows which tiers were tried, not just that none hit. */
         const val MATCH_TIERS = "TVG_ID,NAME_EXACT,NAME_FUZZY,ALIAS"
 
@@ -371,6 +449,13 @@ class LoadEpgUseCase @Inject constructor(
         fun ratioText(ratio: Double): String = String.format(java.util.Locale.US, "%.3f", ratio)
     }
 }
+
+/**
+ * One source's proposal, held from the match pass until the winner is known: the DEBUG trail is
+ * emitted after the decision so a single `EPG_MATCH_HIT` line can carry both the tier that matched and
+ * whether that proposal was the one stored.
+ */
+private class EpgProposal(val providerId: String, val candidate: EpgBindingCandidate)
 
 /** `:core:data` is the only layer that can see both the seed (`:core:epg`) and the table (`:core:database`). */
 private fun EpgSourceRow.toEntity(): EpgSourceEntity = EpgSourceEntity(

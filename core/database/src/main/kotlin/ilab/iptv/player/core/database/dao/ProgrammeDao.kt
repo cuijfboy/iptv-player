@@ -90,6 +90,27 @@ abstract class ProgrammeDao {
     @Query("SELECT epg_channel_id, COUNT(*) AS count FROM programme GROUP BY epg_channel_id")
     abstract suspend fun countByChannel(): List<ProgrammeChannelCountRow>
 
+    /**
+     * Same shape as [countByChannel], restricted to the retention window — the reading EPG-BIND needs
+     * to tell "this guide id has a programme table" from "this guide id is declared but empty".
+     *
+     * The predicate is deliberately the grid's own window rule (`stop_ms >= :fromMs AND start_ms <=
+     * :toMs`, see [window]): a programme that straddles the left edge is on air inside the window and
+     * counts, one that ended before it does not. Counting *all* rows would be wrong even though the
+     * table is pruned on every refresh, because the window slides between refreshes.
+     */
+    @Query(
+        """
+        SELECT epg_channel_id, COUNT(*) AS count FROM programme
+        WHERE stop_ms >= :fromMs AND start_ms <= :toMs
+        GROUP BY epg_channel_id
+        """,
+    )
+    abstract suspend fun countByChannelInWindow(
+        fromMs: Long,
+        toMs: Long,
+    ): List<ProgrammeChannelCountRow>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     abstract suspend fun replaceAll(programmes: List<ProgrammeEntity>)
 

@@ -254,20 +254,55 @@ object EpgCoverageCalculator {
     val MAINSTREAM_GROUPS: List<ChannelGroup> =
         listOf(ChannelGroup.CCTV, ChannelGroup.SATELLITE, ChannelGroup.HK_MO_TW)
 
-    /** One slice of the coverage report: matched / total for a set of groups. */
-    data class Slice(val matched: Int, val total: Int) {
+    /**
+     * One slice of the coverage report: matched / total for a set of groups, and the sub-count that
+     * actually has programmes. [withProgrammes] defaults to [matched] so a caller that only knows the
+     * id side reads exactly as it did before the second口径 existed.
+     */
+    data class Slice(val matched: Int, val total: Int, val withProgrammes: Int = matched) {
         val ratio: Double get() = if (total <= 0) 0.0 else matched.toDouble() / total
+
+        /** Matched channels whose binding holds nothing — counted as covered before, blank in the app. */
+        val emptyBinding: Int get() = (matched - withProgrammes).coerceAtLeast(0)
+
+        /** The reading the target gate uses: a binding that holds no programme is not coverage. */
+        val programmedRatio: Double get() = if (total <= 0) 0.0 else withProgrammes.toDouble() / total
     }
 
-    fun of(channels: List<Channel>, matchedChannelIds: Set<Long>): EpgCoverage {
+    /**
+     * @param channelsWithProgrammes the subset of [matchedChannelIds] whose *chosen* guide id holds at
+     *   least one programme in the retention window. It defaults to [matchedChannelIds], i.e. "every
+     *   binding has programmes" — the pre-EPG-BIND assumption, which keeps callers that cannot check
+     *   (and the older tests) byte-identical.
+     */
+    fun of(
+        channels: List<Channel>,
+        matchedChannelIds: Set<Long>,
+        channelsWithProgrammes: Set<Long> = matchedChannelIds,
+    ): EpgCoverage {
         var matched = 0
+        var withProgrammes = 0
         val byGroup = HashMap<ChannelGroup, Int>()
         val byGroupTotal = HashMap<ChannelGroup, Int>()
+        val byGroupWithProgrammes = HashMap<ChannelGroup, Int>()
         for (channel in channels) {
             byGroupTotal[channel.group] = (byGroupTotal[channel.group] ?: 0) + 1
             if (channel.id in matchedChannelIds) {
                 matched++
                 byGroup[channel.group] = (byGroup[channel.group] ?: 0) + 1
+                // A group with matched channels always gets an entry, even a zero one. Without that,
+                // "this group's bindings are all empty" and "this producer never reported the
+                // programmed side" would both be an absent key, and a consumer could only fall back to
+                // assuming the empties were covered — the very bug EPG-BIND exists to fix.
+                if (!byGroupWithProgrammes.containsKey(channel.group)) {
+                    byGroupWithProgrammes[channel.group] = 0
+                }
+                // Guarded by `matchedChannelIds`: a channel that is known to have programmes but was
+                // never matched would otherwise make the numerator exceed the denominator.
+                if (channel.id in channelsWithProgrammes) {
+                    withProgrammes++
+                    byGroupWithProgrammes[channel.group] = (byGroupWithProgrammes[channel.group] ?: 0) + 1
+                }
             }
         }
         return EpgCoverage(
@@ -275,6 +310,8 @@ object EpgCoverageCalculator {
             total = channels.size,
             byGroup = byGroup,
             byGroupTotal = byGroupTotal,
+            withProgrammes = withProgrammes,
+            byGroupWithProgrammes = byGroupWithProgrammes,
         )
     }
 
@@ -282,10 +319,17 @@ object EpgCoverageCalculator {
     fun mainstream(coverage: EpgCoverage): Slice {
         var matched = 0
         var total = 0
+        var withProgrammes = 0
         for (group in MAINSTREAM_GROUPS) {
-            matched += coverage.byGroup[group] ?: 0
+            val groupMatched = coverage.byGroup[group] ?: 0
+            matched += groupMatched
             total += coverage.byGroupTotal[group] ?: 0
+            // A producer that filled only the matched side (an older caller, or the id-only read path)
+            // is read as "everything it matched has programmes", so its slice does not shift. A group
+            // the producer *did* report carries its own number, zero included — which is how an
+            // all-empty group reaches this slice instead of being rounded up (see `of`).
+            withProgrammes += coverage.byGroupWithProgrammes[group] ?: groupMatched
         }
-        return Slice(matched = matched, total = total)
+        return Slice(matched = matched, total = total, withProgrammes = withProgrammes)
     }
 }

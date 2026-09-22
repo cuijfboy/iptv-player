@@ -12,6 +12,14 @@ package ilab.iptv.player.core.model
  * docs/02 §6.3: "覆盖率可观测". `matched` counts channels that carry an `epg_channel_id` after a
  * match, `total` every channel considered, and `byGroup` breaks the matched count down by the
  * coarse five-value group the diagnostics panel shows.
+ *
+ * **Two readings of "covered", because they are not the same thing** (EPG-TRAD-1 exposed it):
+ * [matched] answers "does the channel have a guide id", [withProgrammes] answers "does that id
+ * actually hold at least one programme inside the retention window". A guide can declare a
+ * `<channel>` and publish no `<programme>` for it — the channel then has a perfectly good id, an
+ * empty grid, and used to be counted as covered. [emptyBinding] is the difference; [programmedRatio]
+ * is the reading that tells the truth, [ratio] is kept as the pre-EPG-BIND口径 so the shape stays
+ * backward compatible.
  */
 data class EpgCoverage(
     val matched: Int,
@@ -24,9 +32,26 @@ data class EpgCoverage(
      * matched side (older tests, a partial index).
      */
     val byGroupTotal: Map<ChannelGroup, Int> = emptyMap(),
+    /**
+     * Channels among [matched] whose guide id holds ≥1 programme inside the retention window.
+     * Defaults to [matched]: a producer that only knows the id side is read the old way ("every
+     * binding has programmes"), so its numbers do not change.
+     */
+    val withProgrammes: Int = matched,
+    /** [withProgrammes] broken down the same way [byGroup] breaks [matched] down. */
+    val byGroupWithProgrammes: Map<ChannelGroup, Int> = emptyMap(),
 ) {
     /** Share of channels with a programme table, 0..1; 0 when there is nothing to cover. */
     val ratio: Double get() = if (total <= 0) 0.0 else matched.toDouble() / total
+
+    /** Matched channels whose binding holds nothing in the window — "covered" on paper, blank in the app. */
+    val emptyBinding: Int get() = (matched - withProgrammes).coerceAtLeast(0)
+
+    /**
+     * Share of channels that can actually show something, 0..1. This is the reading the target gate
+     * and the diagnostics panel use: an empty binding must not make the number look better.
+     */
+    val programmedRatio: Double get() = if (total <= 0) 0.0 else withProgrammes.toDouble() / total
 }
 
 /**

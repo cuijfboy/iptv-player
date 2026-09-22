@@ -30,7 +30,7 @@ class RoomEpgRepositoryTest {
     @Before
     fun setUp() {
         database = RoomFixtures.inMemoryDatabase()
-        repository = RoomEpgRepository(database.channelDao(), database.programmeDao())
+        repository = RoomEpgRepository(database.channelDao(), database.programmeDao(), RoomFixtures.clock(now))
     }
 
     @After
@@ -179,5 +179,46 @@ class RoomEpgRepositoryTest {
         assertThat(coverage.total).isEqualTo(3)
         assertThat(coverage.byGroup).containsEntry(ChannelGroup.CCTV, 1)
         assertThat(coverage.byGroup).containsEntry(ChannelGroup.SATELLITE, 1)
+        assertThat(coverage.byGroupTotal).containsEntry(ChannelGroup.CCTV, 2)
+        assertThat(coverage.byGroupTotal).containsEntry(ChannelGroup.SATELLITE, 1)
+    }
+
+    @Test
+    fun `coverage tells a served binding apart from one the guide declared and left empty`() =
+        runBlocking<Unit> {
+            // The panel's own read path (EPG-BIND): `c2` has an id and no programme, which is exactly
+            // the "covered on paper, blank in the app" state the id-side count called a success.
+            channel("CCTV-1", epgChannelId = "c1", groupKey = "央视")
+            channel("CCTV-2", epgChannelId = "c2", groupKey = "央视")
+            channel("湖南卫视", epgChannelId = null, groupKey = "卫视")
+            repository.replaceAll("c1", listOf(programme("c1", now, now + 1_800_000L)))
+
+            val coverage = repository.coverage()
+
+            assertThat(coverage.matched).isEqualTo(2)
+            assertThat(coverage.withProgrammes).isEqualTo(1)
+            assertThat(coverage.emptyBinding).isEqualTo(1)
+            assertThat(coverage.byGroupWithProgrammes).containsExactly(ChannelGroup.CCTV, 1)
+            assertThat(coverage.programmedRatio).isEqualTo(1.0 / 3.0)
+        }
+
+    @Test
+    fun `a row that has aged out of the window is not coverage any more`() = runBlocking<Unit> {
+        channel("CCTV-1", epgChannelId = "c1", groupKey = "央视")
+        // Still in the table (nothing has pruned it yet), but outside `[now-6h, now+48h]`: the window
+        // is a property of time, so the reading must not count it.
+        repository.replaceAll(
+            "c1",
+            listOf(programme("c1", now - 8 * 3_600_000L, now - 7 * 3_600_000L, "老节目")),
+        )
+
+        val coverage = repository.coverage()
+
+        assertThat(coverage.matched).isEqualTo(1)
+        assertThat(coverage.withProgrammes).isEqualTo(0)
+        assertThat(coverage.emptyBinding).isEqualTo(1)
+        // The group is reported as zero rather than left out, so the panel's slice cannot read the
+        // omission as "not reported" and fall back to the id-side number.
+        assertThat(coverage.byGroupWithProgrammes).containsExactly(ChannelGroup.CCTV, 0)
     }
 }

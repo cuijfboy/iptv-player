@@ -53,9 +53,9 @@ class LoadEpgUseCaseTest {
     @Before
     fun setUp() {
         database = RoomFixtures.inMemoryDatabase()
-        repository = RoomEpgRepository(database.channelDao(), database.programmeDao())
-        logger = RoomFixtures.RecordingLogger()
         clock = RoomFixtures.clock(now)
+        repository = RoomEpgRepository(database.channelDao(), database.programmeDao(), clock)
+        logger = RoomFixtures.RecordingLogger()
     }
 
     @After
@@ -112,6 +112,7 @@ class LoadEpgUseCaseTest {
             repository = repository,
             channelDao = database.channelDao(),
             epgSourceDao = database.epgSourceDao(),
+            programmeDao = database.programmeDao(),
             matcher = EpgMatcher(nameKey = Keys::nameKey, aliases = EpgAliases.BUILT_IN),
             clock = clock,
             logger = logger,
@@ -141,12 +142,26 @@ class LoadEpgUseCaseTest {
         }
     }
 
-    private fun guide(vararg rows: String): String = buildString {
+    private fun guide(vararg rows: String): String = guideOf("CCTV1.cn", "CCTV-1 综合", *rows)
+
+    /** The same document under a chosen guide id / display name, for the two-source cases. */
+    private fun guideOf(channelId: String, displayName: String, vararg rows: String): String = buildString {
         append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<tv>\n")
-        append("<channel id=\"CCTV1.cn\"><display-name>CCTV-1 综合</display-name></channel>\n")
+        append("<channel id=\"$channelId\"><display-name>$displayName</display-name></channel>\n")
         rows.forEach { append(it).append('\n') }
         append("</tv>\n")
     }
+
+    /** [count] hourly programmes starting at `now`, all inside the `[now-6h, now+48h]` window. */
+    private fun slots(epgChannel: String, count: Int): List<String> =
+        (0 until count).map { index ->
+            programme(
+                now + index * 3_600_000L,
+                now + (index + 1) * 3_600_000L,
+                "P$index",
+                epgChannel = epgChannel,
+            )
+        }
 
     private fun programme(
         startMs: Long,
@@ -216,13 +231,149 @@ class LoadEpgUseCaseTest {
         assertThat(event.level).isEqualTo(LogLevel.INFO)
         assertThat(event.fields["byGroup"]).isEqualTo(mapOf("cctv" to 1))
         assertThat(event.fields["byGroupTotal"]).isEqualTo(mapOf("cctv" to 1))
+        // EPG-BIND: the three readings, so "how many channels have an id" and "how many can show
+        // something" are both on the event and neither has to be inferred from the other.
+        assertThat(event.fields["matched"]).isEqualTo(1)
+        assertThat(event.fields["withProgrammes"]).isEqualTo(1)
+        assertThat(event.fields["emptyBinding"]).isEqualTo(0)
+        assertThat(event.fields["ratio"]).isEqualTo("1.000")
+        assertThat(event.fields["programmedRatio"]).isEqualTo("1.000")
+        assertThat(event.fields["byGroupWithProgrammes"]).isEqualTo(mapOf("cctv" to 1))
         assertThat(event.fields["mainstreamMatched"]).isEqualTo(1)
+        assertThat(event.fields["mainstreamWithProgrammes"]).isEqualTo(1)
+        assertThat(event.fields["mainstreamEmptyBinding"]).isEqualTo(0)
         assertThat(event.fields["mainstreamTotal"]).isEqualTo(1)
         assertThat(event.fields["mainstreamRatio"]).isEqualTo("1.000")
+        assertThat(event.fields["mainstreamProgrammedRatio"]).isEqualTo("1.000")
         assertThat(event.fields["target"]).isEqualTo("0.600")
         // Nothing to warn about: a fully covered mainstream list must not raise the alert field.
         assertThat(event.fields).doesNotContainKey("alert")
     }
+
+    @Test
+    fun `an empty binding is not counted in the mainstream reading the alert gates on`() = runBlocking<Unit> {
+        // The channel is matched (its id is bound) but the guide publishes no <programme> for it: the
+        // id-side number is a perfect 1/1, and the honest reading is 0/1. Before EPG-BIND the second
+        // number did not exist, so the app reported 100% coverage over a blank grid.
+        val channelId = channel("CCTV-1 综合", tvgId = "CCTV1.cn")
+        useCase = buildUseCase(FakeProvider("test", body = guide()))
+
+        val report = (useCase() as AppResult.Ok).value
+
+        assertThat(report.coverage.matched).isEqualTo(1)
+        assertThat(report.coverage.withProgrammes).isEqualTo(0)
+        assertThat(report.coverage.emptyBinding).isEqualTo(1)
+        // The binding itself is kept — there was no better candidate, and keeping it is what lets the
+        // next refresh (or a fold, or a manual pick) fill it in.
+        assertThat(database.channelDao().getWithStreams(channelId)!!.channel.epgChannelId)
+            .isEqualTo("CCTV1.cn")
+
+        val event = logger.events.last { it.code == EventCodes.EPG_COVERAGE }
+        assertThat(event.level).isEqualTo(LogLevel.WARN)
+        assertThat(event.fields["alert"]).isEqualTo("coverage_below_target")
+        assertThat(event.fields["mainstreamMatched"]).isEqualTo(1)
+        assertThat(event.fields["mainstreamRatio"]).isEqualTo("1.000")
+        assertThat(event.fields["mainstreamWithProgrammes"]).isEqualTo(0)
+        assertThat(event.fields["mainstreamEmptyBinding"]).isEqualTo(1)
+        assertThat(event.fields["mainstreamProgrammedRatio"]).isEqualTo("0.000")
+    }
+
+    @Test
+    fun `the binding goes to the source whose guide id holds the most programmes`() = runBlocking<Unit> {
+        // The EPG-TRAD-1 lesson, in miniature: both guides carry the channel, the deep one is offered
+        // FIRST. The old loop let the later source overwrite it, so the pick was a property of the
+        // source order rather than of the data.
+        val channelId = channel("CCTV-1 综合", tvgId = null)
+        useCase = buildUseCase(
+            FakeProvider("a.deep", body = guideOf("deep.hk", "CCTV-1 综合", *slots("deep.hk", 3).toTypedArray())),
+            FakeProvider("b.thin", body = guideOf("thin.cn", "CCTV-1 综合", *slots("thin.cn", 1).toTypedArray())),
+        )
+
+        val report = (useCase() as AppResult.Ok).value
+
+        assertThat(database.channelDao().getWithStreams(channelId)!!.channel.epgChannelId).isEqualTo("deep.hk")
+        assertThat(database.channelDao().getWithStreams(channelId)!!.channel.epgMatch)
+            .isEqualTo(EpgMatchType.NAME_EXACT.name)
+        assertThat(report.coverage.withProgrammes).isEqualTo(1)
+        assertThat(report.coverage.emptyBinding).isEqualTo(0)
+
+        // One DEBUG line per proposal, and each says how deep it is and whether it won.
+        val deep = hitEvent("deep.hk")
+        val thin = hitEvent("thin.cn")
+        assertThat(deep.fields["programmesInWindow"]).isEqualTo(3)
+        assertThat(deep.fields["chosen"]).isEqualTo(true)
+        assertThat(thin.fields["programmesInWindow"]).isEqualTo(1)
+        assertThat(thin.fields["chosen"]).isEqualTo(false)
+    }
+
+    @Test
+    fun `the deeper source still wins when it is the later one`() = runBlocking<Unit> {
+        // The other half of the rule: the pick must not become "first source wins" either. This is the
+        // shape EPG-TRAD-1 measured (mainland id first and thin, Hong Kong id later and deep).
+        val channelId = channel("CCTV-1 综合", tvgId = null)
+        useCase = buildUseCase(
+            FakeProvider("a.thin", body = guideOf("thin.cn", "CCTV-1 综合", *slots("thin.cn", 1).toTypedArray())),
+            FakeProvider("b.deep", body = guideOf("deep.hk", "CCTV-1 综合", *slots("deep.hk", 8).toTypedArray())),
+        )
+
+        useCase()
+
+        assertThat(database.channelDao().getWithStreams(channelId)!!.channel.epgChannelId).isEqualTo("deep.hk")
+        assertThat(hitEvent("deep.hk").fields["chosen"]).isEqualTo(true)
+        assertThat(hitEvent("thin.cn").fields["chosen"]).isEqualTo(false)
+    }
+
+    @Test
+    fun `an empty binding loses to one that holds a single programme`() = runBlocking<Unit> {
+        // 三沙卫视 vs 深圳卫视 of EPG-TRAD-1: the mainland id exists and publishes nothing, the Hong
+        // Kong id publishes a few rows. Depth decides, and the losing proposal is still explained.
+        val channelId = channel("CCTV-1 综合", tvgId = null)
+        useCase = buildUseCase(
+            FakeProvider("a.empty", body = guideOf("empty.cn", "CCTV-1 综合")),
+            FakeProvider("b.few", body = guideOf("few.hk", "CCTV-1 综合", *slots("few.hk", 1).toTypedArray())),
+        )
+
+        val report = (useCase() as AppResult.Ok).value
+
+        assertThat(database.channelDao().getWithStreams(channelId)!!.channel.epgChannelId).isEqualTo("few.hk")
+        assertThat(report.coverage.emptyBinding).isEqualTo(0)
+        assertThat(hitEvent("empty.cn").fields["programmesInWindow"]).isEqualTo(0)
+        assertThat(hitEvent("empty.cn").fields["chosen"]).isEqualTo(false)
+    }
+
+    @Test
+    fun `the depth is measured in the retention window, not over the whole guide`() = runBlocking<Unit> {
+        // The window is the grid's own rule (`stop_ms >= from AND start_ms <= to`), so a programme that
+        // straddles the left edge counts and one that starts after the right edge does not. The empty
+        // source is proposed LAST and must still lose: depth outranks the source order.
+        val channelId = channel("CCTV-1 综合", tvgId = null)
+        val straddling = programme(
+            now - 7 * 3_600_000L,
+            now - 5 * 3_600_000L,
+            "跨左边界",
+            epgChannel = "straddle.cn",
+        )
+        val tooLate = programme(
+            now + 72 * 3_600_000L,
+            now + 73 * 3_600_000L,
+            "太晚",
+            epgChannel = "empty.cn",
+        )
+        useCase = buildUseCase(
+            FakeProvider("a.straddle", body = guideOf("straddle.cn", "CCTV-1 综合", straddling)),
+            FakeProvider("b.empty", body = guideOf("empty.cn", "CCTV-1 综合", tooLate)),
+        )
+
+        useCase()
+
+        assertThat(hitEvent("straddle.cn").fields["programmesInWindow"]).isEqualTo(1)
+        assertThat(hitEvent("empty.cn").fields["programmesInWindow"]).isEqualTo(0)
+        assertThat(database.channelDao().getWithStreams(channelId)!!.channel.epgChannelId).isEqualTo("straddle.cn")
+    }
+
+    /** The `EPG_MATCH_HIT` DEBUG line for one proposed guide id. */
+    private fun hitEvent(epgId: String) = logger.events
+        .last { it.code == EventCodes.EPG_MATCH_HIT && it.fields["epgId"] == epgId }
 
     @Test
     fun `a mainstream list below the target raises the coverage alert as an event, not a notification`() =

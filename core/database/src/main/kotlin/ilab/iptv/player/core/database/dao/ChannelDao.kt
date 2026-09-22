@@ -115,6 +115,41 @@ abstract class ChannelDao {
     )
     abstract suspend fun countWithEpgByGroupKey(): List<GroupCountRow>
 
+    /**
+     * Matched channels whose guide id holds at least one programme inside `[fromMs, toMs]` — the
+     * "covered" reading that is not fooled by a guide that declares a channel and publishes nothing
+     * (EPG-BIND's `withProgrammes`). The window is explicit for the same reason as
+     * [ProgrammeDao.countByChannelInWindow]: the retention window slides between refreshes.
+     */
+    @Query(
+        """
+        SELECT COUNT(*) FROM channel
+        WHERE epg_channel_id IS NOT NULL
+          AND epg_channel_id IN (
+              SELECT DISTINCT epg_channel_id FROM programme
+              WHERE stop_ms >= :fromMs AND start_ms <= :toMs
+          )
+        """,
+    )
+    abstract suspend fun countWithEpgProgrammes(fromMs: Long, toMs: Long): Int
+
+    /** [countWithEpgProgrammes] per group, for the coverage panel's slice. */
+    @Query(
+        """
+        SELECT group_key, COUNT(*) AS count FROM channel
+        WHERE epg_channel_id IS NOT NULL
+          AND epg_channel_id IN (
+              SELECT DISTINCT epg_channel_id FROM programme
+              WHERE stop_ms >= :fromMs AND start_ms <= :toMs
+          )
+        GROUP BY group_key
+        """,
+    )
+    abstract suspend fun countWithEpgProgrammesByGroupKey(
+        fromMs: Long,
+        toMs: Long,
+    ): List<GroupCountRow>
+
     @Query("SELECT id FROM channel WHERE name_key = :nameKey AND group_key = :groupKey LIMIT 1")
     abstract suspend fun findIdByKey(nameKey: String, groupKey: String): Long?
 
