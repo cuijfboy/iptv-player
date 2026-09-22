@@ -15,7 +15,9 @@ package ilab.iptv.player.core.model
  *
  * **Two readings of "covered", because they are not the same thing** (EPG-TRAD-1 exposed it):
  * [matched] answers "does the channel have a guide id", [withProgrammes] answers "does that id
- * actually hold at least one programme inside the retention window". A guide can declare a
+ * actually hold at least one programme inside the grid window ([EpgGridWindow] — the six hours the
+ * grid opens on; the `[now−6h,+48h]` retention window is only the parse/prune rule and is *not* the
+ * judgement here, 卡 `DOC-12` / BUG-018). A guide can declare a
  * `<channel>` and publish no `<programme>` for it — the channel then has a perfectly good id, an
  * empty grid, and used to be counted as covered. [emptyBinding] is the difference; [programmedRatio]
  * is the reading that tells the truth, [ratio] is kept as the pre-EPG-BIND口径 so the shape stays
@@ -33,7 +35,8 @@ data class EpgCoverage(
      */
     val byGroupTotal: Map<ChannelGroup, Int> = emptyMap(),
     /**
-     * Channels among [matched] whose guide id holds ≥1 programme inside the retention window.
+     * Channels among [matched] whose guide id holds ≥1 programme inside the **grid window**
+     * ([EpgGridWindow] — what the grid draws, "数出来的 == 看得见的"), not the retention window.
      * Defaults to [matched]: a producer that only knows the id side is read the old way ("every
      * binding has programmes"), so its numbers do not change.
      */
