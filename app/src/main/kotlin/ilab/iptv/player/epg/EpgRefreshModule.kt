@@ -16,7 +16,7 @@ import ilab.iptv.player.core.data.epg.RoomEpgStoredGuideReader
 import ilab.iptv.player.core.data.epg.RoomEpgSourceStatusReader
 import ilab.iptv.player.core.domain.refresh.EpgRefreshPolicy
 import ilab.iptv.player.core.domain.refresh.EpgRefreshPort
-import ilab.iptv.player.core.domain.refresh.EpgRefreshSettings
+import ilab.iptv.player.core.domain.refresh.EpgSettingsStore
 import ilab.iptv.player.core.domain.repository.EpgRepository
 import javax.inject.Singleton
 
@@ -33,9 +33,15 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object EpgRefreshModule {
 
+    /**
+     * EPG-SETTINGS-1: the master switch and freshness threshold, persisted so a change survives a
+     * restart. The scheduler and the coordinator read it per trigger/run (not once at construction),
+     * so "off" and a new interval take effect without waiting for the next process.
+     */
     @Provides
     @Singleton
-    fun provideEpgRefreshSettings(): EpgRefreshSettings = EpgRefreshSettings()
+    fun provideEpgSettingsStore(@ApplicationContext context: Context): EpgSettingsStore =
+        SharedPrefsEpgSettingsStore(context)
 
     @Provides
     @Singleton
@@ -63,7 +69,7 @@ object EpgRefreshModule {
     fun provideEpgRefreshCoordinator(
         runner: EpgRunner,
         policy: EpgRefreshPolicy,
-        settings: EpgRefreshSettings,
+        settingsStore: EpgSettingsStore,
         status: EpgSourceStatusReader,
         guide: EpgStoredGuideReader,
         logger: Logger,
@@ -71,7 +77,7 @@ object EpgRefreshModule {
     ): EpgRefreshCoordinator = EpgRefreshCoordinator(
         runner = runner,
         policy = policy,
-        settings = settings,
+        settingsStore = settingsStore,
         status = status,
         guide = guide,
         // The one place R7's signal is bound for the EPG run: the same flag `:core:source` reads for
@@ -91,12 +97,12 @@ object EpgRefreshModule {
     fun provideEpgRefreshScheduler(
         enqueuer: EpgWorkEnqueuer,
         policy: EpgRefreshPolicy,
-        settings: EpgRefreshSettings,
+        settingsStore: EpgSettingsStore,
         status: EpgSourceStatusReader,
         guide: EpgStoredGuideReader,
         logger: Logger,
         clock: Clock,
-    ): EpgRefreshScheduler = EpgRefreshScheduler(enqueuer, policy, settings, status, guide, logger, clock)
+    ): EpgRefreshScheduler = EpgRefreshScheduler(enqueuer, policy, settingsStore, status, guide, logger, clock)
 
     @Provides
     @Singleton
@@ -104,6 +110,6 @@ object EpgRefreshModule {
         scheduler: EpgRefreshScheduler,
         status: EpgSourceStatusReader,
         repository: EpgRepository,
-        settings: EpgRefreshSettings,
-    ): EpgRefreshPort = EpgRefreshGateway(scheduler, status, repository, settings)
+        settingsStore: EpgSettingsStore,
+    ): EpgRefreshPort = EpgRefreshGateway(scheduler, status, repository, settingsStore)
 }

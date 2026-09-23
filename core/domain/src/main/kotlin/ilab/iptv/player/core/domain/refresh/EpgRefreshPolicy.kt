@@ -27,19 +27,22 @@ enum class EpgRefreshAction {
 data class EpgRefreshDecision(val action: EpgRefreshAction, val reason: String)
 
 /**
- * The EPG half of the settings (P3-6). A plain data class, not a stored preference yet: the panel
- * shows the value it is running with, and a later settings card can back [minIntervalMs] with Room
- * without touching the policy.
+ * The EPG half of the settings (P3-6, card EPG-SETTINGS-1). The two user-facing knobs are [enabled]
+ * (the EPG master switch) and [minIntervalMs] (the freshness threshold); both are persisted by
+ * `EpgSettingsStore` (`:core:domain`) and surfaced on the settings page's 刷新 group.
  *
  * [minIntervalMs] is what makes the three triggers cheap: a cold start, the daily refresh and the
  * panel's button all funnel into the same gate, and a trigger that finds data younger than this does
  * nothing at all. Six hours is the default because a daily-refresh cadence plus a handful of app
- * starts per day must not re-download 4.5 MiB of guides each time.
+ * starts per day must not re-download 4.5 MiB of guides each time. The value is a *setting* now, but
+ * bounded — see [sanitizeMinInterval] — so a user cannot configure a window that breaks the §6.3
+ * 地板 30 min / 天花板 6 h shape of the empty-guide backoff.
  *
  * [emptyRetryMs] is the other half of the same rule, and the BUG-20260922-016 fix: freshness alone is
  * not enough when the stored guide has *nothing to show* (no channel bound, or every binding empty).
  * Such a guide may be re-fetched after this much shorter interval instead of waiting the full
  * [minIntervalMs], because "we fetched successfully 20 minutes ago" is not an answer to a blank TV.
+ * It is not user-editable this round; the store keeps its default.
  */
 data class EpgRefreshSettings(
     val enabled: Boolean = true,
@@ -47,13 +50,68 @@ data class EpgRefreshSettings(
     /** 30 min — see the class doc. Never longer than [minIntervalMs]; the gate clamps it. */
     val emptyRetryMs: Long = DEFAULT_EMPTY_RETRY_MS,
 ) {
+
+    /**
+     * The settings as the scheduler and coordinator must see them (card EPG-SETTINGS-1, requirement 4):
+     * an out-of-range [minIntervalMs] is clamped into [MIN_INTERVAL_MS]..[MAX_INTERVAL_MS], and
+     * [emptyRetryMs] is clamped under it — the same `coerceIn` shape the policy already applies to the
+     * empty window, moved to the edge so a corrupted preference cannot reach the gate in the first
+     * place. Also applied by the store on read and write.
+     */
+    fun sanitized(): EpgRefreshSettings {
+        val min = sanitizeMinInterval(minIntervalMs)
+        return copy(minIntervalMs = min, emptyRetryMs = emptyRetryMs.coerceIn(0L, min))
+    }
+
     companion object {
 
-        /** 6 h — see the class doc. */
+        /** 6 h — see the class doc; also the ceiling for the freshness setting. */
         const val DEFAULT_MIN_INTERVAL_MS: Long = 6 * 60 * 60_000L
 
         /** 30 min — the empty-guide retry interval, the same wait a busy TV's deferral uses. */
         const val DEFAULT_EMPTY_RETRY_MS: Long = PlaybackAvoidancePolicy.DEFER_BACKOFF_MS
+
+        /**
+         * The freshness setting's floor: 30 min — the empty-guide retry interval (§6.3 的 30 min 地板).
+         * A window shorter than the retry one would let a healthy guide be re-downloaded every few
+         * minutes for no gain.
+         */
+        const val MIN_INTERVAL_MS: Long = DEFAULT_EMPTY_RETRY_MS
+
+        /**
+         * The freshness setting's ceiling: the 6 h default. The §6.3 天花板 promise is exactly
+         * "an empty guide is not waited on for longer than [DEFAULT_MIN_INTERVAL_MS]", so the user knob
+         * must not raise it.
+         */
+        const val MAX_INTERVAL_MS: Long = DEFAULT_MIN_INTERVAL_MS
+
+        /**
+         * The values the settings page's 刷新 row cycles through when the remote presses 确定: 30 分钟 →
+         * 1 小时 → 2 小时 → 3 小时 → 6 小时. Presets rather than a free-form entry, the same trade
+         * `SettingsDestination.CYCLE_LOG_LEVEL` already makes — a TV remote has no keyboard and the list
+         * is short. Every value is already inside [MIN_INTERVAL_MS]..[MAX_INTERVAL_MS].
+         */
+        val FRESHNESS_PRESETS_MS: List<Long> = listOf(
+            MIN_INTERVAL_MS,
+            60 * 60_000L,
+            2 * 60 * 60_000L,
+            3 * 60 * 60_000L,
+            MAX_INTERVAL_MS,
+        )
+
+        /** Clamps the freshness threshold into [MIN_INTERVAL_MS]..[MAX_INTERVAL_MS]. */
+        fun sanitizeMinInterval(minIntervalMs: Long): Long =
+            minIntervalMs.coerceIn(MIN_INTERVAL_MS, MAX_INTERVAL_MS)
+
+        /**
+         * The preset after [currentMinIntervalMs], wrapping back to the first. A value that is not itself
+         * a preset resolves to the next preset above it (so a stored 90 min cycles to 2 h, not back to
+         * 30 min); the maximum wraps to the minimum.
+         */
+        fun nextMinInterval(currentMinIntervalMs: Long): Long {
+            val safe = sanitizeMinInterval(currentMinIntervalMs)
+            return FRESHNESS_PRESETS_MS.firstOrNull { it > safe } ?: FRESHNESS_PRESETS_MS.first()
+        }
     }
 }
 

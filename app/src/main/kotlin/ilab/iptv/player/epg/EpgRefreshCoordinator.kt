@@ -13,6 +13,7 @@ import ilab.iptv.player.core.domain.refresh.EpgRefreshBudget
 import ilab.iptv.player.core.domain.refresh.EpgRefreshDecision
 import ilab.iptv.player.core.domain.refresh.EpgRefreshPolicy
 import ilab.iptv.player.core.domain.refresh.EpgRefreshSettings
+import ilab.iptv.player.core.domain.refresh.EpgSettingsStore
 import ilab.iptv.player.core.model.EpgLoadReport
 import ilab.iptv.player.core.model.EpgStoredGuide
 import ilab.iptv.player.core.model.RefreshTrigger
@@ -79,7 +80,7 @@ sealed interface EpgRunResult {
 class EpgRefreshCoordinator(
     private val runner: EpgRunner,
     private val policy: EpgRefreshPolicy,
-    private val settings: EpgRefreshSettings,
+    private val settingsStore: EpgSettingsStore,
     private val status: EpgSourceStatusReader,
     private val guide: EpgStoredGuideReader,
     private val playback: PlaybackProbe,
@@ -99,10 +100,14 @@ class EpgRefreshCoordinator(
         respectPlayback: Boolean = true,
         budgetMs: Long = EpgRefreshBudget.DEFAULT_BUDGET_MS,
     ): EpgRunResult {
+        // Read the setting per run (EPG-SETTINGS-1): the master switch and the freshness threshold are
+        // user-editable, so a run that starts after a change obeys the new value. Off ⇒ the policy
+        // answers SKIP(disabled) below, before the runner is ever called — no fetch, no write.
+        val settings = settingsStore.read()
         val playing = playback.isActive()
         var stored = guide.read()
         var lastFetchAtMs = status.read().lastFetchAtMs
-        var decision = decide(trigger, playing, respectPlayback, deferrals, lastFetchAtMs, stored)
+        var decision = decide(trigger, playing, respectPlayback, deferrals, lastFetchAtMs, stored, settings)
 
         // NEW-20260922-002: waiting for the catalogue is a *short* wait that belongs to the run, not
         // the job's 30-minute retry backoff. BUG-016 made a cold start that arrives before the channel
@@ -122,7 +127,7 @@ class EpgRefreshCoordinator(
                 catalogWaitMs = ready.waitedMs
                 stored = ready.guide
                 lastFetchAtMs = status.read().lastFetchAtMs
-                decision = decide(trigger, playing, respectPlayback, deferrals, lastFetchAtMs, stored)
+                decision = decide(trigger, playing, respectPlayback, deferrals, lastFetchAtMs, stored, settings)
             }
         }
         when (decision.action) {
@@ -214,6 +219,7 @@ class EpgRefreshCoordinator(
         deferrals: Int,
         lastFetchAtMs: Long?,
         stored: EpgStoredGuide,
+        settings: EpgRefreshSettings,
     ): EpgRefreshDecision = policy.decide(
         trigger = trigger,
         playing = playing,

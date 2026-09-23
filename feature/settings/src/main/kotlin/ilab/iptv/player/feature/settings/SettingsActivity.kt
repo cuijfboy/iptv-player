@@ -131,6 +131,31 @@ class SettingsActivity : ComponentActivity() {
             SettingsDestination.TOGGLE_FILE_LOG ->
                 viewModel.toggleFileLog()
 
+            // EPG-SETTINGS-1: the two EPG control faces. Both write through the persisted store; a
+            // toast says what the value is now, the same shape the log-level row already uses.
+            SettingsDestination.TOGGLE_EPG -> {
+                val enabled = viewModel.toggleEpg()
+                Toast.makeText(
+                    this,
+                    getString(
+                        if (enabled) R.string.settings_epg_enabled_on else R.string.settings_epg_enabled_off,
+                    ),
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+
+            SettingsDestination.CYCLE_EPG_FRESHNESS -> {
+                val intervalMs = viewModel.cycleEpgFreshness()
+                Toast.makeText(
+                    this,
+                    getString(
+                        R.string.settings_epg_freshness_summary,
+                        SettingsCatalog.formatInterval(intervalMs),
+                    ),
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+
             // A value row: nothing to open, and the click must not look broken.
             SettingsDestination.NONE -> Unit
         }

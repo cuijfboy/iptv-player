@@ -24,11 +24,11 @@ class EpgRefreshSchedulerTest {
     private val enqueuer = RecordingEpgWorkEnqueuer()
     private val status = FakeEpgSourceStatus()
     private val guide = FakeEpgStoredGuide()
-    private val settings = EpgRefreshSettings()
+    private val settings = FakeEpgSettingsStore()
     private val scheduler = EpgRefreshScheduler(
         enqueuer = enqueuer,
         policy = EpgRefreshPolicy(),
-        settings = settings,
+        settingsStore = settings,
         status = status,
         guide = guide,
         logger = logger,
@@ -137,6 +137,41 @@ class EpgRefreshSchedulerTest {
             EpgRefreshDecision(EpgRefreshAction.RUN, EpgRefreshPolicy.REASON_EMPTY_GUIDE),
         )
         assertThat(enqueuer.specs.single().trigger).isEqualTo(RefreshTrigger.FIRST_RUN)
+    }
+
+    @Test
+    fun `with EPG switched off nothing is queued, and the log says disabled`() = runTest {
+        // EPG-SETTINGS-1: 关 = 不调度、不拉取. The master switch must stop the enqueue before the job is
+        // ever created — the stored guide being stale or empty is irrelevant while it is off.
+        settings.set(EpgRefreshSettings(enabled = false))
+
+        val decision = scheduler.request(RefreshTrigger.FIRST_RUN)
+
+        assertThat(decision).isEqualTo(
+            EpgRefreshDecision(EpgRefreshAction.SKIP, EpgRefreshPolicy.REASON_DISABLED),
+        )
+        assertThat(enqueuer.specs).isEmpty()
+        val event = logger.fields(EventCodes.WORK_SCHEDULE)
+        assertThat(event["decision"]).isEqualTo("SKIP")
+        assertThat(event["reason"]).isEqualTo(EpgRefreshPolicy.REASON_DISABLED)
+    }
+
+    @Test
+    fun `the freshness threshold is read per request, so a change takes effect without a restart`() = runTest {
+        // A guide fetched one hour ago. With the 6 h default it is fresh (nothing queued); after the user
+        // lowers the threshold to 30 分钟 the very next request is stale and queues a run. EPG-SETTINGS-1.
+        status.set(lastFetchAtMs = clock.nowMs() - 60 * 60_000L)
+        assertThat(scheduler.request(RefreshTrigger.FIRST_RUN).action).isEqualTo(EpgRefreshAction.SKIP)
+        assertThat(enqueuer.specs).isEmpty()
+
+        settings.set(EpgRefreshSettings(minIntervalMs = EpgRefreshSettings.MIN_INTERVAL_MS))
+
+        val decision = scheduler.request(RefreshTrigger.FIRST_RUN)
+        assertThat(decision.action).isEqualTo(EpgRefreshAction.RUN)
+        assertThat(decision.reason).isEqualTo(EpgRefreshPolicy.REASON_STALE)
+        assertThat(enqueuer.specs).hasSize(1)
+        assertThat(logger.fields(EventCodes.WORK_SCHEDULE)["minIntervalMs"])
+            .isEqualTo(EpgRefreshSettings.MIN_INTERVAL_MS)
     }
 
     @Test

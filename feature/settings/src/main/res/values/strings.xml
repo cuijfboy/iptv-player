@@ -66,6 +66,11 @@
     <string name="settings_playback_avoidance_off">关</string>
     <string name="settings_refresh_schedule">每日定时刷新</string>
     <string name="settings_refresh_schedule_summary">每天 %1$s（P2-5 默认；改时间待后续）</string>
+    <string name="settings_epg_enabled">节目单（EPG）自动更新</string>
+    <string name="settings_epg_enabled_on">开：冷启动/刷新后自动拉取节目单；关掉只停调度，不删已有数据</string>
+    <string name="settings_epg_enabled_off">关：不调度、不拉取、不写库；已有节目单保留</string>
+    <string name="settings_epg_freshness">EPG 新鲜度阈值</string>
+    <string name="settings_epg_freshness_summary">%1$s内已有节目单就不重复拉取（按确定轮换 30 分钟 → 6 小时）</string>
     <string name="settings_diag_panel">诊断面板</string>
     <string name="settings_diag_panel_summary">运行概览 + 实时日志 + 一键导出诊断包</string>
     <string name="settings_diag_console">日志与设备</string>

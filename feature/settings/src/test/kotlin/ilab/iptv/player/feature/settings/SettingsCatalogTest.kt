@@ -17,6 +17,8 @@ class SettingsCatalogTest {
         playbackAvoidanceEnabled: Boolean = true,
         logLevel: String = "INFO",
         fileLogEnabled: Boolean = true,
+        epgEnabled: Boolean = true,
+        epgMinIntervalMs: Long = 6 * 60 * 60_000L,
         lastRefreshSummary: String = "还没刷新过",
     ) = SettingsFacts(
         sourceCount = sourceCount,
@@ -26,6 +28,8 @@ class SettingsCatalogTest {
         playbackAvoidanceEnabled = playbackAvoidanceEnabled,
         logLevel = logLevel,
         fileLogEnabled = fileLogEnabled,
+        epgEnabled = epgEnabled,
+        epgMinIntervalMs = epgMinIntervalMs,
         appVersion = "0.5.2 (5)",
         deviceSummary = "Sony BRAVIA / Android 12 (API 31) / ABI arm64-v8a",
     )
@@ -52,6 +56,8 @@ class SettingsCatalogTest {
         assertThat(entries.filter { it.destination != SettingsDestination.NONE }.map { it.id })
             .containsExactly(
                 "source.manage",
+                "refresh.epg.enabled",
+                "refresh.epg.freshness",
                 "diag.panel",
                 "diag.console",
                 "diag.level",
@@ -70,6 +76,31 @@ class SettingsCatalogTest {
             .isEqualTo(R.string.settings_diag_file_off)
         assertThat(SettingsCatalog.build(facts(fileLogEnabled = true)).first { it.id == "diag.file" }.summaryRes)
             .isEqualTo(R.string.settings_diag_file_on)
+    }
+
+    @Test
+    fun `the EPG rows report the switch and the freshness threshold`() {
+        val on = SettingsCatalog.build(facts(epgEnabled = true))
+        assertThat(on.first { it.id == "refresh.epg.enabled" }.summaryRes)
+            .isEqualTo(R.string.settings_epg_enabled_on)
+        assertThat(SettingsCatalog.build(facts(epgEnabled = false)).first { it.id == "refresh.epg.enabled" }.summaryRes)
+            .isEqualTo(R.string.settings_epg_enabled_off)
+
+        // The freshness row shows a person-readable interval, not milliseconds.
+        assertThat(SettingsCatalog.build(facts(epgMinIntervalMs = 60 * 60_000L))
+            .first { it.id == "refresh.epg.freshness" }.summaryArgs)
+            .containsExactly("1 小时")
+        assertThat(SettingsCatalog.build(facts(epgMinIntervalMs = 30 * 60_000L))
+            .first { it.id == "refresh.epg.freshness" }.summaryArgs)
+            .containsExactly("30 分钟")
+    }
+
+    @Test
+    fun `formatInterval reads hours for whole hours and minutes otherwise`() {
+        assertThat(SettingsCatalog.formatInterval(6 * 60 * 60_000L)).isEqualTo("6 小时")
+        assertThat(SettingsCatalog.formatInterval(2 * 60 * 60_000L)).isEqualTo("2 小时")
+        assertThat(SettingsCatalog.formatInterval(30 * 60_000L)).isEqualTo("30 分钟")
+        assertThat(SettingsCatalog.formatInterval(90 * 60_000L)).isEqualTo("90 分钟")
     }
 
     @Test

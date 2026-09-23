@@ -36,20 +36,23 @@ class EpgRefreshGatewayTest {
             byGroup = mapOf(ChannelGroup.CCTV to 80, ChannelGroup.SATELLITE to 69, ChannelGroup.HK_MO_TW to 4),
             byGroupTotal = mapOf(ChannelGroup.CCTV to 80, ChannelGroup.SATELLITE to 69, ChannelGroup.HK_MO_TW to 7),
         ),
-    ) = EpgRefreshGateway(
-        scheduler = EpgRefreshScheduler(
-            enqueuer = enqueuer,
-            policy = ilab.iptv.player.core.domain.refresh.EpgRefreshPolicy(),
-            settings = settings,
-            status = status,
-            guide = FakeEpgStoredGuide(),
-            logger = logger,
-            clock = clock,
-        ),
-        statusReader = status,
-        repository = StubEpgRepository(coverage),
-        settings = settings,
-    )
+    ): EpgRefreshGateway {
+        val store = FakeEpgSettingsStore(settings)
+        return EpgRefreshGateway(
+            scheduler = EpgRefreshScheduler(
+                enqueuer = enqueuer,
+                policy = ilab.iptv.player.core.domain.refresh.EpgRefreshPolicy(),
+                settingsStore = store,
+                status = status,
+                guide = FakeEpgStoredGuide(),
+                logger = logger,
+                clock = clock,
+            ),
+            statusReader = status,
+            repository = StubEpgRepository(coverage),
+            settingsStore = store,
+        )
+    }
 
     @Test
     fun `the button queues the manual job even when the stored guide is fresh`() = runTest {

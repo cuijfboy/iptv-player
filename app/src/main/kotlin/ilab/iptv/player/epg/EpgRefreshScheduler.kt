@@ -13,6 +13,7 @@ import ilab.iptv.player.core.domain.refresh.EpgRefreshPort
 import ilab.iptv.player.core.domain.refresh.EpgRefreshRequest
 import ilab.iptv.player.core.domain.refresh.EpgRefreshSettings
 import ilab.iptv.player.core.domain.refresh.EpgRefreshStatus
+import ilab.iptv.player.core.domain.refresh.EpgSettingsStore
 import ilab.iptv.player.core.domain.repository.EpgRepository
 import ilab.iptv.player.core.model.RefreshTrigger
 
@@ -42,7 +43,7 @@ import ilab.iptv.player.core.model.RefreshTrigger
 class EpgRefreshScheduler(
     private val enqueuer: EpgWorkEnqueuer,
     private val policy: EpgRefreshPolicy,
-    private val settings: EpgRefreshSettings,
+    private val settingsStore: EpgSettingsStore,
     private val status: EpgSourceStatusReader,
     private val guide: EpgStoredGuideReader,
     private val logger: Logger,
@@ -51,6 +52,10 @@ class EpgRefreshScheduler(
 
     /** Decides and, when it decides to run, queues the job. Returns the decision it acted on. */
     suspend fun request(trigger: RefreshTrigger): EpgRefreshDecision {
+        // Read the setting per request (EPG-SETTINGS-1): the master switch and the freshness threshold
+        // are user-editable, so "off" and a changed interval must take effect on the next trigger, not
+        // the next process. One small in-memory `SharedPreferences` read.
+        val settings = settingsStore.read()
         val nowMs = clock.nowMs()
         val lastFetchAtMs = status.read().lastFetchAtMs
         val stored = guide.read()
@@ -104,7 +109,7 @@ class EpgRefreshGateway(
     private val scheduler: EpgRefreshScheduler,
     private val statusReader: EpgSourceStatusReader,
     private val repository: EpgRepository,
-    private val settings: EpgRefreshSettings,
+    private val settingsStore: EpgSettingsStore,
 ) : EpgRefreshPort {
 
     override suspend fun requestNow(): EpgRefreshRequest {
@@ -115,10 +120,15 @@ class EpgRefreshGateway(
         )
     }
 
-    override suspend fun status(): EpgRefreshStatus = EpgRefreshStatus(
-        enabled = settings.enabled,
-        settings = settings,
-        sources = statusReader.read(),
-        coverage = repository.coverage(),
-    )
+    override suspend fun status(): EpgRefreshStatus {
+        // One read for the whole snapshot (EPG-SETTINGS-1): the panel's switch state and its freshness
+        // line must agree, and the store's read is cheap.
+        val settings = settingsStore.read()
+        return EpgRefreshStatus(
+            enabled = settings.enabled,
+            settings = settings,
+            sources = statusReader.read(),
+            coverage = repository.coverage(),
+        )
+    }
 }

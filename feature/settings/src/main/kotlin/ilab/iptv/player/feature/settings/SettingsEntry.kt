@@ -30,6 +30,10 @@ enum class SettingsDestination {
     DIAGNOSTICS,
     CYCLE_LOG_LEVEL,
     TOGGLE_FILE_LOG,
+    /** EPG-SETTINGS-1: the EPG master switch (关 = 不调度、不拉取，保留已有数据). */
+    TOGGLE_EPG,
+    /** EPG-SETTINGS-1: cycle the EPG freshness threshold through the presets. */
+    CYCLE_EPG_FRESHNESS,
 }
 
 /** One row of the page. [summaryArgs] are `String.format` arguments for [summaryRes]. */
@@ -56,6 +60,10 @@ data class SettingsFacts(
     val playbackAvoidanceEnabled: Boolean,
     val logLevel: String,
     val fileLogEnabled: Boolean,
+    /** EPG-SETTINGS-1: the EPG master switch, as the settings page shows it. */
+    val epgEnabled: Boolean,
+    /** EPG-SETTINGS-1: the persisted freshness threshold in milliseconds. */
+    val epgMinIntervalMs: Long,
     val appVersion: String,
     val deviceSummary: String,
 )
@@ -152,6 +160,27 @@ object SettingsCatalog {
             summaryArgs = listOf(formatMinuteOfDay(facts.refreshMinuteOfDay)),
             destination = SettingsDestination.NONE,
         ),
+        // EPG-SETTINGS-1: the two常用控制面 the dispatch asks for — the master switch and the
+        // freshness threshold — reachable from the settings page, not only the diagnostics panel.
+        SettingsEntry(
+            id = "refresh.epg.enabled",
+            group = SettingsGroup.REFRESH,
+            titleRes = R.string.settings_epg_enabled,
+            summaryRes = if (facts.epgEnabled) {
+                R.string.settings_epg_enabled_on
+            } else {
+                R.string.settings_epg_enabled_off
+            },
+            destination = SettingsDestination.TOGGLE_EPG,
+        ),
+        SettingsEntry(
+            id = "refresh.epg.freshness",
+            group = SettingsGroup.REFRESH,
+            titleRes = R.string.settings_epg_freshness,
+            summaryRes = R.string.settings_epg_freshness_summary,
+            summaryArgs = listOf(formatInterval(facts.epgMinIntervalMs)),
+            destination = SettingsDestination.CYCLE_EPG_FRESHNESS,
+        ),
 
         // --- 诊断 -------------------------------------------------------------------------------
         SettingsEntry(
@@ -221,6 +250,14 @@ object SettingsCatalog {
         val safe = minuteOfDay.coerceIn(MINUTE_OF_DAY_RANGE)
         return "%02d:%02d".format(safe / 60, safe % 60)
     }
+
+    /**
+     * The EPG freshness threshold as a person reads it: `6 小时` / `30 分钟`. A value that is not a whole
+     * number of hours falls back to minutes, so a hand-edited preference still renders honestly instead
+     * of as `1.5 小时`.
+     */
+    fun formatInterval(ms: Long): String =
+        if (ms % 3_600_000L == 0L) "${ms / 3_600_000L} 小时" else "${ms / 60_000L} 分钟"
 
     private val MINUTE_OF_DAY_RANGE = 0..(24 * 60 - 1)
 }

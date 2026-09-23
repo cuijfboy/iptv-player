@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import ilab.iptv.player.core.common.LogLevel
+import ilab.iptv.player.core.domain.refresh.EpgRefreshSettings
+import ilab.iptv.player.core.domain.refresh.EpgSettingsStore
 import ilab.iptv.player.core.domain.refresh.RefreshScheduleSettings
 import ilab.iptv.player.core.domain.source.SourceManagementPort
 import ilab.iptv.player.core.log.DeviceInfo
@@ -33,6 +35,7 @@ class SettingsViewModel @Inject constructor(
     private val fileSink: FileSink,
     private val sources: SourceManagementPort,
     private val refreshSettings: RefreshScheduleSettings,
+    private val epgSettings: EpgSettingsStore,
 ) : ViewModel() {
 
     private val _facts = MutableStateFlow(initialFacts())
@@ -43,10 +46,13 @@ class SettingsViewModel @Inject constructor(
         val managed = sources.list()
         val freshestFetch = managed.filter { it.lastFetchAtMs != null }
             .maxByOrNull { it.lastFetchAtMs ?: 0L }
+        val epg = epgSettings.read()
         _facts.value = initialFacts().copy(
             sourceCount = managed.size,
             enabledSourceCount = managed.count { it.enabled },
             lastRefreshSummary = lastRefreshSummary(managed.isEmpty(), freshestFetch?.lastFetchAtMs, freshestFetch?.entryCount),
+            epgEnabled = epg.enabled,
+            epgMinIntervalMs = epg.minIntervalMs,
         )
     }
 
@@ -73,19 +79,47 @@ class SettingsViewModel @Inject constructor(
         return fileSink.enabled
     }
 
-    private fun initialFacts(): SettingsFacts = SettingsFacts(
-        sourceCount = 0,
-        enabledSourceCount = 0,
-        lastRefreshSummary = NOT_LOADED,
-        refreshMinuteOfDay = refreshSettings.refreshAtMinuteOfDay(),
-        // P2-5's policy is wired in `:app` with the frozen default (3 deferrals / 30 min); the page
-        // reports it rather than offering a switch that does not exist yet.
-        playbackAvoidanceEnabled = true,
-        logLevel = logBus.minLevel.name,
-        fileLogEnabled = fileSink.enabled,
-        appVersion = DeviceInfo.appVersion(context),
-        deviceSummary = DeviceInfo.deviceSummary(),
-    )
+    /**
+     * EPG-SETTINGS-1: the EPG master switch. Writes through the store (so it survives a restart) and
+     * returns the new state; `:app`'s scheduler/coordinator read the same store per trigger, so their
+     * next decision already obeys the new value without touching the existing programme data.
+     */
+    fun toggleEpg(): Boolean {
+        val current = epgSettings.read()
+        val next = !current.enabled
+        epgSettings.write(current.copy(enabled = next))
+        _facts.value = _facts.value.copy(epgEnabled = next)
+        return next
+    }
+
+    /** EPG-SETTINGS-1: cycles the freshness threshold through the presets and persists the new value. */
+    fun cycleEpgFreshness(): Long {
+        val current = epgSettings.read()
+        val next = EpgRefreshSettings.nextMinInterval(current.minIntervalMs)
+        epgSettings.write(current.copy(minIntervalMs = next))
+        _facts.value = _facts.value.copy(epgMinIntervalMs = next)
+        return next
+    }
+
+    private fun initialFacts(): SettingsFacts {
+        // EPG-SETTINGS-1: one read, so the first frame reflects a persisted change instead of defaults.
+        val epg = epgSettings.read()
+        return SettingsFacts(
+            sourceCount = 0,
+            enabledSourceCount = 0,
+            lastRefreshSummary = NOT_LOADED,
+            refreshMinuteOfDay = refreshSettings.refreshAtMinuteOfDay(),
+            // P2-5's policy is wired in `:app` with the frozen default (3 deferrals / 30 min); the page
+            // reports it rather than offering a switch that does not exist yet.
+            playbackAvoidanceEnabled = true,
+            logLevel = logBus.minLevel.name,
+            fileLogEnabled = fileSink.enabled,
+            epgEnabled = epg.enabled,
+            epgMinIntervalMs = epg.minIntervalMs,
+            appVersion = DeviceInfo.appVersion(context),
+            deviceSummary = DeviceInfo.deviceSummary(),
+        )
+    }
 
     private fun lastRefreshSummary(noSources: Boolean, lastFetchAtMs: Long?, entries: Int?): String = when {
         noSources -> "没有订阅（当前是内置快照）"

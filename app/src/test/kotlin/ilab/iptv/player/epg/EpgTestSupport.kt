@@ -3,11 +3,41 @@ package ilab.iptv.player.epg
 import ilab.iptv.player.core.common.AppResult
 import ilab.iptv.player.core.data.epg.EpgSourceStatusReader
 import ilab.iptv.player.core.data.epg.EpgStoredGuideReader
+import ilab.iptv.player.core.domain.refresh.EpgRefreshSettings
+import ilab.iptv.player.core.domain.refresh.EpgSettingsStore
 import ilab.iptv.player.core.model.ChannelGroup
 import ilab.iptv.player.core.model.EpgCoverage
 import ilab.iptv.player.core.model.EpgLoadReport
 import ilab.iptv.player.core.model.EpgSourceStatus
 import ilab.iptv.player.core.model.EpgStoredGuide
+
+/**
+ * A settings store the test owns: the scheduler/coordinator read it per trigger/run, so a test can
+ * change the switch or the freshness threshold between calls and observe the new decision
+ * (EPG-SETTINGS-1). Sanitizes on the way in and out, like the production store, so a test that writes
+ * an out-of-range value sees the clamped one.
+ */
+class FakeEpgSettingsStore(
+    private var settings: EpgRefreshSettings = EpgRefreshSettings(),
+) : EpgSettingsStore {
+
+    /** How many times the value was read — proves the read happens per call, not once at construction. */
+    var reads: Int = 0
+        private set
+
+    override fun read(): EpgRefreshSettings {
+        reads++
+        return settings.sanitized()
+    }
+
+    override fun write(settings: EpgRefreshSettings) {
+        this.settings = settings.sanitized()
+    }
+
+    fun set(settings: EpgRefreshSettings) {
+        this.settings = settings
+    }
+}
 
 /** An `epg_source` table whose freshness the test chooses; nothing else is ever read from it. */
 class FakeEpgSourceStatus(

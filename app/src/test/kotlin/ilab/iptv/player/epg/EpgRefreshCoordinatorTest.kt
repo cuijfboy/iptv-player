@@ -33,7 +33,7 @@ class EpgRefreshCoordinatorTest {
     ) = EpgRefreshCoordinator(
         runner = runner,
         policy = EpgRefreshPolicy(),
-        settings = settings,
+        settingsStore = FakeEpgSettingsStore(settings),
         status = status,
         guide = guide,
         playback = EpgRefreshCoordinator.PlaybackProbe { playing },
@@ -129,6 +129,20 @@ class EpgRefreshCoordinatorTest {
         assertThat(result).isEqualTo(EpgRunResult.Skipped(EpgRefreshPolicy.REASON_FRESH))
         assertThat(runner.calls).isEqualTo(0)
         assertThat(logger.fields(EventCodes.WORK_RUN)["decision"]).isEqualTo("SKIP")
+    }
+
+    @Test
+    fun `with EPG switched off the run does not touch the pipeline, so stored data is preserved`() = runTest {
+        // EPG-SETTINGS-1: 关 = 不调度、不拉取、不写库，但保留已有数据. The runner is the only thing that
+        // writes programmes, so "0 calls" is exactly "nothing was written", and nothing here deletes.
+        status.set(lastFetchAtMs = clock.nowMs() - 24 * 60 * 60_000L) // stale, yet still off
+        val runner = FakeEpgRunner()
+
+        val result = coordinator(runner, EpgRefreshSettings(enabled = false)).run(RefreshTrigger.MANUAL)
+
+        assertThat(result).isEqualTo(EpgRunResult.Skipped(EpgRefreshPolicy.REASON_DISABLED))
+        assertThat(runner.calls).isEqualTo(0)
+        assertThat(logger.fields(EventCodes.WORK_RUN)["reason"]).isEqualTo(EpgRefreshPolicy.REASON_DISABLED)
     }
 
     @Test
